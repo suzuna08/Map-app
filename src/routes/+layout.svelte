@@ -1,0 +1,81 @@
+<script lang="ts">
+	import '../app.css';
+	import { invalidate, goto } from '$app/navigation';
+	import { onMount } from 'svelte';
+
+	let { data, children } = $props();
+
+	let supabase = $derived(data.supabase);
+	let session = $derived(data.session);
+
+	onMount(() => {
+		const {
+			data: { subscription }
+		} = supabase.auth.onAuthStateChange((_, newSession) => {
+			if (newSession?.expires_at !== session?.expires_at) {
+				invalidate('supabase:auth');
+			}
+		});
+
+		return () => subscription.unsubscribe();
+	});
+
+	async function handleSignOut() {
+		await supabase.auth.signOut();
+		goto('/login');
+	}
+</script>
+
+<svelte:head>
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+	<link
+		href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap"
+		rel="stylesheet"
+	/>
+	<title>MapOrganizer</title>
+</svelte:head>
+
+<div class="min-h-screen bg-sage-100 font-sans">
+	<nav class="sticky top-0 z-30 border-b border-warm-200/60 bg-warm-50/85 backdrop-blur-lg">
+		<div class="mx-auto flex h-14 max-w-[1400px] items-center justify-between px-4 sm:px-6">
+			<a href={session ? '/places' : '/'} class="flex items-center gap-2 text-lg font-extrabold text-warm-800">
+				<svg class="h-6 w-6 text-brand-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+					<circle cx="12" cy="10" r="3" />
+				</svg>
+				MapOrganizer
+			</a>
+
+			{#if session}
+				<div class="flex items-center gap-3">
+					<a
+						href="/places"
+						class="rounded-lg px-3 py-1.5 text-sm font-bold text-warm-600 transition-colors hover:bg-warm-100 hover:text-warm-800"
+					>
+						My Places
+					</a>
+					<a
+						href="/upload"
+						class="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-1.5 text-sm font-bold text-white transition-colors hover:bg-brand-700"
+					>
+						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+							<polyline points="17 8 12 3 7 8" />
+							<line x1="12" y1="3" x2="12" y2="15" />
+						</svg>
+						Upload
+					</a>
+					<button
+						onclick={handleSignOut}
+						class="rounded-lg px-3 py-1.5 text-sm font-medium text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600"
+					>
+						Sign out
+					</button>
+				</div>
+			{/if}
+		</div>
+	</nav>
+
+	{@render children()}
+</div>
