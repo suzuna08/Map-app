@@ -95,7 +95,7 @@
 {/if}
 
 <aside
-	class="fixed top-14 bottom-0 left-0 z-40 flex w-64 flex-col border-r border-warm-200 bg-warm-50 pb-[env(safe-area-inset-bottom)] transition-transform duration-200 lg:translate-x-0 {mobileOpen ? 'translate-x-0' : '-translate-x-full'}"
+	class="fixed bottom-0 left-0 top-[calc(3.5rem+env(safe-area-inset-top))] z-40 flex w-64 flex-col border-r border-warm-200 bg-warm-50 pb-[env(safe-area-inset-bottom)] transition-transform duration-200 lg:translate-x-0 {mobileOpen ? 'translate-x-0' : '-translate-x-full'}"
 >
 	<div class="flex-1 overflow-y-auto px-3 py-4">
 		<!-- All Places -->

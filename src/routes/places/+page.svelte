@@ -165,9 +165,9 @@
 
 	<!-- Main content -->
 	<div class="flex-1 lg:ml-64">
-		<div class="mx-auto max-w-5xl px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6">
+		<div class="mx-auto max-w-5xl px-4 py-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-6">
 			<!-- Mobile sidebar toggle + search bar -->
-			<div class="mb-5 flex items-center gap-3">
+			<div class="sticky top-0 z-20 -mx-4 mb-5 flex items-center gap-3 bg-sage-100/90 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-sage-100/70 sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
 				<button
 					onclick={() => { sidebarOpen = true; }}
 					class="rounded-lg border border-warm-200 p-2 text-warm-500 lg:hidden"
@@ -263,7 +263,7 @@
 			{/if}
 
 			<!-- Unified smart tag filter row -->
-			<div class="mb-5 flex flex-wrap items-center gap-x-2 gap-y-2">
+			<div class="mb-5 flex items-center gap-2 overflow-x-auto pb-1 pr-2 whitespace-nowrap [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden md:flex-wrap md:gap-x-2 md:gap-y-2 md:overflow-visible md:pb-0 md:pr-0">
 				<!-- All button -->
 				<button
 					onclick={() => { selectedTagMap = {}; selectedSource = 'all'; }}
