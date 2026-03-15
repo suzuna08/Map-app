@@ -167,7 +167,7 @@
 	<div class="flex-1 lg:ml-64">
 		<div class="mx-auto max-w-5xl px-4 py-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-6">
 			<!-- Mobile sidebar toggle + search bar -->
-			<div class="sticky top-0 z-20 -mx-4 mb-5 flex items-center gap-3 bg-sage-100/90 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-sage-100/70 sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
+			<div class="sticky top-14 z-20 -mx-4 mb-5 flex items-center gap-3 bg-sage-100/90 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-sage-100/70 sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
 				<button
 					onclick={() => { sidebarOpen = true; }}
 					class="rounded-lg border border-warm-200 p-2 text-warm-500 lg:hidden"
@@ -410,7 +410,7 @@
 					{/if}
 				</div>
 			{:else if viewMode === 'grid'}
-				<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+				<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
 					{#each filteredPlaces as place (place.id)}
 						<PlaceCard
 							{place}

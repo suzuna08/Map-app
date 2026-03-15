@@ -37,7 +37,7 @@
 	}
 </script>
 
-<article class="group flex flex-col rounded-2xl border border-warm-200 bg-white p-5 transition-all hover:shadow-md hover:shadow-warm-200/50">
+<article class="group flex flex-col rounded-2xl border border-warm-200 bg-white p-4 transition-all hover:shadow-md hover:shadow-warm-200/50 sm:p-5">
 	<!-- Top row: category + area + rating -->
 	<div class="mb-3 flex items-center justify-between">
 		<div class="flex flex-wrap items-center gap-1.5">
