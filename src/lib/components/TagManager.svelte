@@ -89,7 +89,7 @@
 ></button>
 
 <!-- Modal -->
-<div class="fixed inset-x-4 top-[15%] z-50 mx-auto max-w-md rounded-2xl border border-warm-200 bg-warm-50 shadow-2xl sm:inset-x-auto sm:w-full">
+<div class="fixed inset-x-4 top-[10%] z-50 mx-auto max-h-[80dvh] max-w-md overflow-hidden rounded-2xl border border-warm-200 bg-warm-50 shadow-2xl sm:inset-x-auto sm:top-[15%] sm:max-h-[70vh] sm:w-full">
 	<!-- Header -->
 	<div class="flex items-center justify-between border-b border-warm-200 px-5 py-4">
 		<h2 class="text-base font-bold text-warm-800">Manage Tags</h2>
@@ -121,7 +121,7 @@
 								type="text"
 								bind:value={editName}
 								onkeydown={(e) => handleEditKeydown(e, tag.id)}
-								class="flex-1 rounded-lg border border-warm-200 bg-white px-3 py-1.5 text-sm focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+								class="flex-1 rounded-lg border border-warm-200 bg-white px-3 py-2 text-base focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400 sm:text-sm"
 								autofocus
 							/>
 						</div>
@@ -212,7 +212,7 @@
 				bind:value={newTagName}
 				onkeydown={handleNewKeydown}
 				placeholder="New tag name..."
-				class="flex-1 border-0 bg-transparent py-1 text-sm text-warm-700 placeholder-warm-400 focus:outline-none"
+				class="flex-1 border-0 bg-transparent py-1 text-base text-warm-700 placeholder-warm-400 focus:outline-none sm:text-sm"
 			/>
 			{#if newTagName.trim()}
 				<button

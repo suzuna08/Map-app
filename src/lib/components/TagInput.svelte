@@ -123,11 +123,11 @@
 			>
 				{tag.name}
 			</button>
-			<button
-				onclick={() => removeTag(tag.id)}
-				class="rounded-full p-0.5 pr-1.5 opacity-60 transition-opacity hover:opacity-100"
-				aria-label="Remove tag {tag.name}"
-			>
+		<button
+			onclick={() => removeTag(tag.id)}
+			class="rounded-full p-1 pr-2 opacity-60 transition-opacity hover:opacity-100"
+			aria-label="Remove tag {tag.name}"
+		>
 				<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
 					<line x1="18" y1="6" x2="6" y2="18" />
 					<line x1="6" y1="6" x2="18" y2="18" />
@@ -145,7 +145,7 @@
 				onblur={() => { setTimeout(() => { showSuggestions = false; showInput = false; inputValue = ''; }, 150); }}
 				onkeydown={handleKeydown}
 				placeholder="tag name..."
-				class="w-28 rounded-full border border-warm-200 bg-warm-50 px-2.5 py-0.5 text-[11px] text-warm-700 placeholder-warm-400 focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-400"
+				class="w-28 rounded-full border border-warm-200 bg-warm-50 px-2.5 py-1 text-base text-warm-700 placeholder-warm-400 focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-400 sm:text-xs"
 			/>
 
 			{#if showSuggestions && (suggestions.length > 0 || showCreateOption)}
@@ -178,15 +178,15 @@
 			{/if}
 		</div>
 	{:else}
-		<button
-			onclick={openInput}
-			class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-dashed border-warm-300 text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-500"
-			aria-label="Add tag"
-		>
-			<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<line x1="12" y1="5" x2="12" y2="19" />
-				<line x1="5" y1="12" x2="19" y2="12" />
-			</svg>
-		</button>
+	<button
+		onclick={openInput}
+		class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-dashed border-warm-300 text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-500"
+		aria-label="Add tag"
+	>
+		<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+			<line x1="12" y1="5" x2="12" y2="19" />
+			<line x1="5" y1="12" x2="19" y2="12" />
+		</svg>
+	</button>
 	{/if}
 </div>

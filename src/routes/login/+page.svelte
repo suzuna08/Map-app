@@ -70,8 +70,8 @@
 					type="email"
 					bind:value={email}
 					required
-					class="w-full rounded-lg border border-warm-200 bg-warm-50 px-3 py-2.5 text-sm shadow-sm transition-colors focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-					placeholder="you@example.com"
+				class="w-full rounded-lg border border-warm-200 bg-warm-50 px-3 py-2.5 text-base shadow-sm transition-colors focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 sm:text-sm"
+				placeholder="you@example.com"
 				/>
 			</div>
 
@@ -83,8 +83,8 @@
 					bind:value={password}
 					required
 					minlength="6"
-					class="w-full rounded-lg border border-warm-200 bg-warm-50 px-3 py-2.5 text-sm shadow-sm transition-colors focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-					placeholder="At least 6 characters"
+				class="w-full rounded-lg border border-warm-200 bg-warm-50 px-3 py-2.5 text-base shadow-sm transition-colors focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 sm:text-sm"
+				placeholder="At least 6 characters"
 				/>
 			</div>
 

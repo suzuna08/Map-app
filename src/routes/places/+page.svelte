@@ -144,7 +144,7 @@
 	}
 </script>
 
-<div class="flex min-h-[calc(100vh-3.5rem)]">
+<div class="flex min-h-[calc(100dvh-3.5rem)]">
 	<!-- Sidebar -->
 	<TagSidebar
 		{supabase}
@@ -165,7 +165,7 @@
 
 	<!-- Main content -->
 	<div class="flex-1 lg:ml-64">
-		<div class="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+		<div class="mx-auto max-w-5xl px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6">
 			<!-- Mobile sidebar toggle + search bar -->
 			<div class="mb-5 flex items-center gap-3">
 				<button
@@ -194,7 +194,7 @@
 						type="text"
 						bind:value={search}
 						placeholder="Search places, tags, addresses..."
-						class="w-full rounded-xl border border-warm-200 bg-warm-50 py-2.5 pl-11 pr-4 text-sm font-medium shadow-sm transition-colors focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20"
+						class="w-full rounded-xl border border-warm-200 bg-warm-50 py-2.5 pl-11 pr-4 text-base font-medium shadow-sm transition-colors focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:text-sm"
 					/>
 				</div>
 			</div>
@@ -359,10 +359,10 @@
 				<div class="flex items-center gap-1 rounded-lg border border-warm-200 bg-white p-0.5">
 					<button
 						onclick={() => { viewMode = 'grid'; }}
-						class="rounded-md p-1.5 transition-colors {viewMode === 'grid' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
+						class="rounded-md p-2 transition-colors {viewMode === 'grid' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
 						aria-label="Grid view"
 					>
-						<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<rect x="3" y="3" width="7" height="7" />
 							<rect x="14" y="3" width="7" height="7" />
 							<rect x="3" y="14" width="7" height="7" />
@@ -371,10 +371,10 @@
 					</button>
 					<button
 						onclick={() => { viewMode = 'list'; }}
-						class="rounded-md p-1.5 transition-colors {viewMode === 'list' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
+						class="rounded-md p-2 transition-colors {viewMode === 'list' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
 						aria-label="List view"
 					>
-						<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<line x1="8" y1="6" x2="21" y2="6" />
 							<line x1="8" y1="12" x2="21" y2="12" />
 							<line x1="8" y1="18" x2="21" y2="18" />

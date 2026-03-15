@@ -96,7 +96,7 @@
 	let totalPlaces = $derived(parseResults.reduce((sum, r) => sum + r.places.length, 0));
 </script>
 
-<div class="mx-auto max-w-2xl">
+<div class="mx-auto max-w-2xl px-4 py-6 pb-[env(safe-area-inset-bottom)] sm:px-6">
 	<div class="mb-8">
 		<h1 class="text-2xl font-bold text-warm-800">Upload Google Maps Places</h1>
 		<p class="mt-1 text-sm text-warm-500">

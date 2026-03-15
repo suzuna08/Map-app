@@ -1,5 +1,25 @@
 @import 'tailwindcss';
 
+html {
+	-webkit-text-size-adjust: 100%;
+	-webkit-tap-highlight-color: transparent;
+	overscroll-behavior: none;
+}
+
+body {
+	overscroll-behavior-y: none;
+	-webkit-overflow-scrolling: touch;
+}
+
+@supports (padding-top: env(safe-area-inset-top)) {
+	body {
+		padding-top: env(safe-area-inset-top);
+		padding-bottom: env(safe-area-inset-bottom);
+		padding-left: env(safe-area-inset-left);
+		padding-right: env(safe-area-inset-right);
+	}
+}
+
 @theme {
 	--font-sans: 'Nunito', ui-sans-serif, system-ui, sans-serif;
 	--color-brand-50: #f9f6f1;

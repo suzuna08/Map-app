@@ -36,7 +36,7 @@
 	<title>MapOrganizer</title>
 </svelte:head>
 
-<div class="min-h-screen bg-sage-100 font-sans">
+<div class="min-h-[100dvh] bg-sage-100 font-sans">
 	<nav class="sticky top-0 z-30 border-b border-warm-200/60 bg-warm-50/85 backdrop-blur-lg">
 		<div class="mx-auto flex h-14 max-w-[1400px] items-center justify-between px-4 sm:px-6">
 			<a href={session ? '/places' : '/'} class="flex items-center gap-2 text-lg font-extrabold text-warm-800">
@@ -47,33 +47,33 @@
 				MapOrganizer
 			</a>
 
-			{#if session}
-				<div class="flex items-center gap-3">
-					<a
-						href="/places"
-						class="rounded-lg px-3 py-1.5 text-sm font-bold text-warm-600 transition-colors hover:bg-warm-100 hover:text-warm-800"
-					>
-						My Places
-					</a>
-					<a
-						href="/upload"
-						class="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-1.5 text-sm font-bold text-white transition-colors hover:bg-brand-700"
-					>
-						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-							<polyline points="17 8 12 3 7 8" />
-							<line x1="12" y1="3" x2="12" y2="15" />
-						</svg>
-						Upload
-					</a>
-					<button
-						onclick={handleSignOut}
-						class="rounded-lg px-3 py-1.5 text-sm font-medium text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600"
-					>
-						Sign out
-					</button>
-				</div>
-			{/if}
+		{#if session}
+			<div class="flex items-center gap-1.5 sm:gap-3">
+				<a
+					href="/places"
+					class="rounded-lg px-2 py-1.5 text-sm font-bold text-warm-600 transition-colors hover:bg-warm-100 hover:text-warm-800 sm:px-3"
+				>
+					My Places
+				</a>
+				<a
+					href="/upload"
+					class="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-2.5 py-1.5 text-sm font-bold text-white transition-colors hover:bg-brand-700 sm:px-3.5"
+				>
+					<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+						<polyline points="17 8 12 3 7 8" />
+						<line x1="12" y1="3" x2="12" y2="15" />
+					</svg>
+					<span class="hidden sm:inline">Upload</span>
+				</a>
+				<button
+					onclick={handleSignOut}
+					class="rounded-lg px-2 py-1.5 text-xs font-medium text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600 sm:px-3 sm:text-sm"
+				>
+					Sign out
+				</button>
+			</div>
+		{/if}
 		</div>
 	</nav>
 

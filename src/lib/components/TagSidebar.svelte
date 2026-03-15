@@ -95,7 +95,7 @@
 {/if}
 
 <aside
-	class="fixed top-14 bottom-0 left-0 z-40 flex w-64 flex-col border-r border-warm-200 bg-warm-50 transition-transform duration-200 lg:translate-x-0 {mobileOpen ? 'translate-x-0' : '-translate-x-full'}"
+	class="fixed top-14 bottom-0 left-0 z-40 flex w-64 flex-col border-r border-warm-200 bg-warm-50 pb-[env(safe-area-inset-bottom)] transition-transform duration-200 lg:translate-x-0 {mobileOpen ? 'translate-x-0' : '-translate-x-full'}"
 >
 	<div class="flex-1 overflow-y-auto px-3 py-4">
 		<!-- All Places -->
@@ -195,7 +195,7 @@
 						bind:value={newTagName}
 						onkeydown={handleKeydown}
 						placeholder="Tag name..."
-						class="w-full rounded-md border border-warm-200 bg-white px-2.5 py-1.5 text-xs focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+						class="w-full rounded-md border border-warm-200 bg-white px-2.5 py-1.5 text-base focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400 sm:text-sm"
 						autofocus
 					/>
 				</div>
@@ -222,11 +222,11 @@
 					</div>
 					<div class="flex items-center gap-1">
 						<span class="text-xs text-warm-400">{count}</span>
-						<button
-							onclick={(e) => deleteTag(tag.id, e)}
-							class="rounded p-0.5 text-warm-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
-							aria-label="Delete tag {tag.name}"
-						>
+					<button
+						onclick={(e) => deleteTag(tag.id, e)}
+						class="rounded p-1.5 text-warm-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+						aria-label="Delete tag {tag.name}"
+					>
 							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 								<line x1="18" y1="6" x2="6" y2="18" />
 								<line x1="6" y1="6" x2="18" y2="18" />
