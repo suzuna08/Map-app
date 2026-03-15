@@ -144,7 +144,7 @@
 	}
 </script>
 
-<div class="flex min-h-[calc(100dvh-3.5rem)]">
+<div class="min-h-[calc(100dvh-3rem)] overflow-x-hidden sm:min-h-[calc(100dvh-3.5rem)]">
 	<!-- Sidebar -->
 	<TagSidebar
 		{supabase}
@@ -164,16 +164,16 @@
 	/>
 
 	<!-- Main content -->
-	<div class="flex-1 lg:ml-64">
-		<div class="mx-auto max-w-5xl px-4 py-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-6">
+	<div class="lg:ml-64">
+		<div class="mx-auto max-w-5xl px-3 py-3 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6">
 			<!-- Mobile sidebar toggle + search bar -->
-			<div class="sticky top-14 z-20 -mx-4 mb-5 flex items-center gap-3 bg-sage-100/90 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-sage-100/70 sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
+			<div class="sticky top-12 z-20 mb-3 flex items-center gap-2 sm:static sm:top-14 sm:mb-5 sm:gap-3">
 				<button
 					onclick={() => { sidebarOpen = true; }}
-					class="rounded-lg border border-warm-200 p-2 text-warm-500 lg:hidden"
+					class="rounded-md border border-warm-200 p-1.5 text-warm-500 sm:rounded-lg sm:p-2 lg:hidden"
 					aria-label="Open sidebar"
 				>
-					<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<svg class="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<line x1="3" y1="6" x2="21" y2="6" />
 						<line x1="3" y1="12" x2="21" y2="12" />
 						<line x1="3" y1="18" x2="21" y2="18" />
@@ -181,7 +181,7 @@
 				</button>
 				<div class="relative flex-1">
 					<svg
-						class="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-warm-400"
+						class="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-warm-400 sm:left-3.5 sm:h-4 sm:w-4"
 						viewBox="0 0 24 24"
 						fill="none"
 						stroke="currentColor"
@@ -193,16 +193,16 @@
 					<input
 						type="text"
 						bind:value={search}
-						placeholder="Search places, tags, addresses..."
-						class="w-full rounded-xl border border-warm-200 bg-warm-50 py-2.5 pl-11 pr-4 text-base font-medium shadow-sm transition-colors focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:text-sm"
+						placeholder="Search places, tags..."
+						class="w-full rounded-lg border border-warm-200 bg-warm-50 py-1.5 pl-9 pr-3 text-base font-medium shadow-sm transition-colors focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:rounded-xl sm:py-2.5 sm:pl-11 sm:pr-4 sm:text-sm"
 					/>
 				</div>
 			</div>
 
 			<!-- Active filters display -->
 			{#if hasActiveFilters || selectedSource !== 'all'}
-				<div class="mb-4 flex flex-wrap items-center gap-2">
-					<span class="text-xs text-warm-400">Filtered by:</span>
+				<div class="mb-2 flex flex-wrap items-center gap-1.5 sm:mb-4 sm:gap-2">
+					<span class="text-[10px] text-warm-400 sm:text-xs">Filtered by:</span>
 					{#each selectedTagIds as tagId (tagId)}
 						{@const tag = allTags.find((t) => t.id === tagId)}
 						{#if tag}
@@ -242,14 +242,14 @@
 
 			<!-- Enrich banner -->
 			{#if unenrichedCount > 0}
-				<div class="mb-4 flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 p-3">
-					<span class="text-sm text-amber-700">
-						{unenrichedCount} places missing details from Google
+				<div class="mb-2 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 sm:mb-4 sm:rounded-xl sm:p-3">
+					<span class="text-xs text-amber-700 sm:text-sm">
+						{unenrichedCount} missing details
 					</span>
 					<button
 						onclick={enrichBatch}
 						disabled={enriching}
-						class="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+						class="rounded-md bg-amber-600 px-2.5 py-1 text-[10px] font-medium text-white hover:bg-amber-700 disabled:opacity-50 sm:rounded-lg sm:px-3 sm:py-1.5 sm:text-xs"
 					>
 						{enriching ? 'Fetching...' : 'Fetch Details'}
 					</button>
@@ -257,17 +257,17 @@
 			{/if}
 
 			{#if enrichResult}
-				<div class="mb-4 rounded-xl bg-green-50 p-3 text-sm text-green-700">
+				<div class="mb-2 rounded-lg bg-green-50 p-2 text-xs text-green-700 sm:mb-4 sm:rounded-xl sm:p-3 sm:text-sm">
 					Fetched details for {enrichResult.enriched} of {enrichResult.total} places.
 				</div>
 			{/if}
 
 			<!-- Unified smart tag filter row -->
-			<div class="mb-5 flex items-center gap-2 overflow-x-auto pb-1 pr-2 whitespace-nowrap [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden md:flex-wrap md:gap-x-2 md:gap-y-2 md:overflow-visible md:pb-0 md:pr-0">
+			<div class="mb-3 flex items-center gap-2 overflow-x-auto pb-1 pr-2 whitespace-nowrap [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:mb-5 md:flex-wrap md:gap-x-2 md:gap-y-2 md:overflow-visible md:pb-0 md:pr-0">
 				<!-- All button -->
 				<button
 					onclick={() => { selectedTagMap = {}; selectedSource = 'all'; }}
-					class="text-xs font-extrabold transition-all {!hasActiveFilters && selectedSource === 'all'
+					class="text-[11px] font-extrabold transition-all sm:text-xs {!hasActiveFilters && selectedSource === 'all'
 					? 'text-warm-800 underline decoration-brand-500 decoration-2 underline-offset-4'
 					: 'text-warm-400 hover:text-warm-600'}"
 				>
@@ -279,7 +279,7 @@
 				{#each categoryTags as tag (tag.id)}
 					<button
 						onclick={() => toggleTag(tag.id)}
-					class="text-xs font-bold transition-all {selectedTagMap[tag.id]
+					class="text-[11px] font-bold transition-all sm:text-xs {selectedTagMap[tag.id]
 						? 'text-warm-800 underline decoration-brand-500 decoration-2 underline-offset-4'
 						: 'text-warm-400 hover:text-warm-600'}"
 					>
@@ -296,7 +296,7 @@
 				{#each areaTags as tag (tag.id)}
 					<button
 						onclick={() => toggleTag(tag.id)}
-					class="text-xs font-bold transition-all {selectedTagMap[tag.id]
+					class="text-[11px] font-bold transition-all sm:text-xs {selectedTagMap[tag.id]
 						? 'text-sage-700 underline decoration-sage-500 decoration-2 underline-offset-4'
 						: 'text-sage-400 hover:text-sage-600'}"
 					>
@@ -314,7 +314,7 @@
 			{#each userTags as tag (tag.id)}
 				<button
 					onclick={() => toggleTag(tag.id)}
-					class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold transition-all {selectedTagMap[tag.id]
+					class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold transition-all sm:gap-1.5 sm:px-3 sm:py-1 sm:text-xs {selectedTagMap[tag.id]
 						? 'text-white shadow-sm ring-2 ring-offset-1'
 						: 'text-white opacity-80 hover:opacity-100'}"
 					style="background-color: {tag.color ?? '#6b7280'}; {selectedTagMap[tag.id] ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
@@ -332,10 +332,10 @@
 				<!-- Add / Edit tags -->
 				<button
 					onclick={() => { showTagManager = true; }}
-					class="inline-flex items-center gap-1 rounded-full border border-dashed border-warm-300 px-2.5 py-1 text-xs text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
+					class="inline-flex items-center gap-1 rounded-full border border-dashed border-warm-300 px-1.5 py-0.5 text-[10px] text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600 sm:px-2.5 sm:py-1 sm:text-xs"
 					aria-label="Manage tags"
 				>
-					<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<svg class="h-2.5 w-2.5 sm:h-3 sm:w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<line x1="12" y1="5" x2="12" y2="19" />
 						<line x1="5" y1="12" x2="19" y2="12" />
 					</svg>
@@ -354,15 +354,15 @@
 			{/if}
 
 			<!-- Results count + view toggle -->
-			<div class="mb-4 flex items-center justify-between">
-				<p class="text-sm font-semibold text-warm-500">{filteredPlaces.length} places</p>
-				<div class="flex items-center gap-1 rounded-lg border border-warm-200 bg-white p-0.5">
+			<div class="mb-2 flex items-center justify-between sm:mb-4">
+				<p class="text-[11px] font-semibold text-warm-500 sm:text-sm">{filteredPlaces.length} places</p>
+				<div class="flex items-center gap-0.5 rounded-md border border-warm-200 bg-white p-0.5 sm:gap-1 sm:rounded-lg">
 					<button
 						onclick={() => { viewMode = 'grid'; }}
-						class="rounded-md p-2 transition-colors {viewMode === 'grid' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
+						class="rounded p-1.5 transition-colors sm:rounded-md sm:p-2 {viewMode === 'grid' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
 						aria-label="Grid view"
 					>
-						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<rect x="3" y="3" width="7" height="7" />
 							<rect x="14" y="3" width="7" height="7" />
 							<rect x="3" y="14" width="7" height="7" />
@@ -371,10 +371,10 @@
 					</button>
 					<button
 						onclick={() => { viewMode = 'list'; }}
-						class="rounded-md p-2 transition-colors {viewMode === 'list' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
+						class="rounded p-1.5 transition-colors sm:rounded-md sm:p-2 {viewMode === 'list' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
 						aria-label="List view"
 					>
-						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<line x1="8" y1="6" x2="21" y2="6" />
 							<line x1="8" y1="12" x2="21" y2="12" />
 							<line x1="8" y1="18" x2="21" y2="18" />
@@ -410,7 +410,7 @@
 					{/if}
 				</div>
 			{:else if viewMode === 'grid'}
-				<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
+				<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
 					{#each filteredPlaces as place (place.id)}
 						<PlaceCard
 							{place}
@@ -427,7 +427,7 @@
 					{/each}
 				</div>
 			{:else}
-				<div class="space-y-2">
+				<div class="space-y-1.5 sm:space-y-2">
 					{#each filteredPlaces as place (place.id)}
 						<PlaceListItem
 							{place}
