@@ -193,7 +193,7 @@
 						<polyline points="9 18 15 12 9 6" />
 					</svg>
 
-					<h3 class="min-w-0 flex-1 truncate text-[13px] font-bold text-warm-800">{place.title}</h3>
+					<h3 class="min-w-0 flex-1 text-[13px] font-bold text-warm-800 {expanded ? '' : 'truncate'}">{place.title}</h3>
 
 					<div class="w-10 shrink-0 text-right text-[11px] font-bold">
 						{#if place.rating}
