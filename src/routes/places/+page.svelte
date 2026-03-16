@@ -34,9 +34,10 @@
 	let contextMenuPos = $state({ x: 0, y: 0 });
 
 	// Inline URL add-place
-	let urlAddStatus = $state<'idle' | 'loading' | 'success' | 'duplicate' | 'error'>('idle');
-	let urlAddResult = $state<Place | null>(null);
-	let urlAddError = $state('');
+	let urlAdding = $state(false);
+	let toasts = $state<Array<{ id: number; type: 'success' | 'duplicate' | 'error'; title: string; message: string }>>([]);
+	let toastCounter = 0;
+	let searchInputEl = $state<HTMLInputElement | null>(null);
 
 	function isGoogleMapsUrl(text: string): boolean {
 		const t = text.trim();
@@ -45,41 +46,52 @@
 
 	let detectedUrl = $derived(isGoogleMapsUrl(search) ? search.trim() : null);
 
+	function showToast(type: 'success' | 'duplicate' | 'error', title: string, message: string) {
+		const id = ++toastCounter;
+		toasts = [...toasts, { id, type, title, message }];
+		const delay = type === 'error' ? 4000 : 2500;
+		setTimeout(() => {
+			toasts = toasts.filter((t) => t.id !== id);
+		}, delay);
+	}
+
 	async function addPlaceFromUrl() {
-		if (!detectedUrl) return;
-		urlAddStatus = 'loading';
-		urlAddError = '';
-		urlAddResult = null;
+		if (!detectedUrl || urlAdding) return;
+		const url = detectedUrl;
+		urlAdding = true;
 		try {
 			const res = await fetch('/api/places/add-by-url', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ url: detectedUrl })
+				body: JSON.stringify({ url })
 			});
 			const data = await res.json();
 			if (!res.ok) {
-				urlAddStatus = 'error';
-				urlAddError = data.message || data.error?.message || 'Something went wrong';
+				showToast('error', '', data.message || data.error?.message || 'Could not add this place');
+				urlAdding = false;
+				searchInputEl?.focus();
 				return;
 			}
-			urlAddResult = data.place as Place;
+			const place = data.place as Place;
 			if (data.duplicate) {
-				urlAddStatus = 'duplicate';
+				showToast('duplicate', place.title, 'Already added');
 			} else {
-				urlAddStatus = 'success';
+				showToast('success', place.title, 'Added!');
 				await loadData();
 			}
+			search = '';
 		} catch {
-			urlAddStatus = 'error';
-			urlAddError = 'Network error. Please try again.';
+			showToast('error', '', 'Network error. Please try again.');
 		}
+		urlAdding = false;
+		searchInputEl?.focus();
 	}
 
-	function dismissUrlAdd() {
-		search = '';
-		urlAddStatus = 'idle';
-		urlAddResult = null;
-		urlAddError = '';
+	function handleSearchKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter' && detectedUrl) {
+			e.preventDefault();
+			addPlaceFromUrl();
+		}
 	}
 
 	$effect(() => {
@@ -334,106 +346,23 @@
 						<line x1="21" y1="21" x2="16.65" y2="16.65" />
 					</svg>
 					<input
+						bind:this={searchInputEl}
 						type="text"
 						bind:value={search}
+						onkeydown={handleSearchKeydown}
 						placeholder="Search or paste a Google Maps link..."
-						class="w-full rounded-lg border border-warm-200 bg-warm-50 py-1.5 pl-8 pr-2.5 text-sm font-medium shadow-sm transition-colors focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:rounded-xl sm:py-2.5 sm:pl-11 sm:pr-4 sm:text-sm"
+						class="w-full rounded-lg border border-warm-200 bg-warm-50 py-1.5 pl-8 pr-8 text-sm font-medium shadow-sm transition-colors focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:rounded-xl sm:py-2.5 sm:pl-11 sm:pr-10 sm:text-sm"
 					/>
-				</div>
-				</div>
-
-				<!-- Inline URL detection banner -->
-				{#if detectedUrl && urlAddStatus === 'idle'}
-					<div class="mt-1.5 flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 sm:rounded-xl sm:px-4 sm:py-2.5">
-						<svg class="h-4 w-4 shrink-0 text-brand-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-							<circle cx="12" cy="10" r="3" />
-						</svg>
-						<span class="min-w-0 flex-1 truncate text-xs font-medium text-brand-700 sm:text-sm">Google Maps link detected</span>
-						<button
-							onclick={addPlaceFromUrl}
-							class="shrink-0 rounded-md bg-brand-600 px-3 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700 sm:px-4 sm:py-1.5"
-						>
-							Add place
-						</button>
-						<button
-							onclick={() => { search = ''; }}
-							class="shrink-0 rounded-md p-1 text-brand-400 transition-colors hover:bg-brand-100 hover:text-brand-600"
-							aria-label="Clear"
-						>
-							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-								<line x1="18" y1="6" x2="6" y2="18" />
-								<line x1="6" y1="6" x2="18" y2="18" />
-							</svg>
-						</button>
-					</div>
-				{:else if urlAddStatus === 'loading'}
-					<div class="mt-1.5 flex items-center gap-2.5 rounded-lg border border-warm-200 bg-warm-50 px-3 py-2.5 sm:rounded-xl sm:px-4">
-						<svg class="h-4 w-4 shrink-0 animate-spin text-brand-500" viewBox="0 0 24 24" fill="none">
+					{#if urlAdding}
+						<svg class="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-brand-500 sm:right-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none">
 							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
 							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
 						</svg>
-						<span class="text-xs font-medium text-warm-500 sm:text-sm">Looking up place details...</span>
-					</div>
-				{:else if urlAddStatus === 'success' && urlAddResult}
-					<div class="mt-1.5 flex items-center gap-2.5 rounded-lg border border-sage-300 bg-sage-50 px-3 py-2 sm:rounded-xl sm:px-4">
-						<svg class="h-4 w-4 shrink-0 text-sage-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-							<polyline points="22 4 12 14.01 9 11.01" />
-						</svg>
-						<span class="min-w-0 flex-1 truncate text-xs font-bold text-sage-800 sm:text-sm">{urlAddResult.title}</span>
-						<span class="shrink-0 text-[10px] font-medium text-sage-600 sm:text-xs">Added!</span>
-						<button
-							onclick={dismissUrlAdd}
-							class="shrink-0 rounded-md p-1 text-sage-400 transition-colors hover:bg-sage-100 hover:text-sage-600"
-							aria-label="Dismiss"
-						>
-							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-								<line x1="18" y1="6" x2="6" y2="18" />
-								<line x1="6" y1="6" x2="18" y2="18" />
-							</svg>
-						</button>
-					</div>
-				{:else if urlAddStatus === 'duplicate' && urlAddResult}
-					<div class="mt-1.5 flex items-center gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 sm:rounded-xl sm:px-4">
-						<svg class="h-4 w-4 shrink-0 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<circle cx="12" cy="12" r="10" />
-							<line x1="12" y1="8" x2="12" y2="12" />
-							<line x1="12" y1="16" x2="12.01" y2="16" />
-						</svg>
-						<span class="min-w-0 flex-1 truncate text-xs font-bold text-amber-800 sm:text-sm">{urlAddResult.title}</span>
-						<span class="shrink-0 text-[10px] font-medium text-amber-600 sm:text-xs">Already saved</span>
-						<button
-							onclick={dismissUrlAdd}
-							class="shrink-0 rounded-md p-1 text-amber-400 transition-colors hover:bg-amber-100 hover:text-amber-600"
-							aria-label="Dismiss"
-						>
-							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-								<line x1="18" y1="6" x2="6" y2="18" />
-								<line x1="6" y1="6" x2="18" y2="18" />
-							</svg>
-						</button>
-					</div>
-				{:else if urlAddStatus === 'error'}
-					<div class="mt-1.5 flex items-center gap-2.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 sm:rounded-xl sm:px-4">
-						<svg class="h-4 w-4 shrink-0 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<circle cx="12" cy="12" r="10" />
-							<line x1="15" y1="9" x2="9" y2="15" />
-							<line x1="9" y1="9" x2="15" y2="15" />
-						</svg>
-						<span class="min-w-0 flex-1 text-xs font-medium text-red-600 sm:text-sm">{urlAddError}</span>
-						<button
-							onclick={dismissUrlAdd}
-							class="shrink-0 rounded-md p-1 text-red-400 transition-colors hover:bg-red-100 hover:text-red-600"
-							aria-label="Dismiss"
-						>
-							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-								<line x1="18" y1="6" x2="6" y2="18" />
-								<line x1="6" y1="6" x2="18" y2="18" />
-							</svg>
-						</button>
-					</div>
-				{/if}
+					{:else if detectedUrl}
+						<span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-medium text-brand-500 sm:right-3.5 sm:text-xs">Press Enter to add</span>
+					{/if}
+				</div>
+				</div>
 			</div>
 
 			<!-- Reserved filter summary area (always present to prevent layout shift) -->
@@ -847,5 +776,44 @@
 			onClose={() => { contextMenuTag = null; }}
 			onTagsChanged={refreshTags}
 		/>
+	{/if}
+
+	<!-- Lightweight toasts for URL add feedback -->
+	{#if toasts.length > 0}
+		<div class="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2 sm:bottom-8">
+			{#each toasts as toast (toast.id)}
+				<div
+					class="flex items-center gap-2 rounded-xl px-4 py-2.5 shadow-lg backdrop-blur-sm animate-in
+						{toast.type === 'success' ? 'border border-sage-200/60 bg-sage-50/95 text-sage-800' : ''}
+						{toast.type === 'duplicate' ? 'border border-amber-200/60 bg-amber-50/95 text-amber-800' : ''}
+						{toast.type === 'error' ? 'border border-red-200/60 bg-red-50/95 text-red-700' : ''}"
+				>
+					{#if toast.type === 'success'}
+						<svg class="h-4 w-4 shrink-0 text-sage-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+							<polyline points="22 4 12 14.01 9 11.01" />
+						</svg>
+					{:else if toast.type === 'duplicate'}
+						<svg class="h-4 w-4 shrink-0 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<circle cx="12" cy="12" r="10" />
+							<line x1="12" y1="8" x2="12" y2="12" />
+							<line x1="12" y1="16" x2="12.01" y2="16" />
+						</svg>
+					{:else}
+						<svg class="h-4 w-4 shrink-0 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<circle cx="12" cy="12" r="10" />
+							<line x1="15" y1="9" x2="9" y2="15" />
+							<line x1="9" y1="9" x2="15" y2="15" />
+						</svg>
+					{/if}
+					{#if toast.title}
+						<span class="max-w-[200px] truncate text-xs font-bold sm:max-w-[280px] sm:text-sm">{toast.title}</span>
+						<span class="text-[10px] font-medium opacity-70 sm:text-xs">{toast.message}</span>
+					{:else}
+						<span class="text-xs font-medium sm:text-sm">{toast.message}</span>
+					{/if}
+				</div>
+			{/each}
+		</div>
 	{/if}
 </div>
