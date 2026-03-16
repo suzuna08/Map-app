@@ -96,6 +96,7 @@
 	function handleFlip(e: MouseEvent) {
 		const target = e.target as HTMLElement;
 		if (target.closest('a, button, input, textarea, [role="button"]')) return;
+		if (swipeX !== 0) { swipeX = 0; return; }
 		flipped = !flipped;
 	}
 
@@ -138,15 +139,17 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="relative sm:hidden">
-	<!-- Delete button revealed behind card -->
-	<button
-		onclick={handleSwipeDelete}
-		class="absolute right-0 top-0 flex h-full w-[72px] items-center justify-center rounded-r-xl bg-red-400/80 text-white/90"
-	>
-		<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-			<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-		</svg>
-	</button>
+	<!-- Delete button revealed behind card (only when swiped) -->
+	{#if swipeX < 0}
+		<button
+			onclick={handleSwipeDelete}
+			class="absolute right-0 top-0 flex h-full w-[72px] items-center justify-center rounded-r-xl bg-red-400/80 text-white/90"
+		>
+			<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+			</svg>
+		</button>
+	{/if}
 
 	<!-- Swipeable card wrapper -->
 	<div
