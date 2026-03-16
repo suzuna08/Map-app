@@ -34,71 +34,11 @@
 	}: Props = $props();
 
 	let confirmDelete = $state(false);
-	let mobileTagsExpanded = $state(false);
-	let mobileTagContainerEl = $state<HTMLDivElement | null>(null);
-	let mobileTagMeasureEl = $state<HTMLDivElement | null>(null);
-	let mobileVisibleCount = $state(3);
-	let userTags = $derived(placeTags.filter((t) => t.source === 'user'));
-	let mobileDisplayTags = $derived(
-		mobileTagsExpanded ? userTags : userTags.slice(0, mobileVisibleCount)
-	);
-	let mobileHiddenCount = $derived(Math.max(0, userTags.length - mobileVisibleCount));
-	let contentPreview = $derived(noteText.trim() || place.description || null);
-	let contentIsNote = $derived(!!noteText.trim());
-
-	function measureMobileTags() {
-		if (!mobileTagMeasureEl || !mobileTagContainerEl || userTags.length === 0) {
-			mobileVisibleCount = userTags.length;
-			return;
-		}
-
-		const containerWidth = mobileTagContainerEl.clientWidth;
-		const gap = parseFloat(getComputedStyle(mobileTagMeasureEl).gap) || 4;
-		const children = Array.from(mobileTagMeasureEl.children) as HTMLElement[];
-
-		if (children.length === 0) { mobileVisibleCount = 0; return; }
-
-		let totalWidth = 0;
-		for (let i = 0; i < children.length; i++) {
-			if (i > 0) totalWidth += gap;
-			totalWidth += children[i].offsetWidth;
-		}
-		if (totalWidth <= containerWidth) {
-			mobileVisibleCount = children.length;
-			return;
-		}
-
-		const indicatorReserve = 36;
-		const available = containerWidth - indicatorReserve - gap;
-		let used = 0;
-		let count = 0;
-
-		for (let i = 0; i < children.length; i++) {
-			const w = children[i].offsetWidth;
-			const next = used + (count > 0 ? gap : 0) + w;
-			if (next > available) break;
-			used = next;
-			count++;
-		}
-		mobileVisibleCount = Math.max(1, count);
-	}
-
-	$effect(() => {
-		const _tags = userTags;
-		const _container = mobileTagContainerEl;
-		const _measure = mobileTagMeasureEl;
-		if (!_container || !_measure || _tags.length === 0) {
-			mobileVisibleCount = _tags.length || 0;
-			return;
-		}
-		measureMobileTags();
-		const observer = new ResizeObserver(() => measureMobileTags());
-		observer.observe(_container);
-		return () => observer.disconnect();
-	});
 
 	let flipped = $state(false);
 	let noteText = $state(place.note ?? '');
+	let contentPreview = $derived(noteText.trim() || place.description || null);
+	let contentIsNote = $derived(!!noteText.trim());
 	let saving = $state(false);
 	let saved = $state(false);
 	let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -185,49 +125,26 @@
 				</p>
 
 				<!-- Custom tags row -->
-				<div bind:this={mobileTagContainerEl} class="relative mt-1.5">
-					<!-- Hidden measurement row -->
-					<div
-						bind:this={mobileTagMeasureEl}
-						class="pointer-events-none invisible absolute left-0 right-0 top-0 flex items-center gap-1"
-						aria-hidden="true"
-					>
-						{#each userTags as tag (tag.id)}
-							<span class="shrink-0 whitespace-nowrap rounded-full px-1.5 py-px text-[8px] font-semibold">{tag.name}</span>
-						{/each}
-					</div>
-
-					<!-- Visible tags -->
-					<div class="flex flex-wrap items-center gap-1">
-						{#each mobileDisplayTags as tag (tag.id)}
-							<button
-								onclick={() => onTagClick(tag.id)}
-								oncontextmenu={(e) => { e.preventDefault(); e.stopPropagation(); onTagContextMenu?.(tag, e.clientX, e.clientY); }}
-								class="rounded-full px-1.5 py-px text-[8px] font-semibold text-white hover:opacity-80"
-								style="background-color: {tag.color ?? '#8a7e72'}"
-							>{tag.name}</button>
-						{/each}
-						{#if !mobileTagsExpanded && mobileHiddenCount > 0}
-							<button
-								onclick={(e) => { e.stopPropagation(); mobileTagsExpanded = true; }}
-								class="rounded-full bg-warm-100 px-1.5 py-px text-[8px] font-bold text-warm-500 hover:bg-warm-200 hover:text-warm-700"
-							>+{mobileHiddenCount}</button>
-						{:else if mobileTagsExpanded && mobileHiddenCount > 0}
-							<button
-								onclick={(e) => { e.stopPropagation(); mobileTagsExpanded = false; }}
-								class="rounded-full bg-warm-100 px-1.5 py-px text-[8px] font-bold text-warm-500 hover:bg-warm-200 hover:text-warm-700"
-							>less</button>
-						{/if}
-						{#if !place.enriched_at && place.url}
-							<button
-								onclick={() => onEnrich(place.id)}
-								disabled={enrichingId === place.id}
-								class="ml-auto text-[9px] font-semibold text-brand-600 disabled:opacity-50"
-							>
-								{enrichingId === place.id ? '...' : 'Enrich'}
-							</button>
-						{/if}
-					</div>
+				<div class="mt-1.5">
+					<TagInput
+						{supabase}
+						placeId={place.id}
+						{userId}
+						{allTags}
+						{placeTags}
+						onUpdate={onTagsChanged}
+						onTagClick={onTagClick}
+						{onTagContextMenu}
+					/>
+					{#if !place.enriched_at && place.url}
+						<button
+							onclick={() => onEnrich(place.id)}
+							disabled={enrichingId === place.id}
+							class="mt-1 text-[9px] font-semibold text-brand-600 disabled:opacity-50"
+						>
+							{enrichingId === place.id ? '...' : 'Enrich'}
+						</button>
+					{/if}
 				</div>
 
 				<!-- Mobile action row: Maps | Website | Notes -->

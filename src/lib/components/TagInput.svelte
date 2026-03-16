@@ -21,6 +21,22 @@
 	let showSuggestions = $state(false);
 	let showInput = $state(false);
 	let inputEl = $state<HTMLInputElement | null>(null);
+	let dropdownPos = $state<{ top: number; left: number } | null>(null);
+
+	function updateDropdownPos() {
+		if (!inputEl) { dropdownPos = null; return; }
+		const rect = inputEl.getBoundingClientRect();
+		dropdownPos = { top: rect.bottom + 4, left: rect.left };
+	}
+
+	function portal(node: HTMLElement) {
+		document.body.appendChild(node);
+		return {
+			destroy() {
+				node.remove();
+			}
+		};
+	}
 
 	let expanded = $state(false);
 
@@ -183,41 +199,13 @@
 			<input
 				bind:this={inputEl}
 				bind:value={inputValue}
-				onfocus={() => { showSuggestions = true; }}
-				onblur={() => { setTimeout(() => { showSuggestions = false; showInput = false; inputValue = ''; }, 150); }}
+				onfocus={() => { showSuggestions = true; updateDropdownPos(); }}
+				onblur={() => { setTimeout(() => { showSuggestions = false; showInput = false; inputValue = ''; dropdownPos = null; }, 150); }}
+				oninput={() => updateDropdownPos()}
 				onkeydown={handleKeydown}
 				placeholder="tag name..."
-				class="w-24 rounded-full border border-warm-200 bg-warm-50 px-2 py-0.5 text-base text-warm-700 placeholder-warm-400 focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-400 sm:w-28 sm:px-2.5 sm:py-1 sm:text-xs"
+				class="w-24 rounded-full border border-warm-200 bg-warm-50 px-2 py-0.5 text-xs text-warm-700 placeholder-warm-400 focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-400 sm:w-28 sm:px-2.5 sm:py-1"
 			/>
-
-			{#if showSuggestions && (suggestions.length > 0 || showCreateOption)}
-				<div class="absolute left-0 top-full z-20 mt-1 w-48 rounded-lg border border-warm-200 bg-white py-1 shadow-lg">
-					{#each suggestions.slice(0, 5) as tag (tag.id)}
-						<button
-							onmousedown={(e) => { e.preventDefault(); addExistingTag(tag); }}
-							class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-warm-50"
-						>
-							<span
-								class="h-2.5 w-2.5 shrink-0 rounded-full"
-								style="background-color: {tag.color ?? '#6b7280'}"
-							></span>
-							{tag.name}
-						</button>
-					{/each}
-					{#if showCreateOption}
-						<button
-							onmousedown={(e) => { e.preventDefault(); createAndAddTag(inputValue); }}
-							class="flex w-full items-center gap-2 border-t border-warm-100 px-3 py-1.5 text-left text-xs text-brand-600 hover:bg-brand-50"
-						>
-							<span
-								class="h-2.5 w-2.5 shrink-0 rounded-full"
-								style="background-color: {colorForTag(toDisplayName(inputValue))}"
-							></span>
-							Create "{toDisplayName(inputValue)}"
-						</button>
-					{/if}
-				</div>
-			{/if}
 		</div>
 	{:else}
 	<button
@@ -232,3 +220,36 @@
 	</button>
 	{/if}
 </div>
+
+{#if showSuggestions && dropdownPos && (suggestions.length > 0 || showCreateOption)}
+	<div
+		use:portal
+		class="fixed z-[100] w-48 rounded-lg border border-warm-200 bg-white py-1 shadow-lg"
+		style="top: {dropdownPos.top}px; left: {dropdownPos.left}px"
+	>
+		{#each suggestions.slice(0, 5) as tag (tag.id)}
+			<button
+				onmousedown={(e) => { e.preventDefault(); addExistingTag(tag); }}
+				class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-warm-50"
+			>
+				<span
+					class="h-2.5 w-2.5 shrink-0 rounded-full"
+					style="background-color: {tag.color ?? '#6b7280'}"
+				></span>
+				{tag.name}
+			</button>
+		{/each}
+		{#if showCreateOption}
+			<button
+				onmousedown={(e) => { e.preventDefault(); createAndAddTag(inputValue); }}
+				class="flex w-full items-center gap-2 border-t border-warm-100 px-3 py-1.5 text-left text-xs text-brand-600 hover:bg-brand-50"
+			>
+				<span
+					class="h-2.5 w-2.5 shrink-0 rounded-full"
+					style="background-color: {colorForTag(toDisplayName(inputValue))}"
+				></span>
+				Create "{toDisplayName(inputValue)}"
+			</button>
+		{/if}
+	</div>
+{/if}
