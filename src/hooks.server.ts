@@ -28,16 +28,22 @@ export const handle: Handle = async ({ event, resolve }) => {
 			return { session: null, user: null };
 		}
 
-		const {
-			data: { user },
-			error
-		} = await event.locals.supabase.auth.getUser();
+		try {
+			const {
+				data: { user },
+				error
+			} = await event.locals.supabase.auth.getUser();
 
-		if (error) {
-			return { session: null, user: null };
+			if (error || !user) {
+				// getUser failed but session exists — use session.user as fallback
+				return { session, user: session.user };
+			}
+
+			return { session, user };
+		} catch {
+			// Network error reaching Supabase — trust the session from cookies
+			return { session, user: session.user };
 		}
-
-		return { session, user };
 	};
 
 	const { session, user } = await event.locals.safeGetSession();

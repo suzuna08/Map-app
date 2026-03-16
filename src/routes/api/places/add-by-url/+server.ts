@@ -20,7 +20,8 @@ function normalizeUrl(url: string): string {
 }
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-	const { session, user } = await locals.safeGetSession();
+	const session = locals.session;
+	const user = locals.user ?? session?.user;
 	if (!session || !user) {
 		throw error(401, 'Unauthorized');
 	}

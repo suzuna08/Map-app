@@ -73,11 +73,25 @@
 		buildTagMap((placeTagsRes.data ?? []) as { place_id: string; tag_id: string }[]);
 	}
 
-	let categoryTags = $derived(allTags.filter((t) => t.source === 'category'));
-	let areaTags = $derived(allTags.filter((t) => t.source === 'area'));
+	// Tags actually in use by current places
+	let activeTagIds = $derived(new Set(Object.values(placeTagsMap).flat().map((t) => t.id)));
+
+	let categoryTags = $derived(allTags.filter((t) => t.source === 'category' && activeTagIds.has(t.id)));
+	let areaTags = $derived(allTags.filter((t) => t.source === 'area' && activeTagIds.has(t.id)));
 	let userTags = $derived(allTags.filter((t) => t.source === 'user'));
 	let selectedTagIds = $derived(Object.keys(selectedTagMap).filter((id) => selectedTagMap[id]));
 	let hasActiveFilters = $derived(selectedTagIds.length > 0);
+
+	// Auto-remove selected filters that no longer exist in the dataset
+	$effect(() => {
+		const validIds = new Set([...categoryTags, ...areaTags, ...userTags].map((t) => t.id));
+		const stale = selectedTagIds.filter((id) => !validIds.has(id));
+		if (stale.length > 0) {
+			const copy = { ...selectedTagMap };
+			for (const id of stale) delete copy[id];
+			selectedTagMap = copy;
+		}
+	});
 
 	let sourceLists = $derived([...new Set(places.map((p) => p.source_list).filter((s): s is string => !!s))]);
 	let sourceCountMap = $derived(

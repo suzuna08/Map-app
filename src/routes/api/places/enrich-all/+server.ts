@@ -5,7 +5,8 @@ import type { Place } from '$lib/types/database';
 import { upsertSystemTags } from '$lib/tag-utils';
 
 export const POST: RequestHandler = async ({ locals }) => {
-	const { session, user } = await locals.safeGetSession();
+	const session = locals.session;
+	const user = locals.user ?? session?.user;
 	if (!session || !user) {
 		throw error(401, 'Unauthorized');
 	}
