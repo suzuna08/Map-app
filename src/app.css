@@ -7,19 +7,16 @@
 	--safe-right: env(safe-area-inset-right, 0px);
 }
 
-html,
+html {
+	overflow-x: hidden;
+	overflow-y: scroll;
+	-webkit-text-size-adjust: 100%;
+	-webkit-tap-highlight-color: transparent;
+}
+
 body {
 	overflow-x: hidden;
 	max-width: 100vw;
-}
-
-html {
-	-webkit-text-size-adjust: 100%;
-	-webkit-tap-highlight-color: transparent;
-	overscroll-behavior: none;
-}
-
-body {
 	overscroll-behavior-y: none;
 	-webkit-overflow-scrolling: touch;
 }
