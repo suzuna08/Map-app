@@ -38,7 +38,7 @@
 	<title>MapOrganizer</title>
 </svelte:head>
 
-<div class="min-h-[100dvh] overflow-x-hidden bg-sage-100 font-sans">
+<div class="min-h-[100dvh] bg-sage-100 font-sans">
 	<nav class="sticky top-0 z-30 border-b border-warm-200/60 bg-warm-50/85 backdrop-blur-lg">
 		<div class="mx-auto flex h-12 max-w-[1400px] items-center justify-between px-3 sm:h-14 sm:px-6">
 			<a href={session ? '/places' : '/'} class="flex items-center gap-1.5 text-base font-extrabold text-warm-800 sm:gap-2 sm:text-lg">
