@@ -57,15 +57,22 @@
 
 	async function addPlaceFromUrl() {
 		if (!detectedUrl || urlAdding) return;
-		const url = detectedUrl;
+		// Capture the actual current input value, not the derived state
+		const url = search.trim();
+		console.log('[addPlace] submitting url:', url, '| detectedUrl was:', detectedUrl);
 		urlAdding = true;
 		try {
 			const res = await fetch('/api/places/add-by-url', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				cache: 'no-store',
+				headers: {
+					'Content-Type': 'application/json',
+					'Cache-Control': 'no-cache'
+				},
 				body: JSON.stringify({ url })
 			});
 			const data = await res.json();
+			console.log('[addPlace] response:', res.status, data.duplicate, data.place?.title);
 			if (!res.ok) {
 				showToast('error', '', data.message || data.error?.message || 'Could not add this place');
 				urlAdding = false;

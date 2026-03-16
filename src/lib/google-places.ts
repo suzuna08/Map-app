@@ -176,22 +176,23 @@ export function cleanGoogleMapsUrl(url: string): string {
 export async function resolveGoogleMapsUrl(url: string): Promise<string> {
 	if (/goo\.gl|maps\.app\.goo\.gl/.test(url)) {
 		const cleaned = cleanGoogleMapsUrl(url);
+		const noCache: RequestInit = { cache: 'no-store' };
 
 		// Try cleaned URL first, then original if that fails
 		for (const candidate of [cleaned, ...(cleaned !== url ? [url] : [])]) {
 			try {
-				const res = await fetch(candidate, { redirect: 'follow' });
+				const res = await fetch(candidate, { redirect: 'follow', ...noCache });
 				if (isGoogleMapsUrl(res.url)) return res.url;
 			} catch { /* try next */ }
 		}
 
 		// Manual redirect: follow Location headers step-by-step
 		try {
-			const res = await fetch(cleaned, { redirect: 'manual' });
+			const res = await fetch(cleaned, { redirect: 'manual', ...noCache });
 			const location = res.headers.get('location');
 			if (location && isGoogleMapsUrl(location)) return location;
 			if (location) {
-				const res2 = await fetch(location, { redirect: 'follow' });
+				const res2 = await fetch(location, { redirect: 'follow', ...noCache });
 				if (isGoogleMapsUrl(res2.url)) return res2.url;
 			}
 		} catch { /* fall through */ }
@@ -235,6 +236,7 @@ export async function fetchPlaceDetails(
 			const placeRes = await fetch(
 				`https://places.googleapis.com/v1/places/${chipPlaceId}`,
 				{
+					cache: 'no-store' as RequestCache,
 					headers: {
 						'X-Goog-Api-Key': GOOGLE_PLACES_API_KEY,
 						'X-Goog-FieldMask': fieldMask.replace(/places\./g, '')
@@ -263,6 +265,7 @@ export async function fetchPlaceDetails(
 			'https://places.googleapis.com/v1/places:searchText',
 			{
 				method: 'POST',
+				cache: 'no-store' as RequestCache,
 				headers: {
 					'Content-Type': 'application/json',
 					'X-Goog-Api-Key': GOOGLE_PLACES_API_KEY,
@@ -284,6 +287,7 @@ export async function fetchPlaceDetails(
 			'https://places.googleapis.com/v1/places:searchText',
 			{
 				method: 'POST',
+				cache: 'no-store' as RequestCache,
 				headers: {
 					'Content-Type': 'application/json',
 					'X-Goog-Api-Key': GOOGLE_PLACES_API_KEY,

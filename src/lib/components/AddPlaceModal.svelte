@@ -25,7 +25,11 @@
 		try {
 			const res = await fetch('/api/places/add-by-url', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				cache: 'no-store',
+				headers: {
+					'Content-Type': 'application/json',
+					'Cache-Control': 'no-cache'
+				},
 				body: JSON.stringify({ url: trimmed })
 			});
 
