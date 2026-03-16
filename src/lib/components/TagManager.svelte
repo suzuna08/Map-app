@@ -101,7 +101,9 @@
 
 		duplicateWarning = '';
 		const orderIndex = await getNextOrderIndex(supabase, userId);
-		await supabase.from('tags').insert({ user_id: userId, name: displayName, color: newTagColor, order_index: orderIndex });
+		const insertData: Record<string, unknown> = { user_id: userId, name: displayName, color: newTagColor };
+		if (orderIndex !== null) insertData.order_index = orderIndex;
+		await supabase.from('tags').insert(insertData);
 		newTagName = '';
 		newTagColorOverride = null;
 		onTagsChanged();

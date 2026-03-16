@@ -92,9 +92,11 @@
 
 		if (!tag) {
 			const orderIndex = await getNextOrderIndex(supabase, userId);
+			const insertData: Record<string, unknown> = { user_id: userId, name: displayName, color: colorForTag(displayName) };
+			if (orderIndex !== null) insertData.order_index = orderIndex;
 			const { data } = await supabase
 				.from('tags')
-				.insert({ user_id: userId, name: displayName, color: colorForTag(displayName), order_index: orderIndex })
+				.insert(insertData)
 				.select()
 				.single();
 			if (!data) return;

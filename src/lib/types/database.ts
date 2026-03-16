@@ -153,7 +153,7 @@ export interface Database {
 				color: string | null;
 				source: string;
 				created_at: string;
-				order_index: number;
+				order_index?: number;
 			};
 			Insert: {
 				id?: string;

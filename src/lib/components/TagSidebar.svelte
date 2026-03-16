@@ -63,7 +63,9 @@
 
 		const color = TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)];
 		const orderIndex = await getNextOrderIndex(supabase, userId);
-		await supabase.from('tags').insert({ user_id: userId, name: trimmed, color, source: 'user', order_index: orderIndex });
+		const insertData: Record<string, unknown> = { user_id: userId, name: trimmed, color, source: 'user' };
+		if (orderIndex !== null) insertData.order_index = orderIndex;
+		await supabase.from('tags').insert(insertData);
 
 		newTagName = '';
 		showNewTag = false;

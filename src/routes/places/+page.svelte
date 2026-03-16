@@ -45,7 +45,7 @@
 		loading = true;
 		const [placesRes, tagsRes, placeTagsRes] = await Promise.all([
 			supabase.from('places').select('*').order('created_at', { ascending: false }),
-			supabase.from('tags').select('*').order('order_index', { ascending: true }).order('name'),
+			supabase.from('tags').select('*').order('name'),
 			supabase.from('place_tags').select('place_id, tag_id')
 		]);
 		places = (placesRes.data ?? []) as Place[];
@@ -71,7 +71,7 @@
 
 	async function refreshTags() {
 		const [tagsRes, placeTagsRes] = await Promise.all([
-			supabase.from('tags').select('*').order('order_index', { ascending: true }).order('name'),
+			supabase.from('tags').select('*').order('name'),
 			supabase.from('place_tags').select('place_id, tag_id')
 		]);
 		allTags = (tagsRes.data ?? []) as Tag[];
@@ -83,7 +83,14 @@
 
 	let categoryTags = $derived(allTags.filter((t) => t.source === 'category' && activeTagIds.has(t.id)));
 	let areaTags = $derived(allTags.filter((t) => t.source === 'area' && activeTagIds.has(t.id)));
-	let userTags = $derived(allTags.filter((t) => t.source === 'user'));
+	let userTags = $derived(
+		allTags.filter((t) => t.source === 'user').sort((a, b) => {
+			const oa = a.order_index ?? 0;
+			const ob = b.order_index ?? 0;
+			if (oa !== ob) return oa - ob;
+			return a.name.localeCompare(b.name);
+		})
+	);
 	let selectedTagIds = $derived(Object.keys(selectedTagMap).filter((id) => selectedTagMap[id]));
 	let hasActiveFilters = $derived(selectedTagIds.length > 0);
 
