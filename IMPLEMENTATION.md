@@ -12,9 +12,12 @@ Detailed documentation of the architecture, design decisions, trade-offs, and bu
 - [CSV Import Pipeline](#csv-import-pipeline)
 - [Google Places Enrichment](#google-places-enrichment)
 - [URL Import & Deduplication](#url-import--deduplication)
+- [Add Place Modal](#add-place-modal)
 - [Tagging System](#tagging-system)
+- [Tag Order & Sortable](#tag-order--sortable)
 - [Filtering & Sorting](#filtering--sorting)
 - [UI Components & Interactions](#ui-components--interactions)
+- [Design System & Theming](#design-system--theming)
 - [Responsive Design](#responsive-design)
 - [Trade-offs](#trade-offs)
 - [Bugs & Fixes](#bugs--fixes)
@@ -67,6 +70,8 @@ Auth is handled through `@supabase/ssr` with a server hook (`hooks.server.ts`) a
 - `category` -- auto-created from Google Places type data (e.g., "Restaurants", "Cafes")
 - `area` -- auto-created from address components (e.g., "Shibuya", "Shinjuku")
 - `user` -- manually created by the user
+
+User tags have an optional `order_index` column for custom ordering (used in TagManager drag-and-drop). Category and area tags do not use order_index.
 
 **`place_tags`** -- Junction table linking places to tags (many-to-many).
 
@@ -158,6 +163,20 @@ If a duplicate is found at any layer, the API returns `{ duplicate: true }` with
 
 ---
 
+## Add Place Modal
+
+The Add Place flow is exposed globally via a modal in the root layout (`+layout.svelte`), so users can add places from anywhere when logged in. The modal is triggered by the "Add Place" button in the nav.
+
+**Tabs**: Paste URL and Upload CSV. The URL tab lets users paste a Google Maps URL and add a single place. The Upload tab is a shortcut: it links to the dedicated `/upload` page for bulk CSV import rather than embedding the upload flow in the modal.
+
+**URL flow**: User pastes a URL, clicks Add. The app calls `/api/places/add-by-url`, which resolves shortened links, deduplicates, fetches Google Places details, and inserts the place. On success, the modal shows the new place and optionally calls `onPlaceAdded` so the parent can refresh data.
+
+**Duplicate handling**: If the API returns `{ duplicate: true }`, the modal shows a "Already in your list" state with the existing place info instead of inserting again.
+
+**Layout integration**: The modal lives in the layout rather than the places page so the Add Place action is always available from the nav. The layout passes `onPlaceAdded={() => invalidate('supabase:auth')}` to trigger a refresh; the places page refetches when its load dependencies change.
+
+---
+
 ## Tagging System
 
 ### Three Tag Sources
@@ -168,7 +187,7 @@ If a duplicate is found at any layer, the API returns `{ duplicate: true }` with
 
 ### Tag Colors
 
-User tags get deterministic colors via `colorForTag`: the tag name is normalized (lowercase, trimmed, single spaces), then hashed with djb2, and the hash modulo the palette length picks from a curated 10-color palette (rose, amber, olive, teal, slate blue, purple, salmon, brown, steel, mauve). The same name always gets the same color, but users can override it.
+User tags get deterministic colors via `colorForTag` in `tag-colors.ts`. The tag name is normalized (lowercase, trimmed, single spaces), then hashed (djb2-style), and the hash modulo the palette length picks from `TAG_PALETTE` — a curated 10-color palette (rose, amber, olive, teal, slate blue, purple, salmon, brown, steel, mauve). The same name always gets the same color, but users can override it in TagManager. The palette is chosen for contrast and accessibility.
 
 ### TagInput Component
 
@@ -185,6 +204,32 @@ Tag names are auto-capitalized (title case) if typed in all-lowercase, but mixed
 ### TagContextMenu
 
 Right-clicking a user tag opens a context menu with rename, recolor, and delete options. The menu position is clamped to the viewport edges so it doesn't overflow off-screen.
+
+---
+
+## Tag Order & Sortable
+
+User tags support a custom order persisted in the `order_index` column on the `tags` table. The order is used when displaying tags in the sidebar, TagManager, and on place cards.
+
+### Tag Order Utilities (`tag-order.ts`)
+
+- **`getNextOrderIndex`**: Fetches the highest `order_index` for the user's tags and returns the next value. Used when creating a new tag.
+- **`saveTagOrder`**: Takes an ordered list of tag IDs and updates each tag's `order_index` to match its position. Called after a drag reorder.
+- **`reindexAfterDelete`**: After deleting a tag, renumbers remaining tags so indices stay contiguous. Handles the case where `order_index` may not exist yet (graceful no-op).
+
+### Sortable Action (`sortable.ts`)
+
+A Svelte action for drag-and-drop reordering. Used in TagManager for reordering user tags.
+
+**Desktop**: Pointer events. `pointerdown` on an item starts the drag; a ghost clone follows the cursor. Items shift with CSS transforms to show the new order. On `pointerup`, `onReorder(orderedIds)` is called.
+
+**Mobile**: Long-press to initiate. A 300ms timer starts on `touchstart`; if the finger moves > 5px before it fires, the timer is cancelled (avoids conflict with scroll). Once triggered, touch events drive the ghost and reorder.
+
+**Insert index**: `findInsertIndex` uses the midpoint of each item's rect. The drop position is the closest item, with "after" determined by whether the cursor is below 30% of the item height or to the right of center.
+
+**Ghost**: A clone of the dragged element is appended to `document.body` with fixed positioning, scaled up slightly, and a shadow. The original is faded to 25% opacity.
+
+**Edge scrolling**: On touch, dragging near the left/right edges of the scroll container triggers horizontal scroll so users can reorder items that extend beyond the viewport.
 
 ---
 
@@ -214,6 +259,8 @@ Seven sort options, all client-side:
 - Rating (descending, nulls last)
 - Most tagged (by count of tags in `placeTagsMap`)
 - Tag group (alphabetically by first user tag name, untagged places sorted last via `\uffff`)
+
+User tags in the sidebar and TagManager are sorted by `order_index` (ascending), then by name. The order is persisted when the user drags to reorder in TagManager.
 
 ---
 
@@ -262,6 +309,26 @@ The suggestion dropdown uses a Svelte action (`use:portal`) that moves the eleme
 ### Layout Shift Prevention
 
 The filter summary area (`"Filtered by: ..."`) reserves a `min-h-[28px]` (mobile) / `min-h-[32px]` (desktop) even when empty, preventing layout shifts when filters are toggled.
+
+### Stale Filter Auto-Removal
+
+An `$effect` watches `selectedTagIds` against the current set of valid tag IDs (category, area, user). If a selected tag no longer exists (e.g., deleted, or no places use it), it is removed from `selectedTagMap` automatically. This prevents "ghost" filters that would show zero results.
+
+---
+
+## Design System & Theming
+
+The app uses a custom Tailwind theme defined in `app.css` with three color families:
+
+- **Brand** (`brand-50`–`brand-900`): Warm gold/amber for primary actions, links, and accents.
+- **Sage** (`sage-50`–`sage-900`): Muted green for area tags, backgrounds, and secondary UI.
+- **Warm** (`warm-50`–`warm-900`): Neutral warm grays for text, borders, and cards.
+
+**Typography**: Nunito from Google Fonts, loaded in the layout. Used for headings and body text.
+
+**Safe areas**: CSS variables `--safe-top`, `--safe-bottom`, etc. map to `env(safe-area-inset-*)` for notched devices. Body padding is applied when supported.
+
+**Tag palette**: User tags use a curated 10-color palette in `tag-colors.ts` (rose, amber, olive, teal, slate blue, purple, salmon, brown, steel, mauve). Colors are chosen for accessibility and contrast.
 
 ---
 
@@ -352,6 +419,30 @@ The app has distinct mobile and desktop layouts rather than just reflowing:
 
 **Downside**: Initial load time grows linearly with place count. Three parallel queries (places, tags, place_tags) all return full datasets. This will need pagination or virtual scrolling for large collections.
 
+### 10. Add Place Modal in Layout
+
+**Chose**: The Add Place modal lives in the root layout and is triggered from the nav, not the places page.
+
+**Why**: Users can add a place from anywhere (e.g., after landing on the home page). The nav always shows the Add Place button when logged in.
+
+**Downside**: The places page may not auto-refresh when a place is added from another route. The layout uses `invalidate('supabase:auth')` on add; whether that triggers a places refetch depends on load dependencies. A page-specific modal would guarantee a local refresh.
+
+### 11. Long-Press to Reorder on Touch
+
+**Chose**: On touch devices, the sortable action requires a ~300ms long-press to start a drag. Immediate touch movement cancels the timer and is treated as scroll.
+
+**Why**: Prevents accidental reorders when the user is trying to scroll the tag list. The same pattern is used for swipe-to-delete (gesture locking).
+
+**Downside**: Adds friction for users who want to reorder quickly. Power users might prefer an explicit "edit order" mode.
+
+### 12. Tag `order_index` Optional
+
+**Chose**: The `order_index` column on `tags` may not exist in older migrations. `getNextOrderIndex`, `saveTagOrder`, and `reindexAfterDelete` catch errors and fail gracefully.
+
+**Why**: Allows the tag order feature to work without a mandatory migration. New installs add the column; existing projects can add it later.
+
+**Downside**: Tags without `order_index` fall back to name sort. The UI doesn't surface the missing column to the user.
+
 ---
 
 ## Bugs & Fixes
@@ -423,3 +514,9 @@ The app has distinct mobile and desktop layouts rather than just reflowing:
 **Problem**: On the mobile grid view after adding swipe-to-delete to PlaceCard, tapping the card while the delete action was revealed would trigger the 3D flip instead of dismissing the swipe. This was disorienting -- the card would flip while still shifted sideways.
 
 **Fix**: Added a swipe-awareness check to `handleFlip`: if `swipeX !== 0` (card is swiped open), tapping resets `swipeX` to 0 and returns early without flipping. The flip only triggers when the card is in its default (non-swiped) position.
+
+### 12. Enter Key in Notes Textarea Flipping Card Back
+
+**Problem**: When the notes back had a keyboard handler (e.g., `onkeydown` on the back div) to flip the card on Enter for accessibility, pressing Enter while typing in the textarea would also trigger the flip. Users expected Enter to insert a newline in the notes, not flip the card.
+
+**Fix**: The keydown handler must exclude `textarea` and `input` elements. Check `e.target.closest('textarea, input')` and return early if the event originated from inside one. The current implementation avoids this by using explicit "← Back" buttons only; there is no keydown on the back div, so the bug does not occur. If you add keyboard support for flip-back, remember to exclude form controls.
