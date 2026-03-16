@@ -16,15 +16,14 @@
 	let markersMap = new Map<string, { marker: any; el: HTMLDivElement }>();
 	let mapReady = $state(false);
 	let prevFitKey = '';
-
-	let MAPTILER_KEY = $state(import.meta.env.PUBLIC_MAPTILER_KEY || '');
+	let mounted = $state(false);
+	let MAPTILER_KEY = $state('');
 
 	onMount(() => {
 		let ro: ResizeObserver | null = null;
+		mounted = true;
 
-		if (!MAPTILER_KEY) {
-			MAPTILER_KEY = import.meta.env.PUBLIC_MAPTILER_KEY || '';
-		}
+		MAPTILER_KEY = import.meta.env.PUBLIC_MAPTILER_KEY || '';
 
 		(async () => {
 			const mod = await import('maplibre-gl');
@@ -203,7 +202,7 @@
 <div class="relative h-full w-full bg-warm-100">
 	<div bind:this={container} class="h-full w-full"></div>
 
-	{#if !MAPTILER_KEY}
+	{#if mounted && !MAPTILER_KEY}
 		<div class="absolute inset-0 z-10 flex items-center justify-center bg-warm-100/90 backdrop-blur-sm">
 			<div class="rounded-xl border border-warm-200 bg-white p-6 text-center shadow-sm">
 				<svg class="mx-auto mb-3 h-10 w-10 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -211,7 +210,7 @@
 					<circle cx="12" cy="10" r="3" />
 				</svg>
 				<p class="text-sm font-semibold text-warm-700">Map requires setup</p>
-				<p class="mt-1 text-xs text-warm-400">Add <code class="rounded bg-warm-100 px-1.5 py-0.5 text-[11px]">PUBLIC_MAPTILER_KEY</code> to your .env file</p>
+				<p class="mt-1 text-xs text-warm-400">Add <code class="rounded bg-warm-100 px-1.5 py-0.5 text-[11px]">PUBLIC_MAPTILER_KEY</code> to your Vercel environment variables, then redeploy</p>
 			</div>
 		</div>
 	{/if}
