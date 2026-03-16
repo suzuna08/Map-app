@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import type { Tag } from '$lib/types/database';
+	import { getNextOrderIndex, reindexAfterDelete } from '$lib/tag-order';
 
 	interface Props {
 		supabase: SupabaseClient;
@@ -61,7 +62,8 @@
 		creating = true;
 
 		const color = TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)];
-		await supabase.from('tags').insert({ user_id: userId, name: trimmed, color, source: 'user' });
+		const orderIndex = await getNextOrderIndex(supabase, userId);
+		await supabase.from('tags').insert({ user_id: userId, name: trimmed, color, source: 'user', order_index: orderIndex });
 
 		newTagName = '';
 		showNewTag = false;
@@ -73,6 +75,7 @@
 		e.stopPropagation();
 		await supabase.from('place_tags').delete().eq('tag_id', tagId);
 		await supabase.from('tags').delete().eq('id', tagId);
+		await reindexAfterDelete(supabase, userId);
 		onTagsChanged();
 	}
 

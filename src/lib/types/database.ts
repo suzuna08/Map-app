@@ -145,33 +145,36 @@ export interface Database {
 					}
 				];
 			};
-			tags_table: {
-				Row: {
-					id: string;
-					user_id: string;
-					name: string;
-					color: string | null;
-					source: string;
-					created_at: string;
-				};
-				Insert: {
-					id?: string;
-					user_id: string;
-					name: string;
-					color?: string | null;
-					source?: string;
-					created_at?: string;
-				};
-				Update: {
-					id?: string;
-					user_id?: string;
-					name?: string;
-					color?: string | null;
-					source?: string;
-					created_at?: string;
-				};
-				Relationships: [];
+		tags_table: {
+			Row: {
+				id: string;
+				user_id: string;
+				name: string;
+				color: string | null;
+				source: string;
+				created_at: string;
+				order_index: number;
 			};
+			Insert: {
+				id?: string;
+				user_id: string;
+				name: string;
+				color?: string | null;
+				source?: string;
+				created_at?: string;
+				order_index?: number;
+			};
+			Update: {
+				id?: string;
+				user_id?: string;
+				name?: string;
+				color?: string | null;
+				source?: string;
+				created_at?: string;
+				order_index?: number;
+			};
+			Relationships: [];
+		};
 			place_tags: {
 				Row: {
 					id: string;

@@ -22,7 +22,7 @@ async function findOrCreateTag(
 
 	const { data: created } = await supabase
 		.from('tags')
-		.insert({ user_id: userId, name, color, source })
+		.insert({ user_id: userId, name, color, source, order_index: 0 })
 		.select('id')
 		.single();
 

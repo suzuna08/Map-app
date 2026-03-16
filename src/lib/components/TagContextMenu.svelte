@@ -2,6 +2,7 @@
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import type { Tag } from '$lib/types/database';
 	import { TAG_PALETTE } from '$lib/tag-colors';
+	import { reindexAfterDelete } from '$lib/tag-order';
 
 	interface Props {
 		tag: Tag;
@@ -78,6 +79,7 @@
 	async function deleteTag() {
 		await supabase.from('place_tags').delete().eq('tag_id', tag.id);
 		await supabase.from('tags').delete().eq('id', tag.id);
+		await reindexAfterDelete(supabase, tag.user_id);
 		onClose();
 		onTagsChanged();
 	}

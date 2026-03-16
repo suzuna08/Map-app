@@ -2,6 +2,8 @@
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import type { Tag } from '$lib/types/database';
 	import { colorForTag, TAG_PALETTE } from '$lib/tag-colors';
+	import { getNextOrderIndex, saveTagOrder, reindexAfterDelete } from '$lib/tag-order';
+	import { sortable } from '$lib/actions/sortable';
 
 	interface Props {
 		supabase: SupabaseClient;
@@ -82,6 +84,7 @@
 	async function deleteTag(tagId: string) {
 		await supabase.from('place_tags').delete().eq('tag_id', tagId);
 		await supabase.from('tags').delete().eq('id', tagId);
+		await reindexAfterDelete(supabase, userId);
 		confirmDeleteId = null;
 		onTagsChanged();
 	}
@@ -97,7 +100,8 @@
 		}
 
 		duplicateWarning = '';
-		await supabase.from('tags').insert({ user_id: userId, name: displayName, color: newTagColor });
+		const orderIndex = await getNextOrderIndex(supabase, userId);
+		await supabase.from('tags').insert({ user_id: userId, name: displayName, color: newTagColor, order_index: orderIndex });
 		newTagName = '';
 		newTagColorOverride = null;
 		onTagsChanged();
@@ -111,6 +115,11 @@
 	function handleEditKeydown(e: KeyboardEvent, tagId: string) {
 		if (e.key === 'Enter') saveInlineEdit(tagId);
 		else if (e.key === 'Escape') cancelInlineEdit();
+	}
+
+	async function handleReorder(orderedIds: string[]) {
+		await saveTagOrder(supabase, orderedIds);
+		onTagsChanged();
 	}
 
 	function handleEditBlur(tagId: string) {
@@ -187,7 +196,16 @@
 	</div>
 
 	<!-- Tag list -->
-	<div class="max-h-[50vh] overflow-y-auto px-2 py-1.5 sm:px-3">
+	<div
+		class="max-h-[50vh] overflow-y-auto px-2 py-1.5 sm:px-3"
+		use:sortable={{
+			onReorder: handleReorder,
+			itemSelector: '[data-tag-id]',
+			idAttribute: 'data-tag-id',
+			longPressMs: 300,
+			disabled: false
+		}}
+	>
 		{#if allTags.length === 0}
 			<p class="py-8 text-center text-sm text-warm-400">No tags yet</p>
 		{/if}
@@ -210,7 +228,7 @@
 				</div>
 			{:else}
 				<!-- Tag row -->
-				<div class="group flex items-center gap-2.5 rounded-lg px-3 py-1.5 transition-colors hover:bg-warm-100/70">
+				<div data-tag-id={tag.id} class="group flex items-center gap-2.5 rounded-lg px-3 py-1.5 transition-colors hover:bg-warm-100/70">
 					<!-- Color dot (clickable) -->
 					<button
 						onclick={() => { colorPickerId = colorPickerId === tag.id ? null : tag.id; editingId = null; }}

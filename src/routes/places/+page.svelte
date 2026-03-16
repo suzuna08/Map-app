@@ -7,6 +7,8 @@
 	import TagManager from '$lib/components/TagManager.svelte';
 	import TagContextMenu from '$lib/components/TagContextMenu.svelte';
 	import AddPlaceModal from '$lib/components/AddPlaceModal.svelte';
+	import { sortable } from '$lib/actions/sortable';
+	import { saveTagOrder } from '$lib/tag-order';
 
 	let { data } = $props();
 	let supabase = $derived(data.supabase);
@@ -43,7 +45,7 @@
 		loading = true;
 		const [placesRes, tagsRes, placeTagsRes] = await Promise.all([
 			supabase.from('places').select('*').order('created_at', { ascending: false }),
-			supabase.from('tags').select('*').order('name'),
+			supabase.from('tags').select('*').order('order_index', { ascending: true }).order('name'),
 			supabase.from('place_tags').select('place_id, tag_id')
 		]);
 		places = (placesRes.data ?? []) as Place[];
@@ -61,12 +63,15 @@
 				map[pt.place_id].push(tag);
 			}
 		}
+		for (const key of Object.keys(map)) {
+			map[key].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+		}
 		placeTagsMap = map;
 	}
 
 	async function refreshTags() {
 		const [tagsRes, placeTagsRes] = await Promise.all([
-			supabase.from('tags').select('*').order('name'),
+			supabase.from('tags').select('*').order('order_index', { ascending: true }).order('name'),
 			supabase.from('place_tags').select('place_id, tag_id')
 		]);
 		allTags = (tagsRes.data ?? []) as Tag[];
@@ -212,6 +217,11 @@
 	async function deletePlace(id: string) {
 		await supabase.from('places').delete().eq('id', id);
 		places = places.filter((p) => p.id !== id);
+	}
+
+	async function handleTagReorder(orderedIds: string[]) {
+		await saveTagOrder(supabase, orderedIds);
+		await refreshTags();
 	}
 
 	function handleTagContextMenu(tag: Tag, x: number, y: number) {
@@ -369,7 +379,16 @@
 				</div>
 
 				<!-- Tags for the active tab -->
-				<div class="flex items-center gap-2 overflow-x-auto py-0.5 pr-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+				<div
+					class="flex items-center gap-2 overflow-x-auto py-0.5 pr-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+					use:sortable={{
+						onReorder: handleTagReorder,
+						itemSelector: '[data-tag-id]',
+						idAttribute: 'data-tag-id',
+						longPressMs: 300,
+						disabled: mobileTagTab !== 'custom'
+					}}
+				>
 					{#if mobileTagTab === 'category'}
 						{#each categoryTags as tag (tag.id)}
 							<button onclick={() => toggleTag(tag.id)} class="shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold transition-all {selectedTagMap[tag.id] ? 'border-brand-400 bg-brand-50 text-warm-800' : 'border-warm-200 text-warm-500'}">{tag.name}</button>
@@ -389,6 +408,7 @@
 					{:else if mobileTagTab === 'custom'}
 						{#each userTags as tag (tag.id)}
 							<button
+								data-tag-id={tag.id}
 								onclick={() => toggleTag(tag.id)}
 								class="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold transition-all {selectedTagMap[tag.id] ? 'text-white shadow-sm ring-2 ring-offset-1' : 'text-white opacity-80'}"
 								style="background-color: {tag.color ?? '#6b7280'}; {selectedTagMap[tag.id] ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
@@ -460,9 +480,19 @@
 
 				<div class="flex items-baseline gap-2.5">
 					<span class="w-16 shrink-0 text-[11px] font-bold text-warm-400">Custom</span>
-					<div class="flex flex-wrap items-center gap-1.5">
+					<div
+						class="flex flex-wrap items-center gap-1.5"
+						use:sortable={{
+							onReorder: handleTagReorder,
+							itemSelector: '[data-tag-id]',
+							idAttribute: 'data-tag-id',
+							longPressMs: 300,
+							disabled: false
+						}}
+					>
 						{#each userTags as tag (tag.id)}
 							<button
+								data-tag-id={tag.id}
 								onclick={() => toggleTag(tag.id)}
 								class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold transition-all {selectedTagMap[tag.id]
 									? 'text-white shadow-sm ring-2 ring-offset-1'

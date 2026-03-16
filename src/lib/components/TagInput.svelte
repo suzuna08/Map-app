@@ -2,6 +2,8 @@
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import type { Tag } from '$lib/types/database';
 	import { colorForTag } from '$lib/tag-colors';
+	import { getNextOrderIndex, saveTagOrder } from '$lib/tag-order';
+	import { sortable } from '$lib/actions/sortable';
 
 	interface Props {
 		supabase: SupabaseClient;
@@ -89,9 +91,10 @@
 		let tag = allTags.find((t) => normalizeTagName(t.name) === normalized);
 
 		if (!tag) {
+			const orderIndex = await getNextOrderIndex(supabase, userId);
 			const { data } = await supabase
 				.from('tags')
-				.insert({ user_id: userId, name: displayName, color: colorForTag(displayName) })
+				.insert({ user_id: userId, name: displayName, color: colorForTag(displayName), order_index: orderIndex })
 				.select()
 				.single();
 			if (!data) return;
@@ -146,15 +149,30 @@
 		onUpdate();
 	}
 
+	async function handleReorder(orderedIds: string[]) {
+		await saveTagOrder(supabase, orderedIds);
+		onUpdate();
+	}
+
 	function openInput() {
 		showInput = true;
 		requestAnimationFrame(() => inputEl?.focus());
 	}
 </script>
 
-<div class="flex flex-wrap items-center gap-1">
+<div
+	class="flex flex-wrap items-center gap-1"
+	use:sortable={{
+		onReorder: handleReorder,
+		itemSelector: '[data-tag-id]',
+		idAttribute: 'data-tag-id',
+		longPressMs: 300,
+		disabled: false
+	}}
+>
 	{#each visibleTags as tag (tag.id)}
 		<span
+			data-tag-id={tag.id}
 			class="inline-flex items-center gap-0.5 rounded-full text-[10px] font-bold text-white sm:text-[11px]"
 			style="background-color: {tag.color ?? '#6b7280'}"
 		>
