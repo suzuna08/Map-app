@@ -2,7 +2,6 @@
 	import { onMount } from 'svelte';
 	import { PUBLIC_MAPTILER_KEY } from '$env/static/public';
 	import type { Place } from '$lib/types/database';
-	import 'maplibre-gl/dist/maplibre-gl.css';
 
 	interface Props {
 		places: Place[];
@@ -193,6 +192,10 @@
 	let mappableCount = $derived(places.filter(p => p.lat != null && p.lng != null).length);
 	let unmappableCount = $derived(places.length - mappableCount);
 </script>
+
+<svelte:head>
+	<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
+</svelte:head>
 
 <div class="relative h-full w-full bg-warm-100">
 	<div bind:this={container} class="h-full w-full"></div>
