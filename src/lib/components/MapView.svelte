@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { PUBLIC_MAPTILER_KEY } from '$env/static/public';
+	import { env } from '$env/dynamic/public';
 	import type { Place } from '$lib/types/database';
 
 	interface Props {
@@ -18,7 +18,7 @@
 	let mapReady = $state(false);
 	let prevFitKey = '';
 
-	const MAPTILER_KEY = PUBLIC_MAPTILER_KEY ?? '';
+	const MAPTILER_KEY = env.PUBLIC_MAPTILER_KEY ?? '';
 
 	onMount(() => {
 		let ro: ResizeObserver | null = null;
