@@ -2,11 +2,13 @@
 	import '../app.css';
 	import { invalidate, goto } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import AddPlaceModal from '$lib/components/AddPlaceModal.svelte';
 
 	let { data, children } = $props();
 
 	let supabase = $derived(data.supabase);
 	let session = $derived(data.session);
+	let showAddModal = $state(false);
 
 	onMount(() => {
 		const {
@@ -36,7 +38,7 @@
 	<title>MapOrganizer</title>
 </svelte:head>
 
-<div class="min-h-[100dvh] overflow-x-hidden bg-sage-100 font-sans">
+<div class="min-h-[100dvh] bg-sage-100 font-sans">
 	<nav class="sticky top-0 z-30 border-b border-warm-200/60 bg-warm-50/85 backdrop-blur-lg">
 		<div class="mx-auto flex h-12 max-w-[1400px] items-center justify-between px-3 sm:h-14 sm:px-6">
 			<a href={session ? '/places' : '/'} class="flex items-center gap-1.5 text-base font-extrabold text-warm-800 sm:gap-2 sm:text-lg">
@@ -55,17 +57,16 @@
 				>
 					My Places
 				</a>
-				<a
-					href="/upload"
+				<button
+					onclick={() => { showAddModal = true; }}
 					class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700 sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-sm"
 				>
 					<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-						<polyline points="17 8 12 3 7 8" />
-						<line x1="12" y1="3" x2="12" y2="15" />
+						<line x1="12" y1="5" x2="12" y2="19" />
+						<line x1="5" y1="12" x2="19" y2="12" />
 					</svg>
-					<span class="hidden sm:inline">Upload</span>
-				</a>
+					<span class="hidden sm:inline">Add Place</span>
+				</button>
 				<button
 					onclick={handleSignOut}
 					class="rounded-lg px-1.5 py-1 text-[11px] font-medium text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600 sm:px-3 sm:py-1.5 sm:text-sm"
@@ -78,4 +79,11 @@
 	</nav>
 
 	{@render children()}
+
+	{#if showAddModal}
+		<AddPlaceModal
+			onClose={() => { showAddModal = false; }}
+			onPlaceAdded={() => { invalidate('supabase:auth'); }}
+		/>
+	{/if}
 </div>

@@ -39,10 +39,11 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 		throw error(502, 'Could not fetch place details from Google');
 	}
 
+	const { display_name: _, ...dbFields } = details;
 	const { error: updateError } = await locals.supabase
 		.from('places')
 		.update({
-			...details,
+			...dbFields,
 			enriched_at: new Date().toISOString()
 		} as any)
 		.eq('id', placeId as string);

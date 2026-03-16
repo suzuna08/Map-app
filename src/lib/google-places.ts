@@ -115,7 +115,20 @@ function extractArea(addressComponents: any[], formattedAddress?: string): strin
 	return '';
 }
 
+export function isGoogleMapsUrl(url: string): boolean {
+	return /^https?:\/\/(www\.)?(google\.[a-z.]+\/maps|maps\.google\.[a-z.]+|goo\.gl\/maps|maps\.app\.goo\.gl)/i.test(url);
+}
+
+export async function resolveGoogleMapsUrl(url: string): Promise<string> {
+	if (/goo\.gl|maps\.app\.goo\.gl/.test(url)) {
+		const res = await fetch(url, { redirect: 'follow' });
+		return res.url;
+	}
+	return url;
+}
+
 export interface PlaceDetails {
+	display_name: string;
 	google_place_id: string;
 	category: string;
 	primary_type: string | null;
@@ -167,6 +180,7 @@ export async function fetchPlaceDetails(
 	const types = place.types || [];
 
 	return {
+		display_name: place.displayName?.text || '',
 		google_place_id: place.id,
 		category: mapCategory(types),
 		primary_type: place.primaryType || types[0] || null,

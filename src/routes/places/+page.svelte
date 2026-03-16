@@ -5,6 +5,8 @@
 	import PlaceCard from '$lib/components/PlaceCard.svelte';
 	import PlaceListItem from '$lib/components/PlaceListItem.svelte';
 	import TagManager from '$lib/components/TagManager.svelte';
+	import TagContextMenu from '$lib/components/TagContextMenu.svelte';
+	import AddPlaceModal from '$lib/components/AddPlaceModal.svelte';
 
 	let { data } = $props();
 	let supabase = $derived(data.supabase);
@@ -22,7 +24,12 @@
 	let enrichResult = $state<{ enriched: number; total: number } | null>(null);
 	let sidebarOpen = $state(false);
 	let showTagManager = $state(false);
+	let showAddPlace = $state(false);
 	let viewMode = $state<'grid' | 'list'>('grid');
+	let sortBy = $state<'newest' | 'oldest' | 'az' | 'za' | 'rating' | 'most-tags' | 'tag-group'>('newest');
+	let mobileTagTab = $state<'category' | 'area' | 'custom'>('category');
+	let contextMenuTag = $state<Tag | null>(null);
+	let contextMenuPos = $state({ x: 0, y: 0 });
 
 	$effect(() => {
 		if (!session) goto('/login');
@@ -99,6 +106,31 @@
 		})
 	);
 
+	let sortedPlaces = $derived(
+		[...filteredPlaces].sort((a, b) => {
+			switch (sortBy) {
+				case 'oldest':
+					return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+				case 'az':
+					return a.title.localeCompare(b.title);
+				case 'za':
+					return b.title.localeCompare(a.title);
+				case 'rating':
+					return (b.rating ?? 0) - (a.rating ?? 0);
+				case 'most-tags':
+					return (placeTagsMap[b.id]?.length ?? 0) - (placeTagsMap[a.id]?.length ?? 0);
+				case 'tag-group': {
+					const tagA = (placeTagsMap[a.id] ?? []).find(t => t.source === 'user')?.name ?? '\uffff';
+					const tagB = (placeTagsMap[b.id] ?? []).find(t => t.source === 'user')?.name ?? '\uffff';
+					return tagA.localeCompare(tagB);
+				}
+				case 'newest':
+				default:
+					return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+			}
+		})
+	);
+
 	function toggleTag(tagId: string) {
 		const copy = { ...selectedTagMap };
 		if (copy[tagId]) {
@@ -138,13 +170,22 @@
 		}
 	}
 
+	function updateNote(placeId: string, note: string) {
+		places = places.map((p) => (p.id === placeId ? { ...p, note } : p));
+	}
+
 	async function deletePlace(id: string) {
 		await supabase.from('places').delete().eq('id', id);
 		places = places.filter((p) => p.id !== id);
 	}
+
+	function handleTagContextMenu(tag: Tag, x: number, y: number) {
+		contextMenuTag = tag;
+		contextMenuPos = { x, y };
+	}
 </script>
 
-<div class="min-h-[calc(100dvh-3rem)] overflow-x-hidden sm:min-h-[calc(100dvh-3.5rem)]">
+<div class="min-h-[calc(100dvh-3rem)] sm:min-h-[calc(100dvh-3.5rem)]">
 	<!-- Sidebar -->
 	<TagSidebar
 		{supabase}
@@ -165,9 +206,9 @@
 
 	<!-- Main content -->
 	<div class="lg:ml-64">
-		<div class="mx-auto max-w-5xl px-3 py-3 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6">
+		<div class="mx-auto max-w-5xl px-2.5 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6">
 			<!-- Mobile sidebar toggle + search bar -->
-			<div class="sticky top-12 z-20 mb-3 flex items-center gap-2 sm:static sm:top-14 sm:mb-5 sm:gap-3">
+			<div class="sticky top-12 z-20 -mx-2.5 mb-1 flex items-center gap-1.5 bg-sage-100 px-2.5 py-1.5 sm:static sm:top-14 sm:mx-0 sm:mb-5 sm:gap-3 sm:bg-transparent sm:px-0 sm:py-0">
 				<button
 					onclick={() => { sidebarOpen = true; }}
 					class="rounded-md border border-warm-200 p-1.5 text-warm-500 sm:rounded-lg sm:p-2 lg:hidden"
@@ -194,25 +235,25 @@
 						type="text"
 						bind:value={search}
 						placeholder="Search places, tags..."
-						class="w-full rounded-lg border border-warm-200 bg-warm-50 py-1.5 pl-9 pr-3 text-base font-medium shadow-sm transition-colors focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:rounded-xl sm:py-2.5 sm:pl-11 sm:pr-4 sm:text-sm"
+						class="w-full rounded-lg border border-warm-200 bg-warm-50 py-1.5 pl-8 pr-2.5 text-sm font-medium shadow-sm transition-colors focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:rounded-xl sm:py-2.5 sm:pl-11 sm:pr-4 sm:text-sm"
 					/>
 				</div>
 			</div>
 
-			<!-- Active filters display -->
-			{#if hasActiveFilters || selectedSource !== 'all'}
-				<div class="mb-2 flex flex-wrap items-center gap-1.5 sm:mb-4 sm:gap-2">
+			<!-- Reserved filter summary area (always present to prevent layout shift) -->
+			<div class="mb-1 flex min-h-[28px] flex-wrap items-center gap-1.5 sm:mb-3 sm:min-h-[32px] sm:gap-2">
+				{#if hasActiveFilters || selectedSource !== 'all'}
 					<span class="text-[10px] text-warm-400 sm:text-xs">Filtered by:</span>
 					{#each selectedTagIds as tagId (tagId)}
 						{@const tag = allTags.find((t) => t.id === tagId)}
 						{#if tag}
 							<button
 								onclick={() => toggleTag(tagId)}
-								class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium text-white"
+								class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-white sm:px-2.5 sm:text-xs"
 								style="background-color: {tag.color ?? '#6b7280'}"
 							>
 								{tag.name}
-								<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+								<svg class="h-2 w-2 sm:h-2.5 sm:w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
 									<line x1="18" y1="6" x2="6" y2="18" />
 									<line x1="6" y1="6" x2="18" y2="18" />
 								</svg>
@@ -222,10 +263,10 @@
 					{#if selectedSource !== 'all'}
 						<button
 							onclick={() => { selectedSource = 'all'; }}
-							class="inline-flex items-center gap-1 rounded-full bg-warm-200 px-2.5 py-0.5 text-xs font-medium text-warm-700"
+							class="inline-flex items-center gap-1 rounded-full bg-warm-200 px-2 py-0.5 text-[10px] font-medium text-warm-700 sm:px-2.5 sm:text-xs"
 						>
 							{selectedSource}
-							<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+							<svg class="h-2 w-2 sm:h-2.5 sm:w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
 								<line x1="18" y1="6" x2="6" y2="18" />
 								<line x1="6" y1="6" x2="18" y2="18" />
 							</svg>
@@ -233,16 +274,16 @@
 					{/if}
 					<button
 						onclick={() => { selectedTagMap = {}; selectedSource = 'all'; }}
-						class="text-xs text-warm-400 hover:text-warm-600"
+						class="text-[10px] text-warm-400 hover:text-warm-600 sm:text-xs"
 					>
-						Clear all
+						Clear
 					</button>
-				</div>
-			{/if}
+				{/if}
+			</div>
 
 			<!-- Enrich banner -->
 			{#if unenrichedCount > 0}
-				<div class="mb-2 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 sm:mb-4 sm:rounded-xl sm:p-3">
+				<div class="mb-1.5 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 sm:mb-4 sm:rounded-xl sm:p-3">
 					<span class="text-xs text-amber-700 sm:text-sm">
 						{unenrichedCount} missing details
 					</span>
@@ -257,89 +298,166 @@
 			{/if}
 
 			{#if enrichResult}
-				<div class="mb-2 rounded-lg bg-green-50 p-2 text-xs text-green-700 sm:mb-4 sm:rounded-xl sm:p-3 sm:text-sm">
+				<div class="mb-1.5 rounded-lg bg-green-50 p-2 text-xs text-green-700 sm:mb-4 sm:rounded-xl sm:p-3 sm:text-sm">
 					Fetched details for {enrichResult.enriched} of {enrichResult.total} places.
 				</div>
 			{/if}
 
-			<!-- Unified smart tag filter row -->
-			<div class="mb-3 flex items-center gap-2 overflow-x-auto pb-1 pr-2 whitespace-nowrap [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:mb-5 md:flex-wrap md:gap-x-2 md:gap-y-2 md:overflow-visible md:pb-0 md:pr-0">
-				<!-- All button -->
-				<button
-					onclick={() => { selectedTagMap = {}; selectedSource = 'all'; }}
-					class="text-[11px] font-extrabold transition-all sm:text-xs {!hasActiveFilters && selectedSource === 'all'
-					? 'text-warm-800 underline decoration-brand-500 decoration-2 underline-offset-4'
-					: 'text-warm-400 hover:text-warm-600'}"
-				>
-					All
-				</button>
-
-			<!-- Category tags: plain text style, minimal -->
-			{#if categoryTags.length > 0}
-				{#each categoryTags as tag (tag.id)}
+			<!-- ======== MOBILE tag filter (< md) ======== -->
+			<div class="mb-1.5 md:hidden">
+				<!-- Tab selector: Category | Area | Custom -->
+				<div class="mb-1.5 flex items-center rounded-lg border border-warm-200 bg-white p-0.5">
 					<button
-						onclick={() => toggleTag(tag.id)}
-					class="text-[11px] font-bold transition-all sm:text-xs {selectedTagMap[tag.id]
-						? 'text-warm-800 underline decoration-brand-500 decoration-2 underline-offset-4'
-						: 'text-warm-400 hover:text-warm-600'}"
+						onclick={() => { mobileTagTab = 'category'; }}
+						class="flex-1 rounded-md px-1 py-1.5 text-center text-[11px] font-bold transition-colors {mobileTagTab === 'category'
+							? 'bg-warm-200 text-warm-800'
+							: 'text-warm-400'}"
 					>
-						{tag.name}
+						Category <span class="font-normal opacity-50">{categoryTags.length}</span>
 					</button>
-				{/each}
-			{/if}
-
-			<!-- Area tags: subtle blue, geographic feel -->
-			{#if areaTags.length > 0}
-				{#if categoryTags.length > 0}
-					<span class="text-warm-300">·</span>
-				{/if}
-				{#each areaTags as tag (tag.id)}
 					<button
-						onclick={() => toggleTag(tag.id)}
-					class="text-[11px] font-bold transition-all sm:text-xs {selectedTagMap[tag.id]
-						? 'text-sage-700 underline decoration-sage-500 decoration-2 underline-offset-4'
-						: 'text-sage-400 hover:text-sage-600'}"
+						onclick={() => { mobileTagTab = 'area'; }}
+						class="flex-1 rounded-md px-1 py-1.5 text-center text-[11px] font-bold transition-colors {mobileTagTab === 'area'
+							? 'bg-sage-200 text-sage-800'
+							: 'text-warm-400'}"
 					>
-						{tag.name}
+						Area <span class="font-normal opacity-50">{areaTags.length}</span>
 					</button>
-				{/each}
-			{/if}
+					<button
+						onclick={() => { mobileTagTab = 'custom'; }}
+						class="flex-1 rounded-md px-1 py-1.5 text-center text-[11px] font-bold transition-colors {mobileTagTab === 'custom'
+							? 'bg-brand-100 text-brand-800'
+							: 'text-warm-400'}"
+					>
+						Custom <span class="font-normal opacity-50">{userTags.length}</span>
+					</button>
+				</div>
 
-			<!-- Divider before user tags -->
-			{#if categoryTags.length > 0 || areaTags.length > 0}
-				<span class="mx-0.5 h-4 w-px bg-warm-300"></span>
-			{/if}
+				<!-- Tags for the active tab -->
+				<div class="flex items-center gap-2 overflow-x-auto py-0.5 pr-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+					{#if mobileTagTab === 'category'}
+						{#each categoryTags as tag (tag.id)}
+							<button onclick={() => toggleTag(tag.id)} class="shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold transition-all {selectedTagMap[tag.id] ? 'border-brand-400 bg-brand-50 text-warm-800' : 'border-warm-200 text-warm-500'}">{tag.name}</button>
+						{/each}
+						{#if categoryTags.length === 0}
+							<span class="text-xs text-warm-400">No category tags</span>
+						{/if}
 
-			<!-- User tags: solid colored pills - clearly "yours" -->
-			{#each userTags as tag (tag.id)}
-				<button
-					onclick={() => toggleTag(tag.id)}
-					class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold transition-all sm:gap-1.5 sm:px-3 sm:py-1 sm:text-xs {selectedTagMap[tag.id]
-						? 'text-white shadow-sm ring-2 ring-offset-1'
-						: 'text-white opacity-80 hover:opacity-100'}"
-					style="background-color: {tag.color ?? '#6b7280'}; {selectedTagMap[tag.id] ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
-				>
-					{tag.name}
-					{#if selectedTagMap[tag.id]}
-						<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-							<line x1="18" y1="6" x2="6" y2="18" />
-							<line x1="6" y1="6" x2="18" y2="18" />
-						</svg>
+					{:else if mobileTagTab === 'area'}
+						{#each areaTags as tag (tag.id)}
+							<button onclick={() => toggleTag(tag.id)} class="shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold transition-all {selectedTagMap[tag.id] ? 'border-sage-400 bg-sage-50 text-sage-800' : 'border-warm-200 text-warm-500'}">{tag.name}</button>
+						{/each}
+						{#if areaTags.length === 0}
+							<span class="text-xs text-warm-400">No area tags</span>
+						{/if}
+
+					{:else if mobileTagTab === 'custom'}
+						{#each userTags as tag (tag.id)}
+							<button
+								onclick={() => toggleTag(tag.id)}
+								class="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold transition-all {selectedTagMap[tag.id] ? 'text-white shadow-sm ring-2 ring-offset-1' : 'text-white opacity-80'}"
+								style="background-color: {tag.color ?? '#6b7280'}; {selectedTagMap[tag.id] ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
+							>
+								{tag.name}
+								{#if selectedTagMap[tag.id]}
+									<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+										<line x1="18" y1="6" x2="6" y2="18" />
+										<line x1="6" y1="6" x2="18" y2="18" />
+									</svg>
+								{/if}
+							</button>
+						{/each}
+						<button
+							onclick={() => { showTagManager = true; }}
+							class="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-warm-300 px-2 py-1 text-[10px] text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
+							aria-label="Manage tags"
+						>
+							<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<line x1="12" y1="5" x2="12" y2="19" />
+								<line x1="5" y1="12" x2="19" y2="12" />
+							</svg>
+							Add
+						</button>
+						{#if userTags.length === 0}
+							<span class="text-xs text-warm-400">No custom tags yet</span>
+						{/if}
 					{/if}
-				</button>
-			{/each}
+				</div>
+			</div>
 
-				<!-- Add / Edit tags -->
-				<button
-					onclick={() => { showTagManager = true; }}
-					class="inline-flex items-center gap-1 rounded-full border border-dashed border-warm-300 px-1.5 py-0.5 text-[10px] text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600 sm:px-2.5 sm:py-1 sm:text-xs"
-					aria-label="Manage tags"
-				>
-					<svg class="h-2.5 w-2.5 sm:h-3 sm:w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<line x1="12" y1="5" x2="12" y2="19" />
-						<line x1="5" y1="12" x2="19" y2="12" />
-					</svg>
-				</button>
+			<!-- ======== DESKTOP tag filter (md+) — inline grouped rows ======== -->
+			<div class="mb-4 hidden space-y-1.5 md:block">
+				{#if categoryTags.length > 0}
+					<div class="flex items-baseline gap-2.5">
+						<span class="w-16 shrink-0 text-[11px] font-bold text-warm-400">Category</span>
+						<div class="flex flex-wrap items-center gap-1.5">
+							{#each categoryTags as tag (tag.id)}
+								<button
+									onclick={() => toggleTag(tag.id)}
+									class="rounded-full border px-2.5 py-0.5 text-[11px] font-bold transition-all {selectedTagMap[tag.id]
+										? 'border-brand-400 bg-brand-50 text-warm-800'
+										: 'border-warm-200 text-warm-500 hover:border-warm-300 hover:text-warm-700'}"
+								>
+									{tag.name}
+								</button>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				{#if areaTags.length > 0}
+					<div class="flex items-baseline gap-2.5">
+						<span class="w-16 shrink-0 text-[11px] font-bold text-warm-400">Area</span>
+						<div class="flex flex-wrap items-center gap-1.5">
+							{#each areaTags as tag (tag.id)}
+								<button
+									onclick={() => toggleTag(tag.id)}
+									class="rounded-full border px-2.5 py-0.5 text-[11px] font-bold transition-all {selectedTagMap[tag.id]
+										? 'border-sage-400 bg-sage-50 text-sage-800'
+										: 'border-warm-200 text-warm-500 hover:border-warm-300 hover:text-warm-700'}"
+								>
+									{tag.name}
+								</button>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				<div class="flex items-baseline gap-2.5">
+					<span class="w-16 shrink-0 text-[11px] font-bold text-warm-400">Custom</span>
+					<div class="flex flex-wrap items-center gap-1.5">
+						{#each userTags as tag (tag.id)}
+							<button
+								onclick={() => toggleTag(tag.id)}
+								class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold transition-all {selectedTagMap[tag.id]
+									? 'text-white shadow-sm ring-2 ring-offset-1'
+									: 'text-white opacity-80 hover:opacity-100'}"
+								style="background-color: {tag.color ?? '#6b7280'}; {selectedTagMap[tag.id] ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
+							>
+								{tag.name}
+								{#if selectedTagMap[tag.id]}
+									<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+										<line x1="18" y1="6" x2="6" y2="18" />
+										<line x1="6" y1="6" x2="18" y2="18" />
+									</svg>
+								{/if}
+							</button>
+						{/each}
+						<button
+							onclick={() => { showTagManager = true; }}
+							class="inline-flex items-center gap-1 rounded-full border border-dashed border-warm-300 px-2 py-0.5 text-[11px] text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
+							aria-label="Manage tags"
+						>
+							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<line x1="12" y1="5" x2="12" y2="19" />
+								<line x1="5" y1="12" x2="19" y2="12" />
+							</svg>
+						</button>
+						{#if userTags.length === 0}
+							<span class="text-[11px] text-warm-400">No custom tags yet</span>
+						{/if}
+					</div>
+				</div>
 			</div>
 
 			<!-- Tag manager modal -->
@@ -353,9 +471,35 @@
 				/>
 			{/if}
 
-			<!-- Results count + view toggle -->
-			<div class="mb-2 flex items-center justify-between sm:mb-4">
-				<p class="text-[11px] font-semibold text-warm-500 sm:text-sm">{filteredPlaces.length} places</p>
+			<!-- Results count + sort + view toggle -->
+			<div class="mb-1.5 flex items-center justify-between sm:mb-4">
+				<div class="flex items-center gap-2">
+					<p class="text-[11px] font-semibold text-warm-500 sm:text-sm">{filteredPlaces.length} places</p>
+					<button
+						onclick={() => { showAddPlace = true; }}
+						class="inline-flex items-center gap-1 rounded-md border border-brand-400 px-1.5 py-0.5 text-[10px] font-bold text-brand-600 transition-colors hover:bg-brand-50 sm:px-2 sm:py-1 sm:text-[11px]"
+						aria-label="Add place"
+					>
+						<svg class="h-2.5 w-2.5 sm:h-3 sm:w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+							<line x1="12" y1="5" x2="12" y2="19" />
+							<line x1="5" y1="12" x2="19" y2="12" />
+						</svg>
+						Add place
+					</button>
+				</div>
+				<div class="flex items-center gap-1.5 sm:gap-2">
+					<select
+						bind:value={sortBy}
+						class="rounded-md border border-warm-200 bg-white px-1.5 py-1 text-[10px] font-semibold text-warm-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:rounded-lg sm:px-2.5 sm:py-1.5 sm:text-[11px]"
+					>
+						<option value="newest">Recently added</option>
+						<option value="oldest">Oldest added</option>
+						<option value="az">Name (A–Z)</option>
+						<option value="za">Name (Z–A)</option>
+						<option value="rating">Rating</option>
+						<option value="most-tags">Most tagged</option>
+						<option value="tag-group">Tag group</option>
+					</select>
 				<div class="flex items-center gap-0.5 rounded-md border border-warm-200 bg-white p-0.5 sm:gap-1 sm:rounded-lg">
 					<button
 						onclick={() => { viewMode = 'grid'; }}
@@ -384,6 +528,7 @@
 						</svg>
 					</button>
 				</div>
+				</div>
 			</div>
 
 			<!-- Places -->
@@ -394,7 +539,7 @@
 						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
 					</svg>
 				</div>
-			{:else if filteredPlaces.length === 0}
+			{:else if sortedPlaces.length === 0}
 				<div class="py-20 text-center">
 					<svg class="mx-auto h-12 w-12 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
 						<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
@@ -411,7 +556,7 @@
 				</div>
 			{:else if viewMode === 'grid'}
 				<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
-					{#each filteredPlaces as place (place.id)}
+					{#each sortedPlaces as place (place.id)}
 						<PlaceCard
 							{place}
 							placeTags={placeTagsMap[place.id] ?? []}
@@ -423,20 +568,48 @@
 							onDelete={deletePlace}
 							onTagClick={toggleTag}
 							onTagsChanged={refreshTags}
+							onNoteChanged={updateNote}
+							onTagContextMenu={handleTagContextMenu}
 						/>
 					{/each}
 				</div>
 			{:else}
-				<div class="space-y-1.5 sm:space-y-2">
-					{#each filteredPlaces as place (place.id)}
+				<div class="overflow-visible rounded-xl border border-warm-200 bg-white divide-y divide-warm-100">
+					{#each sortedPlaces as place (place.id)}
 						<PlaceListItem
 							{place}
 							placeTags={placeTagsMap[place.id] ?? []}
+							{allTags}
+							{supabase}
+							userId={session?.user?.id ?? ''}
 							onTagClick={toggleTag}
+							onTagContextMenu={handleTagContextMenu}
+							onTagsChanged={refreshTags}
+							onNoteChanged={updateNote}
+							onDelete={deletePlace}
 						/>
 					{/each}
 				</div>
 			{/if}
 		</div>
 	</div>
+
+	{#if showAddPlace}
+		<AddPlaceModal
+			onClose={() => { showAddPlace = false; }}
+			onPlaceAdded={() => { loadData(); }}
+		/>
+	{/if}
+
+	{#if contextMenuTag}
+		<TagContextMenu
+			tag={contextMenuTag}
+			x={contextMenuPos.x}
+			y={contextMenuPos.y}
+			{supabase}
+			allTags={userTags}
+			onClose={() => { contextMenuTag = null; }}
+			onTagsChanged={refreshTags}
+		/>
+	{/if}
 </div>

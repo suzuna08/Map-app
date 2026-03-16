@@ -31,10 +31,11 @@ export const POST: RequestHandler = async ({ locals }) => {
 		try {
 			const details = await fetchPlaceDetails(place.url!, place.title);
 			if (details) {
+				const { display_name: _, ...dbFields } = details;
 				await locals.supabase
 					.from('places')
 					.update({
-						...details,
+						...dbFields,
 						enriched_at: new Date().toISOString()
 					} as any)
 					.eq('id', place.id);

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import type { Tag } from '$lib/types/database';
+	import { colorForTag } from '$lib/tag-colors';
 
 	interface Props {
 		supabase: SupabaseClient;
@@ -10,51 +11,71 @@
 		placeTags: Tag[];
 		onUpdate: () => void;
 		onTagClick?: (tagId: string) => void;
+		onTagContextMenu?: (tag: Tag, x: number, y: number) => void;
+		maxVisible?: number;
 	}
 
-	let { supabase, placeId, userId, allTags, placeTags, onUpdate, onTagClick }: Props = $props();
+	let { supabase, placeId, userId, allTags, placeTags, onUpdate, onTagClick, onTagContextMenu, maxVisible = 6 }: Props = $props();
 
 	let inputValue = $state('');
 	let showSuggestions = $state(false);
 	let showInput = $state(false);
 	let inputEl = $state<HTMLInputElement | null>(null);
 
+	let expanded = $state(false);
+
 	let userTags = $derived(allTags.filter((t) => t.source === 'user'));
+	let displayUserTags = $derived(placeTags.filter((t) => t.source === 'user'));
+	let visibleTags = $derived(expanded ? displayUserTags : displayUserTags.slice(0, maxVisible));
+	let overflowCount = $derived(Math.max(0, displayUserTags.length - maxVisible));
+
+	function handleTagContextMenu(e: MouseEvent, tag: Tag) {
+		e.preventDefault();
+		e.stopPropagation();
+		onTagContextMenu?.(tag, e.clientX, e.clientY);
+	}
+
+	function normalizeTagName(name: string): string {
+		return name.toLowerCase().trim().replace(/\s+/g, ' ');
+	}
+
+	function toDisplayName(name: string): string {
+		const cleaned = name.trim().replace(/\s+/g, ' ');
+		const isAllLowercase = cleaned === cleaned.toLowerCase();
+		if (!isAllLowercase) return cleaned;
+		return cleaned.replace(/\b\w/g, (c) => c.toUpperCase());
+	}
 
 	let suggestions = $derived(
 		inputValue.trim().length > 0
 			? userTags.filter(
 					(t) =>
-						t.name.toLowerCase().includes(inputValue.toLowerCase()) &&
+						normalizeTagName(t.name).includes(normalizeTagName(inputValue)) &&
 						!placeTags.some((pt) => pt.id === t.id)
 				)
 			: userTags.filter((t) => !placeTags.some((pt) => pt.id === t.id))
 	);
 
-	let showCreateOption = $derived(
+	let exactMatch = $derived(
 		inputValue.trim().length > 0 &&
-			!allTags.some((t) => t.name.toLowerCase() === inputValue.trim().toLowerCase())
+			allTags.some((t) => normalizeTagName(t.name) === normalizeTagName(inputValue))
 	);
 
-	const TAG_COLORS = [
-		'#c4898a', '#7b8fa8', '#b07c6a', '#9a7f9e', '#6a9b96',
-		'#b89760', '#7882a0', '#c08878', '#8a9462', '#a88290'
-	];
-
-	function randomColor(): string {
-		return TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)];
-	}
+	let showCreateOption = $derived(
+		inputValue.trim().length > 0 && !exactMatch
+	);
 
 	async function createAndAddTag(name: string) {
-		const trimmed = name.trim();
-		if (!trimmed) return;
+		const displayName = toDisplayName(name);
+		if (!displayName) return;
 
-		let tag = allTags.find((t) => t.name.toLowerCase() === trimmed.toLowerCase());
+		const normalized = normalizeTagName(displayName);
+		let tag = allTags.find((t) => normalizeTagName(t.name) === normalized);
 
 		if (!tag) {
 			const { data } = await supabase
 				.from('tags')
-				.insert({ user_id: userId, name: trimmed, color: randomColor() })
+				.insert({ user_id: userId, name: displayName, color: colorForTag(displayName) })
 				.select()
 				.single();
 			if (!data) return;
@@ -81,6 +102,10 @@
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Enter') {
 			e.preventDefault();
+			if (exactMatch) {
+				const match = allTags.find((t) => normalizeTagName(t.name) === normalizeTagName(inputValue));
+				if (match) { addExistingTag(match); return; }
+			}
 			if (suggestions.length > 0 && inputValue.trim()) {
 				addExistingTag(suggestions[0]);
 			} else if (inputValue.trim()) {
@@ -112,13 +137,14 @@
 </script>
 
 <div class="flex flex-wrap items-center gap-1">
-	{#each placeTags.filter((t) => t.source === 'user') as tag (tag.id)}
+	{#each visibleTags as tag (tag.id)}
 		<span
 			class="inline-flex items-center gap-0.5 rounded-full text-[10px] font-bold text-white sm:text-[11px]"
 			style="background-color: {tag.color ?? '#6b7280'}"
 		>
 			<button
 				onclick={() => onTagClick?.(tag.id)}
+				oncontextmenu={(e) => handleTagContextMenu(e, tag)}
 				class="py-0.5 pl-2 transition-opacity hover:opacity-80 sm:pl-2.5"
 			>
 				{tag.name}
@@ -135,6 +161,22 @@
 			</button>
 		</span>
 	{/each}
+
+	{#if !expanded && overflowCount > 0}
+		<button
+			onclick={(e) => { e.stopPropagation(); expanded = true; }}
+			class="rounded-full bg-warm-100 px-2 py-0.5 text-[10px] font-bold text-warm-500 transition-colors hover:bg-warm-200 hover:text-warm-700 sm:text-[11px]"
+		>
+			+{overflowCount} more
+		</button>
+	{:else if expanded && displayUserTags.length > maxVisible}
+		<button
+			onclick={(e) => { e.stopPropagation(); expanded = false; }}
+			class="rounded-full bg-warm-100 px-2 py-0.5 text-[10px] font-bold text-warm-500 transition-colors hover:bg-warm-200 hover:text-warm-700 sm:text-[11px]"
+		>
+			less
+		</button>
+	{/if}
 
 	{#if showInput}
 		<div class="relative">
@@ -167,11 +209,11 @@
 							onmousedown={(e) => { e.preventDefault(); createAndAddTag(inputValue); }}
 							class="flex w-full items-center gap-2 border-t border-warm-100 px-3 py-1.5 text-left text-xs text-brand-600 hover:bg-brand-50"
 						>
-							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<line x1="12" y1="5" x2="12" y2="19" />
-								<line x1="5" y1="12" x2="19" y2="12" />
-							</svg>
-							Create "{inputValue.trim()}"
+							<span
+								class="h-2.5 w-2.5 shrink-0 rounded-full"
+								style="background-color: {colorForTag(toDisplayName(inputValue))}"
+							></span>
+							Create "{toDisplayName(inputValue)}"
 						</button>
 					{/if}
 				</div>
@@ -180,10 +222,10 @@
 	{:else}
 	<button
 		onclick={openInput}
-		class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-dashed border-warm-300 text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-500 sm:h-7 sm:w-7"
+		class="inline-flex items-center justify-center rounded-full border border-dashed border-warm-300 px-2 py-0.5 text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-500 sm:px-2.5 sm:py-1"
 		aria-label="Add tag"
 	>
-		<svg class="h-2.5 w-2.5 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+		<svg class="h-2 w-2 sm:h-2.5 sm:w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
 			<line x1="12" y1="5" x2="12" y2="19" />
 			<line x1="5" y1="12" x2="19" y2="12" />
 		</svg>
