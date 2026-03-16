@@ -35,6 +35,51 @@
 
 	let confirmDelete = $state(false);
 
+	// Swipe-to-delete state (mobile)
+	let swipeX = $state(0);
+	let swiping = $state(false);
+	let swipeStartX = 0;
+	let swipeStartY = 0;
+	let swipeLocked = false;
+	const SWIPE_DELETE_W = 72;
+	const SWIPE_SNAP = 36;
+
+	function onSwipeStart(e: TouchEvent) {
+		const t = e.touches[0];
+		swipeStartX = t.clientX;
+		swipeStartY = t.clientY;
+		swipeLocked = false;
+		swiping = false;
+	}
+
+	function onSwipeMove(e: TouchEvent) {
+		const t = e.touches[0];
+		const dx = t.clientX - swipeStartX;
+		const dy = t.clientY - swipeStartY;
+
+		if (!swipeLocked) {
+			if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 5) {
+				swipeLocked = true;
+				return;
+			}
+			if (Math.abs(dx) > 5) swiping = true;
+		}
+		if (swipeLocked || !swiping) return;
+
+		e.preventDefault();
+		swipeX = Math.max(-SWIPE_DELETE_W, Math.min(0, dx));
+	}
+
+	function onSwipeEnd() {
+		swiping = false;
+		swipeX = swipeX < -SWIPE_SNAP ? -SWIPE_DELETE_W : 0;
+	}
+
+	function handleSwipeDelete() {
+		swipeX = 0;
+		onDelete(place.id);
+	}
+
 	let flipped = $state(false);
 	let noteText = $state(place.note ?? '');
 	let contentPreview = $derived(noteText.trim() || place.description || null);
@@ -88,18 +133,37 @@
 </script>
 
 <!-- ============================================================ -->
-<!-- MOBILE LAYOUT (< sm) — 3D flip animation                     -->
+<!-- MOBILE LAYOUT (< sm) — 3D flip + swipe-to-delete             -->
 <!-- ============================================================ -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="sm:hidden [perspective:800px]" onclick={handleFlip}>
-	<div
-		class="flip-inner relative transition-transform duration-500 [transform-style:preserve-3d]"
-		class:is-flipped={flipped}
+<div class="relative sm:hidden">
+	<!-- Delete button revealed behind card -->
+	<button
+		onclick={handleSwipeDelete}
+		class="absolute right-0 top-0 flex h-full w-[72px] items-center justify-center rounded-r-xl bg-red-400/80 text-white/90"
 	>
-		<!-- MOBILE FRONT -->
-		<div class="[backface-visibility:hidden]">
-			<article class="cursor-pointer rounded-xl border border-warm-200 bg-white p-2.5 transition-all hover:shadow-sm">
+		<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+			<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+		</svg>
+	</button>
+
+	<!-- Swipeable card wrapper -->
+	<div
+		class="relative"
+		style="transform: translateX({swipeX}px); transition: {swiping ? 'none' : 'transform 0.2s ease-out'}"
+		ontouchstart={onSwipeStart}
+		ontouchmove={onSwipeMove}
+		ontouchend={onSwipeEnd}
+	>
+		<div class="[perspective:800px]" onclick={handleFlip}>
+			<div
+				class="flip-inner relative transition-transform duration-500 [transform-style:preserve-3d]"
+				class:is-flipped={flipped}
+			>
+				<!-- MOBILE FRONT -->
+				<div class="[backface-visibility:hidden]">
+					<article class="cursor-pointer rounded-xl border border-warm-200 bg-white p-2.5 transition-all hover:shadow-sm">
 				<div class="flex items-center justify-between">
 					<div class="flex items-center gap-1">
 						{#if place.category}
@@ -221,6 +285,8 @@
 			</article>
 		</div>
 	</div>
+</div>
+</div>
 </div>
 
 <!-- ============================================================ -->

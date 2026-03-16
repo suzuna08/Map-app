@@ -609,7 +609,7 @@
 					{/each}
 				</div>
 			{:else}
-				<div class="overflow-visible rounded-xl border border-warm-200 bg-white divide-y divide-warm-100">
+				<div class="overflow-hidden rounded-2xl border border-warm-200 bg-white divide-y divide-warm-100 sm:rounded-xl sm:overflow-visible">
 					{#each sortedPlaces as place (place.id)}
 						<PlaceListItem
 							{place}
