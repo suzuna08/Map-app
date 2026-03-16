@@ -350,7 +350,7 @@
 	<div class="flex flex-col lg:ml-64 lg:flex-row">
 		<!-- Map panel: top on mobile, sticky right on desktop -->
 		<div class="relative h-[35vh] shrink-0 border-b border-warm-200 sm:h-[38vh] lg:order-2 lg:sticky lg:top-14 lg:h-[calc(100dvh-3.5rem)] lg:w-[42%] lg:self-start lg:border-b-0 lg:border-l">
-			<MapView places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} />
+			<MapView places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} maptilerKey={data.maptilerKey} />
 		</div>
 
 		<!-- Content panel -->

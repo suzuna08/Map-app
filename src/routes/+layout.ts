@@ -26,6 +26,7 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 
 	return {
 		supabase,
-		session: session ?? data.session
+		session: session ?? data.session,
+		maptilerKey: data.maptilerKey ?? ''
 	};
 };
