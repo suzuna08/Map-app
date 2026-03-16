@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { env } from '$env/dynamic/public';
 	import type { Place } from '$lib/types/database';
 
 	interface Props {
@@ -18,10 +17,14 @@
 	let mapReady = $state(false);
 	let prevFitKey = '';
 
-	const MAPTILER_KEY = env.PUBLIC_MAPTILER_KEY ?? '';
+	let MAPTILER_KEY = $state(import.meta.env.PUBLIC_MAPTILER_KEY || '');
 
 	onMount(() => {
 		let ro: ResizeObserver | null = null;
+
+		if (!MAPTILER_KEY) {
+			MAPTILER_KEY = import.meta.env.PUBLIC_MAPTILER_KEY || '';
+		}
 
 		(async () => {
 			const mod = await import('maplibre-gl');
