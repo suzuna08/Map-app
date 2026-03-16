@@ -142,6 +142,9 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 	function startDrag(el: HTMLElement, clientX: number, clientY: number, touch: boolean) {
 		if (options.disabled) return;
 
+		// Clear any text selection caused by long press
+		window.getSelection()?.removeAllRanges();
+
 		dragEl = el;
 		dragId = el.getAttribute(options.idAttribute) || '';
 		dragging = true;
@@ -304,15 +307,29 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 		onTouchStart(e);
 	}
 
+	function applyStyles() {
+		if (options.disabled) {
+			node.style.cursor = '';
+			node.style.webkitUserSelect = '';
+			node.style.userSelect = '';
+			(node.style as unknown as Record<string, string>).webkitTouchCallout = '';
+		} else {
+			node.style.cursor = 'grab';
+			node.style.webkitUserSelect = 'none';
+			node.style.userSelect = 'none';
+			(node.style as unknown as Record<string, string>).webkitTouchCallout = 'none';
+		}
+	}
+
 	node.addEventListener('pointerdown', onPointerDown);
 	node.addEventListener('touchstart', onNativeTouchStart, { passive: true });
 
-	node.style.cursor = options.disabled ? '' : 'grab';
+	applyStyles();
 
 	return {
 		update(newOpts: SortableOptions) {
 			options = newOpts;
-			node.style.cursor = options.disabled ? '' : 'grab';
+			applyStyles();
 		},
 		destroy() {
 			node.removeEventListener('pointerdown', onPointerDown);
@@ -325,6 +342,9 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 			if (longPressTimer) clearTimeout(longPressTimer);
 			if (ghostEl) ghostEl.remove();
 			node.style.cursor = '';
+			node.style.webkitUserSelect = '';
+			node.style.userSelect = '';
+			(node.style as unknown as Record<string, string>).webkitTouchCallout = '';
 		}
 	};
 }

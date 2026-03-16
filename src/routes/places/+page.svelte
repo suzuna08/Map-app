@@ -33,6 +33,55 @@
 	let contextMenuTag = $state<Tag | null>(null);
 	let contextMenuPos = $state({ x: 0, y: 0 });
 
+	// Inline URL add-place
+	let urlAddStatus = $state<'idle' | 'loading' | 'success' | 'duplicate' | 'error'>('idle');
+	let urlAddResult = $state<Place | null>(null);
+	let urlAddError = $state('');
+
+	function isGoogleMapsUrl(text: string): boolean {
+		const t = text.trim();
+		return /^https?:\/\/(maps\.google\.|www\.google\.\w+\/maps|maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(t);
+	}
+
+	let detectedUrl = $derived(isGoogleMapsUrl(search) ? search.trim() : null);
+
+	async function addPlaceFromUrl() {
+		if (!detectedUrl) return;
+		urlAddStatus = 'loading';
+		urlAddError = '';
+		urlAddResult = null;
+		try {
+			const res = await fetch('/api/places/add-by-url', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ url: detectedUrl })
+			});
+			const data = await res.json();
+			if (!res.ok) {
+				urlAddStatus = 'error';
+				urlAddError = data.message || data.error?.message || 'Something went wrong';
+				return;
+			}
+			urlAddResult = data.place as Place;
+			if (data.duplicate) {
+				urlAddStatus = 'duplicate';
+			} else {
+				urlAddStatus = 'success';
+				await loadData();
+			}
+		} catch {
+			urlAddStatus = 'error';
+			urlAddError = 'Network error. Please try again.';
+		}
+	}
+
+	function dismissUrlAdd() {
+		search = '';
+		urlAddStatus = 'idle';
+		urlAddResult = null;
+		urlAddError = '';
+	}
+
 	$effect(() => {
 		if (!session) goto('/login');
 	});
@@ -81,16 +130,16 @@
 	// Tags actually in use by current places
 	let activeTagIds = $derived(new Set(Object.values(placeTagsMap).flat().map((t) => t.id)));
 
-	let categoryTags = $derived(allTags.filter((t) => t.source === 'category' && activeTagIds.has(t.id)));
-	let areaTags = $derived(allTags.filter((t) => t.source === 'area' && activeTagIds.has(t.id)));
-	let userTags = $derived(
-		allTags.filter((t) => t.source === 'user').sort((a, b) => {
-			const oa = a.order_index ?? 0;
-			const ob = b.order_index ?? 0;
-			if (oa !== ob) return oa - ob;
-			return a.name.localeCompare(b.name);
-		})
-	);
+	function sortByOrder(a: Tag, b: Tag): number {
+		const oa = a.order_index ?? 0;
+		const ob = b.order_index ?? 0;
+		if (oa !== ob) return oa - ob;
+		return a.name.localeCompare(b.name);
+	}
+
+	let categoryTags = $derived(allTags.filter((t) => t.source === 'category' && activeTagIds.has(t.id)).sort(sortByOrder));
+	let areaTags = $derived(allTags.filter((t) => t.source === 'area' && activeTagIds.has(t.id)).sort(sortByOrder));
+	let userTags = $derived(allTags.filter((t) => t.source === 'user').sort(sortByOrder));
 	let selectedTagIds = $derived(Object.keys(selectedTagMap).filter((id) => selectedTagMap[id]));
 	let hasActiveFilters = $derived(selectedTagIds.length > 0);
 
@@ -126,7 +175,7 @@
 			const searchLower = search.toLowerCase();
 
 			const matchesSearch =
-				search === '' ||
+				search === '' || detectedUrl !== null ||
 				p.title.toLowerCase().includes(searchLower) ||
 				(p.description ?? '').toLowerCase().includes(searchLower) ||
 				(p.address ?? '').toLowerCase().includes(searchLower) ||
@@ -260,7 +309,8 @@
 	<div class="lg:ml-64">
 		<div class="mx-auto max-w-5xl px-2.5 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6">
 			<!-- Mobile sidebar toggle + search bar -->
-			<div class="sticky top-12 z-20 -mx-2.5 mb-1 flex items-center gap-1.5 bg-sage-100 px-2.5 py-1.5 sm:static sm:top-14 sm:mx-0 sm:mb-5 sm:gap-3 sm:bg-transparent sm:px-0 sm:py-0">
+			<div class="sticky top-12 z-20 -mx-2.5 mb-1 bg-sage-100 px-2.5 py-1.5 sm:static sm:top-14 sm:mx-0 sm:mb-5 sm:bg-transparent sm:px-0 sm:py-0">
+				<div class="flex items-center gap-1.5 sm:gap-3">
 				<button
 					onclick={() => { sidebarOpen = true; }}
 					class="rounded-md border border-warm-200 p-1.5 text-warm-500 sm:rounded-lg sm:p-2 lg:hidden"
@@ -286,10 +336,104 @@
 					<input
 						type="text"
 						bind:value={search}
-						placeholder="Search places, tags..."
+						placeholder="Search or paste a Google Maps link..."
 						class="w-full rounded-lg border border-warm-200 bg-warm-50 py-1.5 pl-8 pr-2.5 text-sm font-medium shadow-sm transition-colors focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:rounded-xl sm:py-2.5 sm:pl-11 sm:pr-4 sm:text-sm"
 					/>
 				</div>
+				</div>
+
+				<!-- Inline URL detection banner -->
+				{#if detectedUrl && urlAddStatus === 'idle'}
+					<div class="mt-1.5 flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 sm:rounded-xl sm:px-4 sm:py-2.5">
+						<svg class="h-4 w-4 shrink-0 text-brand-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+							<circle cx="12" cy="10" r="3" />
+						</svg>
+						<span class="min-w-0 flex-1 truncate text-xs font-medium text-brand-700 sm:text-sm">Google Maps link detected</span>
+						<button
+							onclick={addPlaceFromUrl}
+							class="shrink-0 rounded-md bg-brand-600 px-3 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700 sm:px-4 sm:py-1.5"
+						>
+							Add place
+						</button>
+						<button
+							onclick={() => { search = ''; }}
+							class="shrink-0 rounded-md p-1 text-brand-400 transition-colors hover:bg-brand-100 hover:text-brand-600"
+							aria-label="Clear"
+						>
+							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+								<line x1="18" y1="6" x2="6" y2="18" />
+								<line x1="6" y1="6" x2="18" y2="18" />
+							</svg>
+						</button>
+					</div>
+				{:else if urlAddStatus === 'loading'}
+					<div class="mt-1.5 flex items-center gap-2.5 rounded-lg border border-warm-200 bg-warm-50 px-3 py-2.5 sm:rounded-xl sm:px-4">
+						<svg class="h-4 w-4 shrink-0 animate-spin text-brand-500" viewBox="0 0 24 24" fill="none">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+						</svg>
+						<span class="text-xs font-medium text-warm-500 sm:text-sm">Looking up place details...</span>
+					</div>
+				{:else if urlAddStatus === 'success' && urlAddResult}
+					<div class="mt-1.5 flex items-center gap-2.5 rounded-lg border border-sage-300 bg-sage-50 px-3 py-2 sm:rounded-xl sm:px-4">
+						<svg class="h-4 w-4 shrink-0 text-sage-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+							<polyline points="22 4 12 14.01 9 11.01" />
+						</svg>
+						<span class="min-w-0 flex-1 truncate text-xs font-bold text-sage-800 sm:text-sm">{urlAddResult.title}</span>
+						<span class="shrink-0 text-[10px] font-medium text-sage-600 sm:text-xs">Added!</span>
+						<button
+							onclick={dismissUrlAdd}
+							class="shrink-0 rounded-md p-1 text-sage-400 transition-colors hover:bg-sage-100 hover:text-sage-600"
+							aria-label="Dismiss"
+						>
+							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+								<line x1="18" y1="6" x2="6" y2="18" />
+								<line x1="6" y1="6" x2="18" y2="18" />
+							</svg>
+						</button>
+					</div>
+				{:else if urlAddStatus === 'duplicate' && urlAddResult}
+					<div class="mt-1.5 flex items-center gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 sm:rounded-xl sm:px-4">
+						<svg class="h-4 w-4 shrink-0 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<circle cx="12" cy="12" r="10" />
+							<line x1="12" y1="8" x2="12" y2="12" />
+							<line x1="12" y1="16" x2="12.01" y2="16" />
+						</svg>
+						<span class="min-w-0 flex-1 truncate text-xs font-bold text-amber-800 sm:text-sm">{urlAddResult.title}</span>
+						<span class="shrink-0 text-[10px] font-medium text-amber-600 sm:text-xs">Already saved</span>
+						<button
+							onclick={dismissUrlAdd}
+							class="shrink-0 rounded-md p-1 text-amber-400 transition-colors hover:bg-amber-100 hover:text-amber-600"
+							aria-label="Dismiss"
+						>
+							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+								<line x1="18" y1="6" x2="6" y2="18" />
+								<line x1="6" y1="6" x2="18" y2="18" />
+							</svg>
+						</button>
+					</div>
+				{:else if urlAddStatus === 'error'}
+					<div class="mt-1.5 flex items-center gap-2.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 sm:rounded-xl sm:px-4">
+						<svg class="h-4 w-4 shrink-0 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<circle cx="12" cy="12" r="10" />
+							<line x1="15" y1="9" x2="9" y2="15" />
+							<line x1="9" y1="9" x2="15" y2="15" />
+						</svg>
+						<span class="min-w-0 flex-1 text-xs font-medium text-red-600 sm:text-sm">{urlAddError}</span>
+						<button
+							onclick={dismissUrlAdd}
+							class="shrink-0 rounded-md p-1 text-red-400 transition-colors hover:bg-red-100 hover:text-red-600"
+							aria-label="Dismiss"
+						>
+							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+								<line x1="18" y1="6" x2="6" y2="18" />
+								<line x1="6" y1="6" x2="18" y2="18" />
+							</svg>
+						</button>
+					</div>
+				{/if}
 			</div>
 
 			<!-- Reserved filter summary area (always present to prevent layout shift) -->
@@ -393,12 +537,12 @@
 						itemSelector: '[data-tag-id]',
 						idAttribute: 'data-tag-id',
 						longPressMs: 300,
-						disabled: mobileTagTab !== 'custom'
+						disabled: false
 					}}
 				>
 					{#if mobileTagTab === 'category'}
 						{#each categoryTags as tag (tag.id)}
-							<button onclick={() => toggleTag(tag.id)} class="shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold transition-all {selectedTagMap[tag.id] ? 'border-brand-400 bg-brand-50 text-warm-800' : 'border-warm-200 text-warm-500'}">{tag.name}</button>
+							<button data-tag-id={tag.id} onclick={() => toggleTag(tag.id)} class="shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold transition-all {selectedTagMap[tag.id] ? 'border-brand-400 bg-brand-50 text-warm-800' : 'border-warm-200 text-warm-500'}">{tag.name}</button>
 						{/each}
 						{#if categoryTags.length === 0}
 							<span class="text-xs text-warm-400">No category tags</span>
@@ -406,7 +550,7 @@
 
 					{:else if mobileTagTab === 'area'}
 						{#each areaTags as tag (tag.id)}
-							<button onclick={() => toggleTag(tag.id)} class="shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold transition-all {selectedTagMap[tag.id] ? 'border-sage-400 bg-sage-50 text-sage-800' : 'border-warm-200 text-warm-500'}">{tag.name}</button>
+							<button data-tag-id={tag.id} onclick={() => toggleTag(tag.id)} class="shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold transition-all {selectedTagMap[tag.id] ? 'border-sage-400 bg-sage-50 text-sage-800' : 'border-warm-200 text-warm-500'}">{tag.name}</button>
 						{/each}
 						{#if areaTags.length === 0}
 							<span class="text-xs text-warm-400">No area tags</span>
@@ -452,9 +596,19 @@
 				{#if categoryTags.length > 0}
 					<div class="flex items-baseline gap-2.5">
 						<span class="w-16 shrink-0 text-[11px] font-bold text-warm-400">Category</span>
-						<div class="flex flex-wrap items-center gap-1.5">
+						<div
+							class="flex flex-wrap items-center gap-1.5"
+							use:sortable={{
+								onReorder: handleTagReorder,
+								itemSelector: '[data-tag-id]',
+								idAttribute: 'data-tag-id',
+								longPressMs: 300,
+								disabled: false
+							}}
+						>
 							{#each categoryTags as tag (tag.id)}
 								<button
+									data-tag-id={tag.id}
 									onclick={() => toggleTag(tag.id)}
 									class="rounded-full border px-2.5 py-0.5 text-[11px] font-bold transition-all {selectedTagMap[tag.id]
 										? 'border-brand-400 bg-brand-50 text-warm-800'
@@ -470,9 +624,19 @@
 				{#if areaTags.length > 0}
 					<div class="flex items-baseline gap-2.5">
 						<span class="w-16 shrink-0 text-[11px] font-bold text-warm-400">Area</span>
-						<div class="flex flex-wrap items-center gap-1.5">
+						<div
+							class="flex flex-wrap items-center gap-1.5"
+							use:sortable={{
+								onReorder: handleTagReorder,
+								itemSelector: '[data-tag-id]',
+								idAttribute: 'data-tag-id',
+								longPressMs: 300,
+								disabled: false
+							}}
+						>
 							{#each areaTags as tag (tag.id)}
 								<button
+									data-tag-id={tag.id}
 									onclick={() => toggleTag(tag.id)}
 									class="rounded-full border px-2.5 py-0.5 text-[11px] font-bold transition-all {selectedTagMap[tag.id]
 										? 'border-sage-400 bg-sage-50 text-sage-800'
