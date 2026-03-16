@@ -47,6 +47,64 @@ a,
 	}
 }
 
+/* ---- Map markers ---- */
+
+.map-marker {
+	cursor: pointer;
+	color: var(--color-brand-500);
+	filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.18));
+	transition: color 0.2s ease, transform 0.2s ease, filter 0.2s ease;
+	transform-origin: bottom center;
+	line-height: 0;
+}
+
+.map-marker:hover {
+	color: var(--color-brand-600);
+	transform: scale(1.15);
+	z-index: 10 !important;
+}
+
+.map-marker--selected {
+	color: var(--color-brand-700);
+	transform: scale(1.35);
+	z-index: 20 !important;
+	filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.3));
+}
+
+/* ---- Map popups ---- */
+
+.map-popup-warm .maplibregl-popup-content {
+	font-family: 'Nunito', ui-sans-serif, system-ui, sans-serif;
+	border-radius: 12px;
+	padding: 10px 14px;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+	border: 1px solid var(--color-warm-200);
+}
+
+.map-popup-warm .maplibregl-popup-tip {
+	border-top-color: white;
+}
+
+.map-popup-title {
+	font-weight: 800;
+	font-size: 13px;
+	color: var(--color-warm-800);
+	line-height: 1.3;
+}
+
+.map-popup-meta {
+	font-size: 11px;
+	color: var(--color-warm-500);
+	margin-top: 2px;
+}
+
+.map-popup-rating {
+	font-size: 11px;
+	color: var(--color-brand-500);
+	margin-top: 2px;
+	font-weight: 700;
+}
+
 @theme {
 	--font-sans: 'Nunito', ui-sans-serif, system-ui, sans-serif;
 	--color-brand-50: #f9f6f1;

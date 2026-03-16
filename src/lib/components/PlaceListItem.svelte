@@ -14,9 +14,11 @@
 		onTagsChanged: () => void;
 		onNoteChanged?: (placeId: string, note: string) => void;
 		onDelete?: (placeId: string) => void;
+		selected?: boolean;
+		onSelect?: (placeId: string) => void;
 	}
 
-	let { place, placeTags, allTags, supabase, userId, onTagClick, onTagContextMenu, onTagsChanged, onNoteChanged, onDelete }: Props = $props();
+	let { place, placeTags, allTags, supabase, userId, onTagClick, onTagContextMenu, onTagsChanged, onNoteChanged, onDelete, selected = false, onSelect }: Props = $props();
 
 	let userTags = $derived(placeTags.filter((t) => t.source === 'user'));
 	let firstTag = $derived(userTags[0] ?? null);
@@ -130,6 +132,7 @@
 	function toggleExpand(e: MouseEvent) {
 		const target = e.target as HTMLElement;
 		if (target.closest('a, button, input, textarea')) return;
+		onSelect?.(place.id);
 		expanded = !expanded;
 	}
 
@@ -157,7 +160,7 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div>
+<div data-place-id={place.id}>
 	<!-- Mobile: swipe container -->
 	<div class="relative overflow-hidden sm:hidden">
 		<!-- Delete action (revealed behind) -->
@@ -174,7 +177,7 @@
 
 		<!-- Swipeable row -->
 		<div
-			class="relative bg-white"
+			class="relative {selected ? 'bg-brand-50' : 'bg-white'}"
 			style="transform: translateX({swipeX}px); transition: {swiping ? 'none' : 'transform 0.2s ease-out'}"
 			ontouchstart={onTouchStart}
 			ontouchmove={onTouchMove}
@@ -263,7 +266,7 @@
 
 	<!-- Desktop: standard row -->
 	<div
-		class="group hidden h-11 cursor-pointer items-center gap-3 px-4 transition-colors hover:bg-warm-50/80 sm:flex"
+		class="group hidden h-11 cursor-pointer items-center gap-3 px-4 transition-colors sm:flex {selected ? 'bg-brand-50/70' : 'hover:bg-warm-50/80'}"
 		onclick={toggleExpand}
 	>
 		<svg

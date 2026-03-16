@@ -26,5 +26,8 @@
 		"tailwindcss": "^4.2.1",
 		"typescript": "^5.9.3",
 		"vite": "^7.3.1"
+	},
+	"dependencies": {
+		"maplibre-gl": "^5.20.1"
 	}
 }

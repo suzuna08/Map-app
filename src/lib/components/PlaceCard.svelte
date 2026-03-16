@@ -16,6 +16,8 @@
 		onTagsChanged: () => void;
 		onNoteChanged?: (placeId: string, note: string) => void;
 		onTagContextMenu?: (tag: Tag, x: number, y: number) => void;
+		selected?: boolean;
+		onSelect?: (placeId: string) => void;
 	}
 
 	let {
@@ -30,7 +32,9 @@
 		onTagClick,
 		onTagsChanged,
 		onNoteChanged,
-		onTagContextMenu
+		onTagContextMenu,
+		selected = false,
+		onSelect,
 	}: Props = $props();
 
 	let confirmDelete = $state(false);
@@ -97,6 +101,7 @@
 		const target = e.target as HTMLElement;
 		if (target.closest('a, button, input, textarea, [role="button"]')) return;
 		if (swipeX !== 0) { swipeX = 0; return; }
+		onSelect?.(place.id);
 		flipped = !flipped;
 	}
 
@@ -138,7 +143,7 @@
 <!-- ============================================================ -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="relative sm:hidden">
+<div class="relative sm:hidden" data-place-id={place.id}>
 	<!-- Delete button revealed behind card (only when swiped) -->
 	{#if swipeX < 0}
 		<button
@@ -166,7 +171,7 @@
 			>
 				<!-- MOBILE FRONT -->
 				<div class="[backface-visibility:hidden]">
-					<article class="cursor-pointer rounded-xl border border-warm-200 bg-white p-2.5 transition-all hover:shadow-sm">
+					<article class="cursor-pointer rounded-xl border bg-white p-2.5 transition-all hover:shadow-sm {selected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}">
 				<div class="flex items-center justify-between">
 					<div class="flex items-center gap-1">
 						{#if place.category}
@@ -297,14 +302,14 @@
 <!-- ============================================================ -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="hidden sm:block [perspective:1000px]" onclick={handleFlip}>
+<div class="hidden sm:block [perspective:1000px]" data-place-id={place.id} onclick={handleFlip}>
 	<div
 		class="flip-inner relative transition-transform duration-500 [transform-style:preserve-3d]"
 		class:is-flipped={flipped}
 	>
 		<!-- DESKTOP FRONT -->
 		<div class="[backface-visibility:hidden]">
-			<article class="group flex cursor-pointer flex-col rounded-2xl border border-warm-200 bg-white p-5 transition-all hover:shadow-md hover:shadow-warm-200/50">
+			<article class="group flex cursor-pointer flex-col rounded-2xl border bg-white p-5 transition-all hover:shadow-md hover:shadow-warm-200/50 {selected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}">
 				<div class="mb-3 flex items-center justify-between">
 					<div class="flex flex-wrap items-center gap-1.5">
 						{#if place.category}

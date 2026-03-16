@@ -7,6 +7,7 @@
 	import TagManager from '$lib/components/TagManager.svelte';
 	import TagContextMenu from '$lib/components/TagContextMenu.svelte';
 	import AddPlaceModal from '$lib/components/AddPlaceModal.svelte';
+	import MapView from '$lib/components/MapView.svelte';
 	import { sortable } from '$lib/actions/sortable';
 	import { saveTagOrder } from '$lib/tag-order';
 
@@ -32,6 +33,8 @@
 	let mobileTagTab = $state<'category' | 'area' | 'custom'>('category');
 	let contextMenuTag = $state<Tag | null>(null);
 	let contextMenuPos = $state({ x: 0, y: 0 });
+
+	let selectedPlaceId = $state<string | null>(null);
 
 	// Inline URL add-place
 	let urlAdding = $state(false);
@@ -303,6 +306,25 @@
 		contextMenuTag = tag;
 		contextMenuPos = { x, y };
 	}
+
+	function handleMapPlaceSelect(placeId: string) {
+		selectedPlaceId = placeId;
+		requestAnimationFrame(() => {
+			const el = document.querySelector(`[data-place-id="${placeId}"]`);
+			if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		});
+	}
+
+	function handleCardSelect(placeId: string) {
+		selectedPlaceId = placeId;
+	}
+
+	// Clear selection when filtered places change and the selected place is no longer visible
+	$effect(() => {
+		if (selectedPlaceId && !filteredPlaces.some(p => p.id === selectedPlaceId)) {
+			selectedPlaceId = null;
+		}
+	});
 </script>
 
 <div class="min-h-[calc(100dvh-3rem)] sm:min-h-[calc(100dvh-3.5rem)]">
@@ -324,9 +346,16 @@
 		onMobileClose={() => { sidebarOpen = false; }}
 	/>
 
-	<!-- Main content -->
-	<div class="lg:ml-64">
-		<div class="mx-auto max-w-5xl px-2.5 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6">
+	<!-- Split layout: content + map -->
+	<div class="flex flex-col lg:ml-64 lg:flex-row">
+		<!-- Map panel: top on mobile, sticky right on desktop -->
+		<div class="relative h-[35vh] shrink-0 border-b border-warm-200 sm:h-[38vh] lg:order-2 lg:sticky lg:top-14 lg:h-[calc(100dvh-3.5rem)] lg:w-[42%] lg:self-start lg:border-b-0 lg:border-l">
+			<MapView places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} />
+		</div>
+
+		<!-- Content panel -->
+		<div class="min-w-0 flex-1 lg:order-1">
+		<div class="mx-auto px-2.5 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 lg:px-4">
 			<!-- Mobile sidebar toggle + search bar -->
 			<div class="sticky top-12 z-20 -mx-2.5 mb-1 bg-sage-100 px-2.5 py-1.5 sm:static sm:top-14 sm:mx-0 sm:mb-5 sm:bg-transparent sm:px-0 sm:py-0">
 				<div class="flex items-center gap-1.5 sm:gap-3">
@@ -727,44 +756,49 @@
 					{/if}
 				</div>
 			{:else if viewMode === 'grid'}
-				<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
-					{#each sortedPlaces as place (place.id)}
-						<PlaceCard
-							{place}
-							placeTags={placeTagsMap[place.id] ?? []}
-							{allTags}
-							{supabase}
-							userId={session?.user?.id ?? ''}
-							{enrichingId}
-							onEnrich={enrichSingle}
-							onDelete={deletePlace}
-							onTagClick={toggleTag}
-							onTagsChanged={refreshTags}
-							onNoteChanged={updateNote}
-							onTagContextMenu={handleTagContextMenu}
-						/>
-					{/each}
-				</div>
-			{:else}
-				<div class="overflow-hidden rounded-2xl border border-warm-200 bg-white divide-y divide-warm-100 sm:rounded-xl sm:overflow-visible">
-					{#each sortedPlaces as place (place.id)}
-						<PlaceListItem
-							{place}
-							placeTags={placeTagsMap[place.id] ?? []}
-							{allTags}
-							{supabase}
-							userId={session?.user?.id ?? ''}
-							onTagClick={toggleTag}
-							onTagContextMenu={handleTagContextMenu}
-							onTagsChanged={refreshTags}
-							onNoteChanged={updateNote}
-							onDelete={deletePlace}
-						/>
-					{/each}
-				</div>
-			{/if}
-		</div>
+			<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4">
+				{#each sortedPlaces as place (place.id)}
+					<PlaceCard
+						{place}
+						placeTags={placeTagsMap[place.id] ?? []}
+						{allTags}
+						{supabase}
+						userId={session?.user?.id ?? ''}
+						{enrichingId}
+						onEnrich={enrichSingle}
+						onDelete={deletePlace}
+						onTagClick={toggleTag}
+						onTagsChanged={refreshTags}
+						onNoteChanged={updateNote}
+						onTagContextMenu={handleTagContextMenu}
+						selected={selectedPlaceId === place.id}
+						onSelect={handleCardSelect}
+					/>
+				{/each}
+			</div>
+		{:else}
+			<div class="overflow-hidden rounded-2xl border border-warm-200 bg-white divide-y divide-warm-100 sm:rounded-xl sm:overflow-visible">
+				{#each sortedPlaces as place (place.id)}
+					<PlaceListItem
+						{place}
+						placeTags={placeTagsMap[place.id] ?? []}
+						{allTags}
+						{supabase}
+						userId={session?.user?.id ?? ''}
+						onTagClick={toggleTag}
+						onTagContextMenu={handleTagContextMenu}
+						onTagsChanged={refreshTags}
+						onNoteChanged={updateNote}
+						onDelete={deletePlace}
+						selected={selectedPlaceId === place.id}
+						onSelect={handleCardSelect}
+					/>
+				{/each}
+			</div>
+		{/if}
 	</div>
+	</div>
+</div>
 
 	{#if showAddPlace}
 		<AddPlaceModal

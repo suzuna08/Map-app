@@ -12,15 +12,16 @@ Detailed documentation of the architecture, design decisions, trade-offs, and bu
 - [CSV Import Pipeline](#csv-import-pipeline)
 - [Google Places Enrichment](#google-places-enrichment)
 - [URL Import & Deduplication](#url-import--deduplication)
-- [Add Place Modal](#add-place-modal)
 - [Tagging System](#tagging-system)
-- [Tag Order & Sortable](#tag-order--sortable)
 - [Filtering & Sorting](#filtering--sorting)
+- [Map Integration](#map-integration)
 - [UI Components & Interactions](#ui-components--interactions)
-- [Design System & Theming](#design-system--theming)
+- [Root Layout & Global Concerns](#root-layout--global-concerns)
 - [Responsive Design](#responsive-design)
+- [Configuration & Tooling](#configuration--tooling)
 - [Trade-offs](#trade-offs)
 - [Bugs & Fixes](#bugs--fixes)
+- [Known Inconsistencies](#known-inconsistencies)
 
 ---
 
@@ -33,12 +34,15 @@ The app follows SvelteKit's file-based routing with a clear separation:
 - **Library code** (`src/lib/`) contains business logic (CSV parsing, Google API, tag utilities)
 - **API routes** (`src/routes/api/`) are server-side endpoints for operations that need secrets (Google Places API key)
 
-All data fetching on the places page happens client-side via the Supabase JS client, while enrichment and URL import go through server-side API routes because they need the private `GOOGLE_PLACES_API_KEY`.
+All data fetching on the places page happens client-side via the Supabase JS client, while enrichment and URL import go through server-side API routes because they need the private `GOOGLE_PLACES_API_KEY`. The map view uses MapLibre GL JS with MapTiler tiles, loaded client-side only via dynamic import to avoid SSR issues.
 
 State management uses Svelte 5 runes throughout:
 - `$state` for mutable reactive variables
 - `$derived` for computed values (filtered lists, tag counts, etc.)
 - `$effect` for side effects (session redirects, data loading)
+- `$props` for component inputs (replaces Svelte 4's `export let`)
+
+Runes are enabled project-wide via `svelte.config.js` with `dynamicCompileOptions` -- all non-`node_modules` files are compiled in runes mode. There is no per-file `<svelte:options runes />` needed.
 
 ---
 
@@ -71,8 +75,6 @@ Auth is handled through `@supabase/ssr` with a server hook (`hooks.server.ts`) a
 - `area` -- auto-created from address components (e.g., "Shibuya", "Shinjuku")
 - `user` -- manually created by the user
 
-User tags have an optional `order_index` column for custom ordering (used in TagManager drag-and-drop). Category and area tags do not use order_index.
-
 **`place_tags`** -- Junction table linking places to tags (many-to-many).
 
 **`lists`** and **`list_places`** -- Defined in the migration but not yet used in the UI. These were designed for user-created lists (like Google Maps lists) but the tagging system ended up being more flexible.
@@ -84,6 +86,12 @@ All tables have RLS enabled. Policies ensure users can only see/modify their own
 ### Migration Gap
 
 The `migration.sql` file only defines `places`, `lists`, and `list_places`. The `tags` and `place_tags` tables (along with enrichment columns on `places`) were added later directly in Supabase. The TypeScript types in `database.ts` reflect the full schema.
+
+A separate `add_tag_order_index.sql` migration adds the `order_index` column to `tags` for drag-and-drop reordering. Because this column may not exist on older deployments, all code that reads or writes `order_index` uses `try/catch` with graceful fallback (see [Tag Reordering](#tag-reordering--drag-and-drop)).
+
+### Type Name vs. Table Name
+
+In `database.ts`, the tags table is keyed as `tags_table` in the type definition, but the Supabase client queries it as `.from('tags')`. The actual Postgres table name is `tags`. This mismatch is cosmetic -- the type is only used for `Tag = Database['public']['Tables']['tags_table']['Row']`, not for query building.
 
 ---
 
@@ -161,19 +169,24 @@ When adding a place by URL, the system checks for duplicates in three ways:
 
 If a duplicate is found at any layer, the API returns `{ duplicate: true }` with the existing place data instead of inserting.
 
----
+### URL Normalization
 
-## Add Place Modal
+The `add-by-url` endpoint has its own `normalizeUrl()` function that's distinct from `cleanGoogleMapsUrl()` in `google-places.ts`. It selectively strips tracking parameters (`g_st`, `utm_*`, etc.) while keeping place-identifying params (`q`, `query`, `center`, `ftid`). The enrichment code's `cleanGoogleMapsUrl` is more aggressive, stripping all query params from shortened URLs. This difference exists because the endpoint needs a clean URL for database comparison, while the enrichment code just needs to avoid consent-page redirects.
 
-The Add Place flow is exposed globally via a modal in the root layout (`+layout.svelte`), so users can add places from anywhere when logged in. The modal is triggered by the "Add Place" button in the nav.
+### Source List Tagging
 
-**Tabs**: Paste URL and Upload CSV. The URL tab lets users paste a Google Maps URL and add a single place. The Upload tab is a shortcut: it links to the dedicated `/upload` page for bulk CSV import rather than embedding the upload flow in the modal.
+Places added via URL import get `source_list: 'url-import'`, while CSV-imported places get the filename (minus `.csv`) as their `source_list`. This enables filtering by import source in the sidebar's "Sources" section.
 
-**URL flow**: User pastes a URL, clicks Add. The app calls `/api/places/add-by-url`, which resolves shortened links, deduplicates, fetches Google Places details, and inserts the place. On success, the modal shows the new place and optionally calls `onPlaceAdded` so the parent can refresh data.
+### Inline URL Detection in Search
 
-**Duplicate handling**: If the API returns `{ duplicate: true }`, the modal shows a "Already in your list" state with the existing place info instead of inserting again.
+The search bar doubles as a URL input. A regex (`isGoogleMapsUrl`) detects when the search field contains a Google Maps URL (matching `maps.google.*`, `google.*/maps`, `maps.app.goo.gl`, `goo.gl/maps`). When a URL is detected:
 
-**Layout integration**: The modal lives in the layout rather than the places page so the Add Place action is always available from the nav. The layout passes `onPlaceAdded={() => invalidate('supabase:auth')}` to trigger a refresh; the places page refetches when its load dependencies change.
+- The search filter is bypassed (`matchesSearch` returns true when `detectedUrl !== null`), so all places remain visible
+- A "Press Enter to add" hint replaces the search icon
+- Pressing Enter triggers `addPlaceFromUrl()` instead of filtering
+- On success/duplicate/error, a toast is shown and the search field is cleared and refocused
+
+This avoids the need for a separate "Add Place" dialog for the common case of pasting a link.
 
 ---
 
@@ -187,7 +200,7 @@ The Add Place flow is exposed globally via a modal in the root layout (`+layout.
 
 ### Tag Colors
 
-User tags get deterministic colors via `colorForTag` in `tag-colors.ts`. The tag name is normalized (lowercase, trimmed, single spaces), then hashed (djb2-style), and the hash modulo the palette length picks from `TAG_PALETTE` — a curated 10-color palette (rose, amber, olive, teal, slate blue, purple, salmon, brown, steel, mauve). The same name always gets the same color, but users can override it in TagManager. The palette is chosen for contrast and accessibility.
+User tags get deterministic colors via `colorForTag`: the tag name is normalized (lowercase, trimmed, single spaces), then hashed with djb2, and the hash modulo the palette length picks from a curated 10-color palette (rose, amber, olive, teal, slate blue, purple, salmon, brown, steel, mauve). The same name always gets the same color, but users can override it.
 
 ### TagInput Component
 
@@ -201,35 +214,28 @@ The input supports:
 
 Tag names are auto-capitalized (title case) if typed in all-lowercase, but mixed-case input is preserved as-is.
 
+### TagInput -- Focus Management
+
+The tag dropdown uses two timing tricks to handle the blur/click race condition:
+
+- **`onmousedown` with `preventDefault`**: Dropdown items use `onmousedown` instead of `onclick`. The `preventDefault()` stops the input from losing focus before the selection handler fires. Without this, the blur event would close the dropdown before the click registers.
+- **Blur delay**: The `onblur` handler uses `setTimeout(..., 150)` before closing suggestions. This window lets the `mousedown` on a suggestion fire first. The 150ms is long enough for the click to register but short enough to feel instant.
+
 ### TagContextMenu
 
-Right-clicking a user tag opens a context menu with rename, recolor, and delete options. The menu position is clamped to the viewport edges so it doesn't overflow off-screen.
+Right-clicking a user tag opens a context menu with rename, recolor, and delete options. The menu position is clamped to the viewport edges (`window.innerWidth - 216` and `window.innerHeight - 220`) so it doesn't overflow off-screen.
 
----
+### Tag Reordering / Drag-and-Drop
 
-## Tag Order & Sortable
+Tags in all three groups (category, area, custom) support drag-and-drop reordering via a custom Svelte action (`use:sortable` in `sortable.ts`).
 
-User tags support a custom order persisted in the `order_index` column on the `tags` table. The order is used when displaying tags in the sidebar, TagManager, and on place cards.
+**Sortable action**: Implements drag-and-drop with both mouse and touch support. On touch devices, a 300ms long-press initiates drag (movement < 5px during the press cancels it). The action accepts configuration: `onReorder` callback, `itemSelector`, `idAttribute`, `longPressMs`, and `disabled`.
 
-### Tag Order Utilities (`tag-order.ts`)
+**Ghost element**: During drag, a cloned element follows the cursor with `position: fixed`, `z-index: 9999`, `scale(1.06)`, and `box-shadow` for visual feedback. The original element gets `opacity: 0.3`.
 
-- **`getNextOrderIndex`**: Fetches the highest `order_index` for the user's tags and returns the next value. Used when creating a new tag.
-- **`saveTagOrder`**: Takes an ordered list of tag IDs and updates each tag's `order_index` to match its position. Called after a drag reorder.
-- **`reindexAfterDelete`**: After deleting a tag, renumbers remaining tags so indices stay contiguous. Handles the case where `order_index` may not exist yet (graceful no-op).
+**Drop position**: Insert position is calculated using distance to item midpoints. An item is placed "after" when `cy > midY + 30% * height` or when vertically centered and `cx > midX`. Edge zones (40px from container edges) trigger horizontal auto-scroll during drag.
 
-### Sortable Action (`sortable.ts`)
-
-A Svelte action for drag-and-drop reordering. Used in TagManager for reordering user tags.
-
-**Desktop**: Pointer events. `pointerdown` on an item starts the drag; a ghost clone follows the cursor. Items shift with CSS transforms to show the new order. On `pointerup`, `onReorder(orderedIds)` is called.
-
-**Mobile**: Long-press to initiate. A 300ms timer starts on `touchstart`; if the finger moves > 5px before it fires, the timer is cancelled (avoids conflict with scroll). Once triggered, touch events drive the ghost and reorder.
-
-**Insert index**: `findInsertIndex` uses the midpoint of each item's rect. The drop position is the closest item, with "after" determined by whether the cursor is below 30% of the item height or to the right of center.
-
-**Ghost**: A clone of the dragged element is appended to `document.body` with fixed positioning, scaled up slightly, and a shadow. The original is faded to 25% opacity.
-
-**Edge scrolling**: On touch, dragging near the left/right edges of the scroll container triggers horizontal scroll so users can reorder items that extend beyond the viewport.
+**Persistence** (`tag-order.ts`): After reorder, `saveTagOrder()` writes the new `order_index` values to the `tags` table. `getNextOrderIndex()` assigns the next available index to new tags. `reindexAfterDelete()` renumbers remaining tags after a deletion. All functions use `try/catch` because the `order_index` column may not exist yet (added via a separate migration), falling back silently on error.
 
 ---
 
@@ -247,6 +253,14 @@ Between groups, the logic is AND: a place must satisfy category OR, AND area OR,
 
 This was chosen because categories and areas are mutually exclusive (a place is typically one category, one area), so OR makes sense for broadening results. Custom tags are additive descriptors (e.g., "date night" + "outdoor seating"), so AND makes sense for narrowing.
 
+### Active Tags Only
+
+The filter UI only shows tags that are currently in use by at least one place. An `activeTagIds` derived set is built from `placeTagsMap` and used to filter `categoryTags` and `areaTags` before rendering. This prevents the UI from showing stale tags for places that have been deleted.
+
+### Stale Filter Auto-Cleanup
+
+An `$effect` watches the valid tag IDs and compares them against the currently selected filter tags (`selectedTagIds`). If any selected tags no longer exist in the dataset (e.g., after a place was deleted and it was the only place with that tag), they're automatically removed from `selectedTagMap`. This prevents ghost filters that match nothing.
+
 ### Search
 
 Search is case-insensitive and checks across four fields: title, description, address, and tag names. All matching is done client-side with `String.includes()`.
@@ -260,7 +274,71 @@ Seven sort options, all client-side:
 - Most tagged (by count of tags in `placeTagsMap`)
 - Tag group (alphabetically by first user tag name, untagged places sorted last via `\uffff`)
 
-User tags in the sidebar and TagManager are sorted by `order_index` (ascending), then by name. The order is persisted when the user drags to reorder in TagManager.
+---
+
+## Map Integration
+
+### Technology Choice: MapLibre GL JS + MapTiler
+
+The map uses [MapLibre GL JS](https://maplibre.org/) (an open-source fork of Mapbox GL JS) with [MapTiler](https://www.maptiler.com/) as the tile/style provider. This avoids the cost of Google Maps display APIs while providing a high-quality, customizable map.
+
+**MapTiler "pastel" style** was chosen to match the app's warm, soft design language. The muted earth tones and low-contrast labels complement the brand/sage/warm palette without overpowering the place list. If no `PUBLIC_MAPTILER_KEY` is configured, a fallback message is shown instead of the map.
+
+### Split-View Layout
+
+The map and content share a single flex container, using CSS to reposition for different screen sizes:
+
+**Mobile (< lg)**: The layout is `flex-col`. The map panel is the first child, taking `35vh` height (38vh on sm+), and scrolls with the page. As the user scrolls past the map, the search bar sticks below the nav bar (`sticky top-12`). This preserves the existing mobile UX while adding the map as a contextual header.
+
+**Desktop (lg+)**: The layout switches to `flex-row`. The map panel gets `order-2` (right side), `width: 42%`, and `position: sticky` at `top: 3.5rem` (just below the nav). This keeps the map visible at all times while the left content panel scrolls freely. The `align-self: start` property is required for sticky to work correctly in a flex row -- without it, the flex item stretches to the container height and sticky has no room to "stick".
+
+A single `MapView` component instance is used for both layouts. The container div changes shape via responsive classes, and a `ResizeObserver` calls `map.resize()` to keep the map canvas in sync with its container dimensions.
+
+### MapView Component (`MapView.svelte`)
+
+**Dynamic import**: MapLibre GL JS uses browser APIs (`canvas`, `WebGL`) that aren't available during SSR. The library is loaded via `await import('maplibre-gl')` inside `onMount`, wrapped in an IIFE to keep the cleanup function synchronous (Svelte's `onMount` doesn't support async cleanup returns). The CSS is imported statically at the top (`import 'maplibre-gl/dist/maplibre-gl.css'`) since Vite handles CSS imports correctly during SSR.
+
+**Environment variable**: The MapTiler API key is accessed via `$env/static/public` (SvelteKit's recommended approach for public env vars) rather than `import.meta.env`, which can be unreliable depending on Vite cache state.
+
+### Marker Rendering & Synchronization
+
+Markers are the visual bridge between the filtered places list and the map. The component receives `filteredPlaces` as a prop and maintains an internal `markersMap` (a plain JS `Map`, not reactive) that tracks which markers are currently on the map.
+
+**Marker sync** runs inside a `$effect` that tracks the `places` prop. When the filtered places change (due to filter, search, or data changes):
+
+1. Stale markers (IDs no longer in the filtered set) are removed from the map
+2. Existing markers have their positions updated (handles lat/lng changes after enrichment)
+3. New markers are created with a custom SVG pin element, a popup, and click/hover handlers
+
+**Fit bounds**: The map auto-fits to show all visible markers when the *set* of mappable place IDs changes. A `prevFitKey` string (sorted, joined IDs) prevents unnecessary re-fits when the same places are present but in a different order. Single-marker fits use zoom level 13; multi-marker fits use `fitBounds` with 50px padding and a max zoom of 15.
+
+**Places without coordinates**: Only enriched places with `lat`/`lng` values get markers. An info badge at the bottom of the map shows the split (e.g., "8 on map · 5 without coordinates") so users know some places are missing from the map view.
+
+### Custom Markers
+
+Markers use a custom SVG pin shape rendered as a DOM element (not a default MapLibre marker). The pin is styled via CSS classes in `app.css`:
+
+- **Default**: `color: brand-500` (#a8935f), warm golden-brown matching the app palette, with a subtle drop shadow
+- **Hover**: Scales to 115% with a darker `brand-600` color
+- **Selected**: Scales to 135% with `brand-700` color and a stronger shadow, plus `z-index: 20` to stay above other markers
+
+The `transform-origin: bottom center` ensures scaling anchors the pin at its point, not its center.
+
+### Popups
+
+Each marker has a MapLibre Popup styled with the `.map-popup-warm` class to match the app's design -- Nunito font, rounded corners, warm-200 border. Popups show the place title, category, and rating. They appear on hover (desktop) and stay open for the selected marker.
+
+### Bidirectional Selection Sync
+
+Selection synchronization connects the map and the place list/cards:
+
+**Card → Map**: Clicking a PlaceCard (via `handleFlip`) or PlaceListItem (via `toggleExpand`) calls `onSelect(place.id)`, which sets `selectedPlaceId` in the parent page. A separate `$effect` in MapView watches `selectedPlaceId` and responds by: (1) adding `map-marker--selected` CSS class to the target marker, (2) removing it from all others, (3) flying the map to the marker's coordinates, and (4) opening the marker's popup.
+
+**Map → Card**: Clicking a marker calls `onPlaceSelect(placeId)`, which sets `selectedPlaceId` and uses `requestAnimationFrame` + `scrollIntoView({ behavior: 'smooth', block: 'center' })` to scroll the corresponding card into view. Cards and list items have `data-place-id` attributes for DOM targeting.
+
+**Selection cleanup**: An `$effect` in the places page clears `selectedPlaceId` when the selected place is no longer in `filteredPlaces` (e.g., a filter was applied that excludes it).
+
+**Visual feedback**: Selected PlaceCards show a `ring-2 ring-brand-400/30 border-brand-400` highlight. Selected PlaceListItems show a subtle `bg-brand-50` background.
 
 ---
 
@@ -306,29 +384,76 @@ In PlaceCard, the swipe layer wraps the entire flip card and interacts cleanly w
 
 The suggestion dropdown uses a Svelte action (`use:portal`) that moves the element to `document.body`. Position is calculated from the input's `getBoundingClientRect()` and set via inline `style`. The dropdown is rebuilt on every input change to track the input's position.
 
+### TagSidebar
+
+The sidebar provides an alternative navigation interface for filters and source lists:
+
+- **Mobile overlay**: Controlled by `mobileOpen` prop. Shows as a slide-in panel (`translate-x-0` / `-translate-x-full`) with a semi-transparent backdrop. Only visible below `lg` breakpoint.
+- **"All Places" clears filters**: Clicking "All Places" when filters are active iterates through all selected tag IDs and calls `onTagToggle` for each, effectively clearing the filter. This is different from a simple reset -- it fires individual toggle events.
+- **Source list filtering**: The "Sources" section shows all distinct `source_list` values with counts. Clicking a source toggles between that source filter and "all". This filters orthogonally to tags.
+- **Tag creation**: The sidebar's "Add tag" flow creates user tags with a color from a local `TAG_COLORS` array using `Math.random()` for selection. This differs from the deterministic `colorForTag()` used in TagInput and TagManager (see [Known Inconsistencies](#known-inconsistencies)).
+
+### TagManager
+
+Accessed via the "+" button in the custom tags row. A modal that manages user tags with:
+
+- **Inline rename**: Clicking a tag name swaps it for an input field. `requestAnimationFrame` is used to focus and select-all the text after the DOM updates. A 150ms blur delay prevents premature cancel when clicking the save button.
+- **Inline delete**: Shows a confirmation row inline (not a separate modal) with "Delete" and "Cancel" buttons.
+- **Color picker**: Clicking the color dot opens an inline palette below the tag row. Uses the same `TAG_PALETTE` from `tag-colors.ts`.
+- **Sortable list**: The tag list supports drag-and-drop reordering using the same `sortable` action as the filter tag rows.
+- **User tags only**: The parent passes `allTags={userTags}` -- category and area tags are excluded from management since they're system-generated.
+
+### AddPlaceModal
+
+A modal with two tabs: "Paste URL" and "Upload CSV". The CSV tab simply links to the `/upload` page rather than embedding the upload flow.
+
+**Status flow**: The URL tab uses a state machine: `idle` → `loading` → `success` | `duplicate` | `error`. Each state shows different UI (input field, spinner, success message with place title, or error message). After success/duplicate, the modal can be closed.
+
+**Refresh strategy**: The modal exists in two contexts with different refresh behaviors. In the root layout (`+layout.svelte`), `onPlaceAdded` calls `invalidate('supabase:auth')` to re-run all load functions. On the places page, `onPlaceAdded` calls `loadData()` directly to refresh the local state without a full invalidation.
+
+### Toast Notification System
+
+Lightweight in-page toasts for URL add feedback (no external library):
+
+- **Data model**: Array of `{ id, type, title, message }` objects in page state. `showToast()` appends a new toast and schedules its removal.
+- **Types**: `success` (sage/green), `duplicate` (amber), `error` (red) -- each with matching background, border, and icon.
+- **Timing**: Success and duplicate toasts auto-dismiss after 2500ms; errors after 4000ms.
+- **Animation**: Uses the `animate-in` class from `app.css` with a `toast-in` keyframe (opacity 0→1 + translateY 8px→0 + scale 0.96→1 over 250ms).
+- **Position**: Fixed at bottom-center (`fixed bottom-6 left-1/2 -translate-x-1/2`), stacked vertically with `gap-2`.
+
 ### Layout Shift Prevention
 
 The filter summary area (`"Filtered by: ..."`) reserves a `min-h-[28px]` (mobile) / `min-h-[32px]` (desktop) even when empty, preventing layout shifts when filters are toggled.
 
-### Stale Filter Auto-Removal
-
-An `$effect` watches `selectedTagIds` against the current set of valid tag IDs (category, area, user). If a selected tag no longer exists (e.g., deleted, or no places use it), it is removed from `selectedTagMap` automatically. This prevents "ghost" filters that would show zero results.
-
 ---
 
-## Design System & Theming
+## Root Layout & Global Concerns
 
-The app uses a custom Tailwind theme defined in `app.css` with three color families:
+### Font Loading
 
-- **Brand** (`brand-50`–`brand-900`): Warm gold/amber for primary actions, links, and accents.
-- **Sage** (`sage-50`–`sage-900`): Muted green for area tags, backgrounds, and secondary UI.
-- **Warm** (`warm-50`–`warm-900`): Neutral warm grays for text, borders, and cards.
+Google Fonts (Nunito, weights 400--800) is loaded via `<link>` tags in the root layout with `preconnect` hints to `fonts.googleapis.com` and `fonts.gstatic.com`. The `display=swap` parameter ensures text is visible immediately with a fallback font, then swaps to Nunito once loaded. The font family is registered in `app.css` under `@theme { --font-sans: 'Nunito', ... }`.
 
-**Typography**: Nunito from Google Fonts, loaded in the layout. Used for headings and body text.
+### Navigation Bar
 
-**Safe areas**: CSS variables `--safe-top`, `--safe-bottom`, etc. map to `env(safe-area-inset-*)` for notched devices. Body padding is applied when supported.
+The nav is sticky (`sticky top-0 z-30`) with a frosted-glass effect (`backdrop-blur-lg bg-warm-50/85`). Heights differ by breakpoint: `h-12` (48px) on mobile, `sm:h-14` (56px) on desktop. The "Add Place" button in the nav shows only an icon on mobile, with text added at `sm+`.
 
-**Tag palette**: User tags use a curated 10-color palette in `tag-colors.ts` (rose, amber, olive, teal, slate blue, purple, salmon, brown, steel, mauve). Colors are chosen for accessibility and contrast.
+### Layout-Level AddPlaceModal
+
+The root layout renders its own `AddPlaceModal` instance (toggled by the nav's "+ Add Place" button). This is separate from the places page's inline AddPlaceModal. The layout version uses `invalidate('supabase:auth')` for refresh since it doesn't have access to the places page's local `loadData()` function.
+
+### Auth State Subscription
+
+`onMount` in the root layout subscribes to `onAuthStateChange`. To avoid unnecessary data refetches on routine token refreshes (~hourly), the listener compares `newSession?.expires_at` with the current session's `expires_at` and only calls `invalidate('supabase:auth')` if the expiry actually changed.
+
+### Global Styles (`app.css`)
+
+All design tokens live in `app.css` inside a `@theme` block (Tailwind v4 syntax):
+
+- **brand** palette: Warm browns (#f9f6f1 to #4a412a) -- used for accents, ratings, active states
+- **sage** palette: Muted greens (#f2f4ef to #2f362a) -- used for area tags, success states, page background
+- **warm** palette: Neutral taupes (#faf9f7 to #28221c) -- used for text, borders, backgrounds
+
+Additional global styles handle safe area insets, tap highlight removal, overscroll behavior, and the toast animation keyframes.
 
 ---
 
@@ -336,12 +461,45 @@ The app uses a custom Tailwind theme defined in `app.css` with three color famil
 
 The app has distinct mobile and desktop layouts rather than just reflowing:
 
-- **PlaceCard**: Mobile uses a compact layout with smaller text, fewer visible details, and swipe-to-delete. Desktop shows price level, rating count, more metadata, and hover-reveal delete.
+- **Map layout**: Mobile shows the map as a scrollable header (35-38vh) above the content. Desktop uses a sticky right panel (42% width) alongside a scrollable left content area. Both use a single MapView instance repositioned via CSS flex properties.
+- **PlaceCard**: Mobile uses a compact layout with smaller text, fewer visible details, and swipe-to-delete. Desktop shows price level, rating count, more metadata, and hover-reveal delete. The card grid uses 1-2 columns (reduced from 3 to accommodate the map panel).
 - **PlaceListItem**: Mobile has swipe-to-delete; desktop has hover-reveal action buttons.
 - **Tag filtering**: Mobile uses a tabbed horizontal scroll (Category | Area | Custom); desktop shows all three rows inline.
 - **Sidebar**: On mobile, it's a slide-in overlay with backdrop blur. On desktop (lg+), it's fixed at 256px width.
 - **Navigation**: Heights differ (48px mobile, 56px desktop). The "Add Place" button text is hidden on mobile, showing only the icon.
 - **Safe areas**: The layout respects `env(safe-area-inset-*)` for notched devices.
+
+---
+
+## Configuration & Tooling
+
+### Svelte Config (`svelte.config.js`)
+
+Uses `@sveltejs/adapter-vercel` for deployment. The `vitePlugin.dynamicCompileOptions` callback enables Svelte 5 runes mode for all non-`node_modules` files, so no per-file `<svelte:options runes />` is needed.
+
+### Vite Config (`vite.config.ts`)
+
+Two plugins: `tailwindcss()` from `@tailwindcss/vite` (Tailwind v4's Vite integration) and `sveltekit()`. No custom aliases, env handling, or optimization settings.
+
+### Tailwind CSS v4
+
+Tailwind v4 removes the traditional `tailwind.config.js` file. All configuration lives in `app.css`:
+- `@import 'tailwindcss'` replaces the old `@tailwind base/components/utilities` directives
+- `@theme { ... }` defines custom colors, fonts, and other design tokens directly in CSS
+- The `@tailwindcss/vite` plugin handles scanning and compilation
+
+### TypeScript (`tsconfig.json`)
+
+Key settings: `strict: true`, `moduleResolution: "bundler"` (for SvelteKit compatibility), `allowJs` and `checkJs` enabled, `rewriteRelativeImportExtensions` for `.ts` → `.js` rewrites in imports.
+
+### Environment Variables
+
+Three categories:
+- `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` -- accessed via `$env/static/public` in layout load
+- `GOOGLE_PLACES_API_KEY` -- server-only, accessed via `$env/static/private` in API routes
+- `PUBLIC_MAPTILER_KEY` -- accessed via `$env/static/public` in the MapView component
+
+Public vars (prefixed `PUBLIC_`) are safe to expose to the browser. The Google API key is server-only and never sent to the client.
 
 ---
 
@@ -411,37 +569,29 @@ The app has distinct mobile and desktop layouts rather than just reflowing:
 
 **Downside**: During an Auth service outage, a forged JWT would be trusted. This is mitigated by RLS policies (which validate `auth.uid()` at the database level using the JWT), but it's theoretically weaker than server-side validation on every request.
 
-### 9. No Pagination
+### 9. MapLibre + MapTiler vs. Google Maps Display API
+
+**Chose**: MapLibre GL JS with MapTiler's free-tier pastel style instead of Google Maps JavaScript API.
+
+**Why**: Google Maps Platform charges per map load and per marker interaction after a modest free tier. MapLibre is open-source and free; MapTiler's free tier provides 100K map loads/month. The pastel style also matches the app's warm aesthetic better than Google's default style, which would require expensive styling overrides.
+
+**Downside**: MapTiler requires a separate API key and account. The MapLibre ecosystem has fewer built-in features than Google Maps (no Street View, no built-in place autocomplete). MapTiler's free tier has limits that could be hit in production. The pastel style may not cover all regions with the same detail level as Google Maps.
+
+### 10. Single Map Instance via CSS Repositioning vs. Conditional Rendering
+
+**Chose**: One MapView component instance with CSS flex/order properties to position it differently on mobile vs. desktop.
+
+**Why**: Two separate instances (one for mobile, one for desktop) would double memory usage (WebGL contexts, tile data), require state synchronization between them, and cause a jarring re-initialization when crossing the breakpoint during resize.
+
+**Downside**: The CSS approach limits layout flexibility. The map must be a sibling of the content panel in the DOM, which constrains where it can appear. A portal-based approach (moving the map DOM element between containers) would allow more layout freedom but adds complexity and can break MapLibre's internal state.
+
+### 11. No Pagination
 
 **Chose**: Load all places at once on the places page.
 
 **Why**: Enables instant client-side filtering, sorting, and search without round-trips. The `$derived` reactivity chain (filteredPlaces → sortedPlaces) works naturally with the full dataset.
 
 **Downside**: Initial load time grows linearly with place count. Three parallel queries (places, tags, place_tags) all return full datasets. This will need pagination or virtual scrolling for large collections.
-
-### 10. Add Place Modal in Layout
-
-**Chose**: The Add Place modal lives in the root layout and is triggered from the nav, not the places page.
-
-**Why**: Users can add a place from anywhere (e.g., after landing on the home page). The nav always shows the Add Place button when logged in.
-
-**Downside**: The places page may not auto-refresh when a place is added from another route. The layout uses `invalidate('supabase:auth')` on add; whether that triggers a places refetch depends on load dependencies. A page-specific modal would guarantee a local refresh.
-
-### 11. Long-Press to Reorder on Touch
-
-**Chose**: On touch devices, the sortable action requires a ~300ms long-press to start a drag. Immediate touch movement cancels the timer and is treated as scroll.
-
-**Why**: Prevents accidental reorders when the user is trying to scroll the tag list. The same pattern is used for swipe-to-delete (gesture locking).
-
-**Downside**: Adds friction for users who want to reorder quickly. Power users might prefer an explicit "edit order" mode.
-
-### 12. Tag `order_index` Optional
-
-**Chose**: The `order_index` column on `tags` may not exist in older migrations. `getNextOrderIndex`, `saveTagOrder`, and `reindexAfterDelete` catch errors and fail gracefully.
-
-**Why**: Allows the tag order feature to work without a mandatory migration. New installs add the column; existing projects can add it later.
-
-**Downside**: Tags without `order_index` fall back to name sort. The UI doesn't surface the missing column to the user.
 
 ---
 
@@ -515,8 +665,32 @@ The app has distinct mobile and desktop layouts rather than just reflowing:
 
 **Fix**: Added a swipe-awareness check to `handleFlip`: if `swipeX !== 0` (card is swiped open), tapping resets `swipeX` to 0 and returns early without flipping. The flip only triggers when the card is in its default (non-swiped) position.
 
-### 12. Enter Key in Notes Textarea Flipping Card Back
+---
 
-**Problem**: When the notes back had a keyboard handler (e.g., `onkeydown` on the back div) to flip the card on Enter for accessibility, pressing Enter while typing in the textarea would also trigger the flip. Users expected Enter to insert a newline in the notes, not flip the card.
+## Known Inconsistencies
 
-**Fix**: The keydown handler must exclude `textarea` and `input` elements. Check `e.target.closest('textarea, input')` and return early if the event originated from inside one. The current implementation avoids this by using explicit "← Back" buttons only; there is no keydown on the back div, so the bug does not occur. If you add keyboard support for flip-back, remember to exclude form controls.
+These are not bugs, but implementation inconsistencies worth noting for future cleanup.
+
+### 1. Tag Color Assignment -- Random vs. Deterministic
+
+**TagSidebar** creates new tags with `TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)]` -- a random color from a local palette. **TagInput** and **TagManager** use `colorForTag()` from `tag-colors.ts`, which deterministically hashes the tag name to pick a color from `TAG_PALETTE`.
+
+The two palettes (`TAG_COLORS` in TagSidebar vs. `TAG_PALETTE` in `tag-colors.ts`) also contain different color values. This means a tag created via the sidebar may get a different initial color than the same tag name created via the inline input.
+
+**Impact**: Low. Users can override the color via TagManager. But the inconsistency is surprising.
+
+### 2. `order_index` Optional
+
+The `order_index` column on `tags` may not exist if the migration hasn't been run. All tag ordering code (`saveTagOrder`, `getNextOrderIndex`, `reindexAfterDelete`) uses `try/catch` and falls back silently. Tags created when `order_index` is missing get no ordering, and the UI falls back to alphabetical sort.
+
+### 3. Debug `console.log` Statements
+
+Multiple `console.log` calls remain in production code:
+- `places/+page.svelte`: URL add debugging (lines 62, 75)
+- `api/places/add-by-url/+server.ts`: Extensive request/response logging throughout
+
+These should be removed or gated behind a debug flag before production deployment.
+
+### 4. Two `normalizeUrl` Functions
+
+`cleanGoogleMapsUrl()` in `google-places.ts` strips all query params from shortened URLs aggressively. `normalizeUrl()` in `add-by-url/+server.ts` selectively strips tracking params while keeping place-identifying ones. Both serve URL normalization but with different strategies and no shared code.
