@@ -19,11 +19,55 @@
 	let { place, placeTags, allTags, supabase, userId, onTagClick, onTagContextMenu, onTagsChanged, onNoteChanged, onDelete }: Props = $props();
 
 	let userTags = $derived(placeTags.filter((t) => t.source === 'user'));
-	const MOBILE_MAX_TAGS = 3;
-	let mobileTags = $derived(userTags.slice(0, MOBILE_MAX_TAGS));
-	let mobileExtra = $derived(Math.max(0, userTags.length - MOBILE_MAX_TAGS));
 	let firstTag = $derived(userTags[0] ?? null);
 	let extraCount = $derived(Math.max(0, userTags.length - 1));
+
+	// Dynamic mobile tag measurement
+	let mobileTagRowEl = $state<HTMLDivElement | null>(null);
+	let mobileTagMeasureEl = $state<HTMLDivElement | null>(null);
+	let mobileVisibleCount = $state(0);
+	let mobileVisibleTags = $derived(userTags.slice(0, mobileVisibleCount));
+	let mobileHiddenCount = $derived(Math.max(0, userTags.length - mobileVisibleCount));
+
+	function measureMobileTags() {
+		if (!mobileTagRowEl || !mobileTagMeasureEl || userTags.length === 0) {
+			mobileVisibleCount = 0;
+			return;
+		}
+		const available = mobileTagRowEl.clientWidth;
+		const gap = 4;
+		const indicatorW = 28;
+		const children = Array.from(mobileTagMeasureEl.children) as HTMLElement[];
+		if (children.length === 0) { mobileVisibleCount = 0; return; }
+
+		let used = 0;
+		let count = 0;
+		const max = Math.min(children.length, 3);
+
+		for (let i = 0; i < max; i++) {
+			const w = children[i].offsetWidth;
+			const next = used + (count > 0 ? gap : 0) + w;
+			const needsIndicator = i < children.length - 1;
+			if (next + (needsIndicator ? gap + indicatorW : 0) > available) break;
+			used = next;
+			count++;
+		}
+		mobileVisibleCount = count;
+	}
+
+	$effect(() => {
+		const _tags = userTags;
+		const _row = mobileTagRowEl;
+		if (!_row || !mobileTagMeasureEl) {
+			mobileVisibleCount = 0;
+			return;
+		}
+		measureMobileTags();
+		const observer = new ResizeObserver(() => measureMobileTags());
+		observer.observe(_row);
+		return () => observer.disconnect();
+	});
+
 	let expanded = $state(false);
 	let confirmDelete = $state(false);
 	let noteText = $state(place.note ?? '');
@@ -156,11 +200,24 @@
 							<span class="text-brand-500">★</span><span class="text-warm-700">{formatRating(place.rating)}</span>
 						{/if}
 					</div>
+
+					{#if place.url}
+						<a
+							href={place.url}
+							target="_blank"
+							class="shrink-0 rounded p-1 text-warm-300 transition-colors hover:text-warm-600"
+							aria-label="Open in Maps"
+						>
+							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+							</svg>
+						</a>
+					{/if}
 				</div>
 
 				<!-- Secondary row: Area • Category | Tag summary -->
 				<div class="mt-0.5 flex items-center gap-2 pl-[1.375rem]">
-					<span class="min-w-0 shrink truncate text-[11px] text-warm-400">
+					<span class="shrink-0 text-[11px] text-warm-400">
 						{#if place.area && place.category}
 							{place.area} · {place.category}
 						{:else if place.area}
@@ -170,9 +227,21 @@
 						{/if}
 					</span>
 
-					<div class="flex min-w-0 flex-1 items-center justify-end gap-1">
-						{#if mobileTags.length > 0}
-							{#each mobileTags as tag (tag.id)}
+					<!-- Hidden measurement row -->
+					<div
+						bind:this={mobileTagMeasureEl}
+						class="pointer-events-none invisible absolute right-0 flex items-center gap-1"
+						aria-hidden="true"
+					>
+						{#each userTags.slice(0, 3) as tag (tag.id)}
+							<span class="shrink-0 whitespace-nowrap rounded-full px-1.5 py-px text-[10px] font-semibold">{tag.name}</span>
+						{/each}
+					</div>
+
+					<!-- Visible tags -->
+					<div bind:this={mobileTagRowEl} class="flex min-w-0 flex-1 items-center justify-end gap-1">
+						{#if userTags.length > 0}
+							{#each mobileVisibleTags as tag (tag.id)}
 								<button
 									onclick={() => onTagClick(tag.id)}
 									oncontextmenu={(e) => { e.preventDefault(); e.stopPropagation(); onTagContextMenu?.(tag, e.clientX, e.clientY); }}
@@ -180,8 +249,8 @@
 									style="background-color: {tag.color ?? '#8a7e72'}"
 								>{tag.name}</button>
 							{/each}
-							{#if mobileExtra > 0}
-								<span class="shrink-0 text-[10px] font-bold text-warm-400">+{mobileExtra}</span>
+							{#if mobileHiddenCount > 0}
+								<span class="shrink-0 text-[10px] font-bold text-warm-400">+{mobileHiddenCount}</span>
 							{/if}
 						{:else}
 							<span class="text-[10px] text-warm-300">—</span>
