@@ -89,20 +89,41 @@
 
 	let unenrichedCount = $derived(places.filter((p) => !p.enriched_at && p.url).length);
 
+	let selectedCategoryIds = $derived(selectedTagIds.filter((id) => categoryTags.some((t) => t.id === id)));
+	let selectedAreaIds = $derived(selectedTagIds.filter((id) => areaTags.some((t) => t.id === id)));
+	let selectedCustomIds = $derived(selectedTagIds.filter((id) => userTags.some((t) => t.id === id)));
+
 	let filteredPlaces = $derived(
 		places.filter((p) => {
 			const pTags = placeTagsMap[p.id] ?? [];
+			const pTagIds = pTags.map((t) => t.id);
 			const searchLower = search.toLowerCase();
+
 			const matchesSearch =
 				search === '' ||
 				p.title.toLowerCase().includes(searchLower) ||
 				(p.description ?? '').toLowerCase().includes(searchLower) ||
 				(p.address ?? '').toLowerCase().includes(searchLower) ||
 				pTags.some((t) => t.name.toLowerCase().includes(searchLower));
+
 			const matchesSource = selectedSource === 'all' || p.source_list === selectedSource;
-		const matchesTags =
-			!hasActiveFilters || selectedTagIds.every((tagId) => pTags.some((t) => t.id === tagId));
-			return matchesSearch && matchesSource && matchesTags;
+
+			// Category: OR — place matches if it has ANY of the selected categories
+			const matchesCategory =
+				selectedCategoryIds.length === 0 ||
+				selectedCategoryIds.some((id) => pTagIds.includes(id));
+
+			// Area: OR — place matches if it's in ANY of the selected areas
+			const matchesArea =
+				selectedAreaIds.length === 0 ||
+				selectedAreaIds.some((id) => pTagIds.includes(id));
+
+			// Custom tags: AND — place must have ALL selected custom tags
+			const matchesCustom =
+				selectedCustomIds.length === 0 ||
+				selectedCustomIds.every((id) => pTagIds.includes(id));
+
+			return matchesSearch && matchesSource && matchesCategory && matchesArea && matchesCustom;
 		})
 	);
 

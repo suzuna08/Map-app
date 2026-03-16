@@ -19,6 +19,9 @@
 	let { place, placeTags, allTags, supabase, userId, onTagClick, onTagContextMenu, onTagsChanged, onNoteChanged, onDelete }: Props = $props();
 
 	let userTags = $derived(placeTags.filter((t) => t.source === 'user'));
+	const MOBILE_MAX_TAGS = 3;
+	let mobileTags = $derived(userTags.slice(0, MOBILE_MAX_TAGS));
+	let mobileExtra = $derived(Math.max(0, userTags.length - MOBILE_MAX_TAGS));
 	let firstTag = $derived(userTags[0] ?? null);
 	let extraCount = $derived(Math.max(0, userTags.length - 1));
 	let expanded = $state(false);
@@ -134,44 +137,56 @@
 			ontouchend={onTouchEnd}
 		>
 			<div
-				class="flex h-11 cursor-pointer items-center gap-2 px-3"
+				class="cursor-pointer px-3 py-2"
 				onclick={toggleExpand}
 			>
-				<svg
-					class="h-3.5 w-3.5 shrink-0 text-warm-300 transition-transform duration-200 {expanded ? 'rotate-90' : ''}"
-					viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-				>
-					<polyline points="9 18 15 12 9 6" />
-				</svg>
+				<!-- Primary row: Name | Area • Category | Rating -->
+				<div class="flex items-center gap-2">
+					<svg
+						class="h-3.5 w-3.5 shrink-0 text-warm-300 transition-transform duration-200 {expanded ? 'rotate-90' : ''}"
+						viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+					>
+						<polyline points="9 18 15 12 9 6" />
+					</svg>
 
-				<h3 class="min-w-0 flex-1 truncate text-[13px] font-bold text-warm-800">{place.title}</h3>
+					<h3 class="min-w-0 flex-1 truncate text-[13px] font-bold text-warm-800">{place.title}</h3>
 
-				{#if place.category}
-					<span class="shrink-0 truncate rounded-full bg-warm-100 px-1.5 py-0.5 text-[10px] font-bold text-warm-500">
-						{place.category}
-					</span>
-				{/if}
-
-				<div class="w-10 shrink-0 text-right text-[11px] font-bold text-warm-500">
-					{#if place.rating}
-						<span class="text-brand-500">★</span><span class="text-warm-700">{formatRating(place.rating)}</span>
-					{/if}
+					<div class="w-10 shrink-0 text-right text-[11px] font-bold">
+						{#if place.rating}
+							<span class="text-brand-500">★</span><span class="text-warm-700">{formatRating(place.rating)}</span>
+						{/if}
+					</div>
 				</div>
 
-				<div class="flex shrink-0 items-center gap-1">
-					{#if firstTag}
-						<button
-							onclick={() => onTagClick(firstTag.id)}
-							oncontextmenu={(e) => { e.preventDefault(); e.stopPropagation(); onTagContextMenu?.(firstTag, e.clientX, e.clientY); }}
-							class="max-w-[72px] truncate rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-white hover:opacity-80"
-							style="background-color: {firstTag.color ?? '#8a7e72'}"
-						>{firstTag.name}</button>
-						{#if extraCount > 0}
-							<span class="text-[10px] font-bold text-warm-400">+{extraCount}</span>
+				<!-- Secondary row: Area • Category | Tag summary -->
+				<div class="mt-0.5 flex items-center gap-2 pl-[1.375rem]">
+					<span class="min-w-0 shrink truncate text-[11px] text-warm-400">
+						{#if place.area && place.category}
+							{place.area} · {place.category}
+						{:else if place.area}
+							{place.area}
+						{:else if place.category}
+							{place.category}
 						{/if}
-					{:else}
-						<span class="text-[10px] text-warm-300">—</span>
-					{/if}
+					</span>
+
+					<div class="flex min-w-0 flex-1 items-center justify-end gap-1">
+						{#if mobileTags.length > 0}
+							{#each mobileTags as tag (tag.id)}
+								<button
+									onclick={() => onTagClick(tag.id)}
+									oncontextmenu={(e) => { e.preventDefault(); e.stopPropagation(); onTagContextMenu?.(tag, e.clientX, e.clientY); }}
+									class="max-w-[72px] shrink-0 truncate rounded-full px-1.5 py-px text-[10px] font-semibold text-white hover:opacity-80"
+									style="background-color: {tag.color ?? '#8a7e72'}"
+								>{tag.name}</button>
+							{/each}
+							{#if mobileExtra > 0}
+								<span class="shrink-0 text-[10px] font-bold text-warm-400">+{mobileExtra}</span>
+							{/if}
+						{:else}
+							<span class="text-[10px] text-warm-300">—</span>
+						{/if}
+					</div>
 				</div>
 			</div>
 		</div>
