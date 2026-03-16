@@ -65,8 +65,46 @@ export function extractPlaceIdFromUrl(url: string): string | null {
 }
 
 function extractSearchTextFromUrl(url: string): string | null {
-	const match = url.match(/\/maps\/place\/([^/]+)/);
-	if (match) return decodeURIComponent(match[1].replace(/\+/g, ' '));
+	const placeMatch = url.match(/\/maps\/place\/([^/@]+)/);
+	if (placeMatch) return decodeURIComponent(placeMatch[1].replace(/\+/g, ' '));
+
+	try {
+		const u = new URL(url);
+		const q = u.searchParams.get('q') || u.searchParams.get('query');
+		if (q && !/^[\d.,\s-]+$/.test(q)) return q;
+	} catch { /* ignore */ }
+
+	return null;
+}
+
+function extractCoordsFromUrl(url: string): { lat: number; lng: number } | null {
+	// Match @lat,lng or q=lat,lng patterns
+	const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+	if (atMatch) return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
+
+	try {
+		const u = new URL(url);
+		const q = u.searchParams.get('q');
+		if (q) {
+			const coordMatch = q.match(/^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/);
+			if (coordMatch) return { lat: parseFloat(coordMatch[1]), lng: parseFloat(coordMatch[2]) };
+		}
+	} catch { /* ignore */ }
+
+	return null;
+}
+
+function extractChipPlaceId(url: string): string | null {
+	// Match ftid or place_id params, or ChIJ... in the URL
+	try {
+		const u = new URL(url);
+		const ftid = u.searchParams.get('ftid');
+		if (ftid) return ftid;
+	} catch { /* ignore */ }
+
+	const chijMatch = url.match(/(ChIJ[A-Za-z0-9_-]+)/);
+	if (chijMatch) return chijMatch[1];
+
 	return null;
 }
 
@@ -119,10 +157,46 @@ export function isGoogleMapsUrl(url: string): boolean {
 	return /^https?:\/\/(www\.)?(google\.[a-z.]+\/maps|maps\.google\.[a-z.]+|goo\.gl\/maps|maps\.app\.goo\.gl)/i.test(url);
 }
 
+/**
+ * Strip tracking/sharing query params from shortened Google Maps URLs.
+ * The short-link identifier lives in the pathname; params like ?g_st=ic
+ * are added by the share sheet and can cause server-side redirects to
+ * land on consent pages instead of the actual Maps page.
+ */
+export function cleanGoogleMapsUrl(url: string): string {
+	try {
+		const u = new URL(url);
+		if (/maps\.app\.goo\.gl|goo\.gl\/maps/i.test(u.host + u.pathname)) {
+			return u.origin + u.pathname;
+		}
+	} catch { /* fall through */ }
+	return url;
+}
+
 export async function resolveGoogleMapsUrl(url: string): Promise<string> {
 	if (/goo\.gl|maps\.app\.goo\.gl/.test(url)) {
-		const res = await fetch(url, { redirect: 'follow' });
-		return res.url;
+		const cleaned = cleanGoogleMapsUrl(url);
+
+		// Try cleaned URL first, then original if that fails
+		for (const candidate of [cleaned, ...(cleaned !== url ? [url] : [])]) {
+			try {
+				const res = await fetch(candidate, { redirect: 'follow' });
+				if (isGoogleMapsUrl(res.url)) return res.url;
+			} catch { /* try next */ }
+		}
+
+		// Manual redirect: follow Location headers step-by-step
+		try {
+			const res = await fetch(cleaned, { redirect: 'manual' });
+			const location = res.headers.get('location');
+			if (location && isGoogleMapsUrl(location)) return location;
+			if (location) {
+				const res2 = await fetch(location, { redirect: 'follow' });
+				if (isGoogleMapsUrl(res2.url)) return res2.url;
+			}
+		} catch { /* fall through */ }
+
+		throw new Error('Could not resolve shortened Google Maps link');
 	}
 	return url;
 }
@@ -148,34 +222,93 @@ export async function fetchPlaceDetails(
 	googleMapsUrl: string,
 	placeName: string
 ): Promise<PlaceDetails | null> {
+	const fieldMask =
+		'places.id,places.displayName,places.types,places.primaryType,places.rating,places.userRatingCount,places.priceLevel,places.formattedAddress,places.addressComponents,places.editorialSummary,places.location,places.nationalPhoneNumber,places.websiteUri';
+
 	const searchText = extractSearchTextFromUrl(googleMapsUrl) || placeName;
+	const coords = extractCoordsFromUrl(googleMapsUrl);
+	const chipPlaceId = extractChipPlaceId(googleMapsUrl);
 
-	const searchResponse = await fetch(
-		'https://places.googleapis.com/v1/places:searchText',
-		{
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'X-Goog-Api-Key': GOOGLE_PLACES_API_KEY,
-				'X-Goog-FieldMask':
-					'places.id,places.displayName,places.types,places.primaryType,places.rating,places.userRatingCount,places.priceLevel,places.formattedAddress,places.addressComponents,places.editorialSummary,places.location,places.nationalPhoneNumber,places.websiteUri'
-			},
-			body: JSON.stringify({
-				textQuery: searchText,
-				maxResultCount: 1
-			})
-		}
-	);
-
-	if (!searchResponse.ok) {
-		console.error('Google Places API error:', await searchResponse.text());
-		return null;
+	// Strategy 1: Look up by Place ID (ChIJ...) if found in URL
+	if (chipPlaceId && chipPlaceId.startsWith('ChIJ')) {
+		try {
+			const placeRes = await fetch(
+				`https://places.googleapis.com/v1/places/${chipPlaceId}`,
+				{
+					headers: {
+						'X-Goog-Api-Key': GOOGLE_PLACES_API_KEY,
+						'X-Goog-FieldMask': fieldMask.replace(/places\./g, '')
+					}
+				}
+			);
+			if (placeRes.ok) {
+				const directPlace = await placeRes.json();
+				if (directPlace?.displayName) {
+					return parsePlaceResult(directPlace);
+				}
+			}
+		} catch { /* fall through to text search */ }
 	}
 
-	const data = await searchResponse.json();
-	const place = data.places?.[0];
+	// Strategy 2: Text search with place name extracted from URL
+	if (searchText) {
+		const body: any = { textQuery: searchText, maxResultCount: 1 };
+		if (coords) {
+			body.locationBias = {
+				circle: { center: { latitude: coords.lat, longitude: coords.lng }, radius: 500.0 }
+			};
+		}
 
-	if (!place) return null;
+		const searchResponse = await fetch(
+			'https://places.googleapis.com/v1/places:searchText',
+			{
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'X-Goog-Api-Key': GOOGLE_PLACES_API_KEY,
+					'X-Goog-FieldMask': fieldMask
+				},
+				body: JSON.stringify(body)
+			}
+		);
+
+		if (searchResponse.ok) {
+			const data = await searchResponse.json();
+			if (data.places?.[0]) return parsePlaceResult(data.places[0]);
+		}
+	}
+
+	// Strategy 3: Coordinate-based nearby search as final fallback
+	if (coords) {
+		const nearbyResponse = await fetch(
+			'https://places.googleapis.com/v1/places:searchText',
+			{
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'X-Goog-Api-Key': GOOGLE_PLACES_API_KEY,
+					'X-Goog-FieldMask': fieldMask
+				},
+				body: JSON.stringify({
+					textQuery: '*',
+					maxResultCount: 1,
+					locationBias: {
+						circle: { center: { latitude: coords.lat, longitude: coords.lng }, radius: 50.0 }
+					}
+				})
+			}
+		);
+
+		if (nearbyResponse.ok) {
+			const data = await nearbyResponse.json();
+			if (data.places?.[0]) return parsePlaceResult(data.places[0]);
+		}
+	}
+
+	return null;
+}
+
+function parsePlaceResult(place: any): PlaceDetails {
 
 	const types = place.types || [];
 

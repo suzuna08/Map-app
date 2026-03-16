@@ -2,6 +2,7 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import {
 	isGoogleMapsUrl,
+	cleanGoogleMapsUrl,
 	resolveGoogleMapsUrl,
 	fetchPlaceDetails,
 	extractPlaceIdFromUrl
@@ -25,11 +26,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	const body = await request.json().catch(() => null);
-	const rawUrl = typeof body?.url === 'string' ? body.url.trim() : '';
+	let rawUrl = typeof body?.url === 'string' ? body.url.trim() : '';
 
 	if (!rawUrl) {
 		throw error(400, 'Please provide a URL');
 	}
+
+	rawUrl = cleanGoogleMapsUrl(rawUrl);
 
 	if (!isGoogleMapsUrl(rawUrl)) {
 		throw error(400, 'Please paste a valid Google Maps URL');
