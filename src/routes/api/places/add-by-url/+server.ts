@@ -37,6 +37,42 @@ function normalizeUrl(url: string): string {
 	}
 }
 
+async function applyContextTags(
+	supabase: import('@supabase/supabase-js').SupabaseClient,
+	userId: string,
+	placeId: string,
+	contextTagIds: string[]
+): Promise<number> {
+	if (contextTagIds.length === 0) return 0;
+
+	const { data: validTags } = await supabase
+		.from('tags')
+		.select('id')
+		.eq('user_id', userId)
+		.eq('source', 'user')
+		.in('id', contextTagIds);
+
+	const validIds = (validTags ?? []).map((t: { id: string }) => t.id);
+	if (validIds.length === 0) return 0;
+
+	const { data: existing } = await supabase
+		.from('place_tags')
+		.select('tag_id')
+		.eq('place_id', placeId)
+		.in('tag_id', validIds);
+
+	const existingIds = new Set((existing ?? []).map((pt: { tag_id: string }) => pt.tag_id));
+	const missing = validIds.filter((id: string) => !existingIds.has(id));
+
+	if (missing.length > 0) {
+		await supabase
+			.from('place_tags')
+			.insert(missing.map((tagId: string) => ({ place_id: placeId, tag_id: tagId })));
+	}
+
+	return missing.length;
+}
+
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const session = locals.session;
 	const user = locals.user ?? session?.user;
@@ -46,8 +82,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	const body = await request.json().catch(() => null);
 	let rawUrl = typeof body?.url === 'string' ? body.url.trim() : '';
+	const contextTagIds: string[] = Array.isArray(body?.contextTagIds) ? body.contextTagIds : [];
+	const autoApplyContextTags: boolean = body?.autoApplyContextTags === true;
 
-	console.log('[add-by-url] raw input:', rawUrl);
+	console.log('[add-by-url] raw input:', rawUrl, 'contextTags:', contextTagIds.length, 'autoApply:', autoApplyContextTags);
 
 	if (!rawUrl) {
 		throw error(400, 'Please provide a URL');
@@ -78,6 +116,19 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const normalizedUrl = normalizeUrl(resolvedUrl);
 	console.log('[add-by-url] placeIdFromUrl:', placeIdFromUrl, 'normalizedUrl:', normalizedUrl);
 
+	// Helper: handle duplicate place with optional context tag application
+	async function handleDuplicate(dupPlace: Place) {
+		if (autoApplyContextTags && contextTagIds.length > 0) {
+			const applied = await applyContextTags(locals.supabase, user!.id, dupPlace.id, contextTagIds);
+			console.log('[add-by-url] DUPLICATE, context tags applied:', applied);
+			return json(
+				{ place: dupPlace, duplicate: true, contextTagsApplied: applied, contextTagsRequested: contextTagIds.length },
+				{ headers: NO_CACHE_HEADERS }
+			);
+		}
+		return json({ place: dupPlace, duplicate: true, contextTagsApplied: 0, contextTagsRequested: 0 }, { headers: NO_CACHE_HEADERS });
+	}
+
 	if (placeIdFromUrl) {
 		const { data: byPlaceId } = await locals.supabase
 			.from('places')
@@ -89,7 +140,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		if (byPlaceId) {
 			console.log('[add-by-url] DUPLICATE by placeId:', (byPlaceId as any).title);
-			return json({ place: byPlaceId as Place, duplicate: true }, { headers: NO_CACHE_HEADERS });
+			return handleDuplicate(byPlaceId as Place);
 		}
 	}
 
@@ -104,7 +155,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	);
 	if (urlMatch) {
 		console.log('[add-by-url] DUPLICATE by URL:', (urlMatch as any).title, 'stored url:', (urlMatch as any).url);
-		return json({ place: urlMatch as Place, duplicate: true }, { headers: NO_CACHE_HEADERS });
+		return handleDuplicate(urlMatch as Place);
 	}
 
 	// --- Fetch place details from Google ---
@@ -128,7 +179,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		if (byNameAddr) {
 			console.log('[add-by-url] DUPLICATE by name+addr:', (byNameAddr as any).title);
-			return json({ place: byNameAddr as Place, duplicate: true }, { headers: NO_CACHE_HEADERS });
+			return handleDuplicate(byNameAddr as Place);
 		}
 	}
 
@@ -157,5 +208,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	await upsertSystemTags(locals.supabase, user.id, place.id, details.category, details.area);
 
-	return json({ place, duplicate: false }, { status: 201, headers: NO_CACHE_HEADERS });
+	let contextTagsApplied = 0;
+	if (autoApplyContextTags && contextTagIds.length > 0) {
+		contextTagsApplied = await applyContextTags(locals.supabase, user.id, place.id, contextTagIds);
+		console.log('[add-by-url] NEW, context tags applied:', contextTagsApplied);
+	}
+
+	return json(
+		{ place, duplicate: false, contextTagsApplied, contextTagsRequested: contextTagIds.length },
+		{ status: 201, headers: NO_CACHE_HEADERS }
+	);
 };

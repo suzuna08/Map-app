@@ -38,9 +38,19 @@
 
 	// Inline URL add-place
 	let urlAdding = $state(false);
-	let toasts = $state<Array<{ id: number; type: 'success' | 'duplicate' | 'error'; title: string; message: string }>>([]);
+	interface Toast {
+		id: number;
+		type: 'success' | 'duplicate' | 'error' | 'info';
+		title: string;
+		message: string;
+		actions?: Array<{ label: string; handler: () => void }>;
+	}
+	let toasts = $state<Toast[]>([]);
 	let toastCounter = 0;
 	let searchInputEl = $state<HTMLInputElement | null>(null);
+
+	// Contextual capture state
+	let autoApplyCurrentViewTags = $state(true);
 
 	function isGoogleMapsUrl(text: string): boolean {
 		const t = text.trim();
@@ -49,20 +59,68 @@
 
 	let detectedUrl = $derived(isGoogleMapsUrl(search) ? search.trim() : null);
 
-	function showToast(type: 'success' | 'duplicate' | 'error', title: string, message: string) {
+	function showToast(type: Toast['type'], title: string, message: string, actions?: Toast['actions']) {
 		const id = ++toastCounter;
-		toasts = [...toasts, { id, type, title, message }];
-		const delay = type === 'error' ? 4000 : 2500;
+		toasts = [...toasts, { id, type, title, message, actions }];
+		const delay = type === 'error' ? 4000 : actions ? 5000 : 2500;
 		setTimeout(() => {
 			toasts = toasts.filter((t) => t.id !== id);
 		}, delay);
 	}
 
+	function dismissToast(id: number) {
+		toasts = toasts.filter((t) => t.id !== id);
+	}
+
+	async function removeContextTagsFromPlace(placeId: string, tagIds: string[]) {
+		for (const tagId of tagIds) {
+			await supabase.from('place_tags').delete().eq('place_id', placeId).eq('tag_id', tagId);
+		}
+		await loadData();
+		showToast('info', '', 'Tags removed');
+	}
+
+	async function applyContextTagsToPlace(placeId: string, tagIds: string[]) {
+		for (const tagId of tagIds) {
+			const { data: existing } = await supabase
+				.from('place_tags')
+				.select('id')
+				.eq('place_id', placeId)
+				.eq('tag_id', tagId)
+				.single();
+			if (!existing) {
+				await supabase.from('place_tags').insert({ place_id: placeId, tag_id: tagId });
+			}
+		}
+		await loadData();
+		showToast('success', '', 'Tagged to current view');
+	}
+
+	function wouldPlaceBeVisibleInCurrentView(placeId: string): boolean {
+		const pTags = placeTagsMap[placeId] ?? [];
+		const pTagIds = pTags.map((t) => t.id);
+		const matchesCategory =
+			selectedCategoryIds.length === 0 ||
+			selectedCategoryIds.some((id) => pTagIds.includes(id));
+		const matchesArea =
+			selectedAreaIds.length === 0 ||
+			selectedAreaIds.some((id) => pTagIds.includes(id));
+		const matchesCustom =
+			selectedCustomIds.length === 0 ||
+			selectedCustomIds.every((id) => pTagIds.includes(id));
+		const matchesSource = selectedSource === 'all';
+		return matchesCategory && matchesArea && matchesCustom && matchesSource;
+	}
+
 	async function addPlaceFromUrl() {
 		if (!detectedUrl || urlAdding) return;
-		// Capture the actual current input value, not the derived state
 		const url = search.trim();
-		console.log('[addPlace] submitting url:', url, '| detectedUrl was:', detectedUrl);
+		const shouldApply = autoApplyCurrentViewTags && hasCustomContext;
+		const tagIdsToApply = shouldApply ? [...selectedCustomIds] : [];
+		const tagNamesToApply = shouldApply ? [...selectedCustomTagNames] : [];
+		const tagLabel = tagNamesToApply.join(' + ');
+
+		console.log('[addPlace] submitting url:', url, '| contextTags:', tagIdsToApply.length, '| autoApply:', shouldApply);
 		urlAdding = true;
 		try {
 			const res = await fetch('/api/places/add-by-url', {
@@ -72,22 +130,55 @@
 					'Content-Type': 'application/json',
 					'Cache-Control': 'no-cache'
 				},
-				body: JSON.stringify({ url })
+				body: JSON.stringify({
+					url,
+					contextTagIds: tagIdsToApply,
+					autoApplyContextTags: shouldApply
+				})
 			});
-			const data = await res.json();
-			console.log('[addPlace] response:', res.status, data.duplicate, data.place?.title);
+			const result = await res.json();
+			console.log('[addPlace] response:', res.status, result.duplicate, result.place?.title, 'tagsApplied:', result.contextTagsApplied);
+
 			if (!res.ok) {
-				showToast('error', '', data.message || data.error?.message || 'Could not add this place');
+				showToast('error', '', result.message || result.error?.message || 'Could not add this place');
 				urlAdding = false;
 				searchInputEl?.focus();
 				return;
 			}
-			const place = data.place as Place;
-			if (data.duplicate) {
-				showToast('duplicate', place.title, 'Already added');
+
+			const place = result.place as Place;
+			const tagsApplied = result.contextTagsApplied ?? 0;
+			const tagsRequested = result.contextTagsRequested ?? 0;
+
+			if (result.duplicate) {
+				if (shouldApply && tagsApplied > 0) {
+					showToast('success', place.title, `Already saved. Added tags: ${tagLabel}`, [
+						{ label: 'Undo', handler: () => removeContextTagsFromPlace(place.id, tagIdsToApply) }
+					]);
+					await loadData();
+				} else if (shouldApply && tagsRequested > 0 && tagsApplied === 0) {
+					showToast('duplicate', place.title, 'Already saved in this view');
+				} else {
+					showToast('duplicate', place.title, 'Already saved');
+				}
 			} else {
-				showToast('success', place.title, 'Added!');
 				await loadData();
+
+				if (shouldApply && tagsApplied > 0) {
+					showToast('success', place.title, `Added to ${tagLabel}`, [
+						{ label: 'Undo', handler: () => removeContextTagsFromPlace(place.id, tagIdsToApply) }
+					]);
+				} else {
+					const isVisible = wouldPlaceBeVisibleInCurrentView(place.id);
+					if (!isVisible && hasActiveFilters) {
+						showToast('info', place.title, "Added, but doesn't match this view", [
+							{ label: 'Tag to current view', handler: () => applyContextTagsToPlace(place.id, selectedCustomIds) },
+							{ label: 'Clear filters', handler: () => { selectedTagMap = {}; selectedSource = 'all'; } }
+						]);
+					} else {
+						showToast('success', place.title, 'Added!');
+					}
+				}
 			}
 			search = '';
 		} catch {
@@ -189,6 +280,11 @@
 	let selectedCategoryIds = $derived(selectedTagIds.filter((id) => categoryTags.some((t) => t.id === id)));
 	let selectedAreaIds = $derived(selectedTagIds.filter((id) => areaTags.some((t) => t.id === id)));
 	let selectedCustomIds = $derived(selectedTagIds.filter((id) => userTags.some((t) => t.id === id)));
+
+	let selectedCustomTagNames = $derived(
+		selectedCustomIds.map((id) => userTags.find((t) => t.id === id)?.name).filter((n): n is string => !!n)
+	);
+	let hasCustomContext = $derived(selectedCustomIds.length > 0);
 
 	let filteredPlaces = $derived(
 		places.filter((p) => {
@@ -399,6 +495,43 @@
 					{/if}
 				</div>
 				</div>
+
+				<!-- Contextual capture banner -->
+				{#if hasCustomContext && (detectedUrl || urlAdding)}
+					<div class="mt-1 flex items-center gap-2 rounded-lg border border-brand-200/60 bg-brand-50/80 px-2.5 py-1.5 sm:mt-1.5 sm:px-3 sm:py-2">
+						<div class="flex min-w-0 flex-1 items-center gap-1.5">
+							<svg class="h-3 w-3 shrink-0 text-brand-500 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+								<line x1="7" y1="7" x2="7.01" y2="7" />
+							</svg>
+							<span class="truncate text-[10px] font-medium text-brand-700 sm:text-xs">
+								Adding into: <span class="font-bold">{selectedCustomTagNames.join(' + ')}</span>
+							</span>
+						</div>
+						<button
+							onclick={() => { autoApplyCurrentViewTags = !autoApplyCurrentViewTags; }}
+							class="flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold transition-colors sm:text-[11px]
+								{autoApplyCurrentViewTags
+									? 'bg-brand-500 text-white'
+									: 'bg-warm-200 text-warm-500'}"
+							aria-label="Toggle auto-apply current view tags"
+						>
+							{#if autoApplyCurrentViewTags}
+								<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+									<rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+									<path d="M7 11V7a5 5 0 0 1 10 0v4" />
+								</svg>
+								Auto-tag ON
+							{:else}
+								<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+									<rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+									<path d="M7 11V7a5 5 0 0 1 9.9-1" />
+								</svg>
+								Auto-tag OFF
+							{/if}
+						</button>
+					</div>
+				{/if}
 			</div>
 
 			<!-- Reserved filter summary area (always present to prevent layout shift) -->
@@ -827,7 +960,8 @@
 					class="flex items-center gap-2 rounded-xl px-4 py-2.5 shadow-lg backdrop-blur-sm animate-in
 						{toast.type === 'success' ? 'border border-sage-200/60 bg-sage-50/95 text-sage-800' : ''}
 						{toast.type === 'duplicate' ? 'border border-amber-200/60 bg-amber-50/95 text-amber-800' : ''}
-						{toast.type === 'error' ? 'border border-red-200/60 bg-red-50/95 text-red-700' : ''}"
+						{toast.type === 'error' ? 'border border-red-200/60 bg-red-50/95 text-red-700' : ''}
+						{toast.type === 'info' ? 'border border-blue-200/60 bg-blue-50/95 text-blue-800' : ''}"
 				>
 					{#if toast.type === 'success'}
 						<svg class="h-4 w-4 shrink-0 text-sage-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -840,6 +974,12 @@
 							<line x1="12" y1="8" x2="12" y2="12" />
 							<line x1="12" y1="16" x2="12.01" y2="16" />
 						</svg>
+					{:else if toast.type === 'info'}
+						<svg class="h-4 w-4 shrink-0 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<circle cx="12" cy="12" r="10" />
+							<line x1="12" y1="16" x2="12" y2="12" />
+							<line x1="12" y1="8" x2="12.01" y2="8" />
+						</svg>
 					{:else}
 						<svg class="h-4 w-4 shrink-0 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<circle cx="12" cy="12" r="10" />
@@ -847,12 +987,25 @@
 							<line x1="9" y1="9" x2="15" y2="15" />
 						</svg>
 					{/if}
-					{#if toast.title}
-						<span class="max-w-[200px] truncate text-xs font-bold sm:max-w-[280px] sm:text-sm">{toast.title}</span>
-						<span class="text-[10px] font-medium opacity-70 sm:text-xs">{toast.message}</span>
-					{:else}
-						<span class="text-xs font-medium sm:text-sm">{toast.message}</span>
-					{/if}
+					<div class="flex items-center gap-2">
+						{#if toast.title}
+							<span class="max-w-[200px] truncate text-xs font-bold sm:max-w-[280px] sm:text-sm">{toast.title}</span>
+							<span class="text-[10px] font-medium opacity-70 sm:text-xs">{toast.message}</span>
+						{:else}
+							<span class="text-xs font-medium sm:text-sm">{toast.message}</span>
+						{/if}
+						{#if toast.actions}
+							<span class="mx-0.5 text-warm-300">|</span>
+							{#each toast.actions as action}
+								<button
+									onclick={() => { action.handler(); dismissToast(toast.id); }}
+									class="text-[10px] font-bold underline decoration-current/40 underline-offset-2 transition-colors hover:opacity-80 sm:text-xs"
+								>
+									{action.label}
+								</button>
+							{/each}
+						{/if}
+					</div>
 				</div>
 			{/each}
 		</div>
