@@ -56,7 +56,10 @@
 			});
 
 			map.addControl(new ml.NavigationControl({ showCompass: false }), 'top-right');
-			map.addControl(new ml.AttributionControl({ compact: true }), 'bottom-right');
+			map.addControl(
+				new ml.AttributionControl({ compact: true }),
+				mapMode === 'default' ? 'bottom-right' : 'top-left'
+			);
 
 			map.on('load', () => {
 				mapReady = true;
@@ -221,7 +224,7 @@
 	<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
 </svelte:head>
 
-<div class="relative h-full w-full bg-warm-100">
+<div class="map-wrapper relative h-full w-full bg-warm-100" data-map-mode={mapMode}>
 	<div bind:this={container} class="h-full w-full"></div>
 
 	{#if mounted && !maptilerKey}
@@ -249,3 +252,34 @@
 		</div>
 	{/if}
 </div>
+
+<style>
+	/* Mobile attribution: compact, glassy, positioned top-left via JS */
+	.map-wrapper:not([data-map-mode="default"]) :global(.maplibregl-ctrl-attrib.maplibregl-compact) {
+		margin: 4px !important;
+		border-radius: 6px !important;
+		background: rgba(255, 255, 255, 0.65) !important;
+		backdrop-filter: blur(4px);
+		box-shadow: none !important;
+		transition: opacity 200ms ease, transform 200ms ease;
+		transform-origin: top left;
+	}
+
+	.map-wrapper:not([data-map-mode="default"]) :global(.maplibregl-ctrl-attrib-inner) {
+		font-size: 10px !important;
+		line-height: 1.3 !important;
+		padding: 2px 24px 2px 6px !important;
+	}
+
+	/* Collapsed: faded and subtly smaller */
+	.map-wrapper[data-map-mode="collapsed"] :global(.maplibregl-ctrl-attrib) {
+		opacity: 0.45;
+		transform: scale(0.9);
+	}
+
+	/* Expanded: full visibility */
+	.map-wrapper[data-map-mode="expanded"] :global(.maplibregl-ctrl-attrib) {
+		opacity: 1;
+		transform: scale(1);
+	}
+</style>
