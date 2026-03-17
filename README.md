@@ -4,20 +4,25 @@ Your places, organized. Import saved places from Google Maps, tag them, and find
 
 ## About
 
-MapOrganizer is a web app that helps you manage and organize places you've saved in Google Maps. Import your saved places via Google Takeout CSV export or by pasting Google Maps URLs, then tag, search, filter, and sort them however you like.
+MapOrganizer is a web app that helps you manage and organize places you've saved in Google Maps. Import your saved places via Google Takeout CSV export or by pasting Google Maps URLs, then tag, search, filter, and sort them. Every enriched place is plotted on an interactive map alongside a filterable list.
 
 ## Features
 
-- **CSV Import** -- Bulk-import saved places from a Google Takeout CSV export
-- **URL Import** -- Add individual places by pasting a Google Maps URL
-- **Place Enrichment** -- Automatically fetch ratings, addresses, phone numbers, and more from the Google Places API (single or batch)
-- **Flexible Tagging** -- Organize places with category, area, and custom tags, each with color coding
-- **Search & Filter** -- Find places by name, tags, area, description, or source list
+- **CSV Import** -- Bulk-import saved places from a Google Takeout CSV export with drag-and-drop
+- **Inline URL Import** -- Paste a Google Maps link directly into the search bar and press Enter to add a place instantly, with toast notifications for success/duplicate/error feedback
+- **Place Enrichment** -- Fetch ratings, addresses, phone numbers, coordinates, and more from the Google Places API (single or batch). Uses a three-strategy lookup: Place ID, text search with location bias, and coordinate fallback
+- **Interactive Map** -- All enriched places are plotted on a MapLibre GL map (powered by MapTiler). Click a marker to scroll to the card; click a card to fly to its pin. Shows a pastel base map style with custom pin markers and popups
+- **Flexible Tagging** -- Organize places with three tag types: category (auto-generated from Google place types), area (auto-generated from address), and custom (user-created with color coding)
+- **Drag-to-Reorder Tags** -- Reorder tags via drag-and-drop (click-drag on desktop, long-press-drag on mobile). Order is persisted per user
+- **Tag Management** -- Rename, recolor, and delete custom tags. Right-click any tag for a context menu. Tags get deterministic colors from a curated palette, overridable by the user
+- **Search & Filter** -- Find places by name, tags, area, description, or source list. Category and area filters use OR logic; custom tag filters use AND logic
 - **Sorting** -- Sort by newest, oldest, A-Z, Z-A, rating, most tagged, or tag group
-- **Grid & List Views** -- Switch between card grid and compact list layouts
-- **Deduplication** -- Automatically detects duplicates by URL, place ID, or title + address
-- **Auth** -- Email/password authentication via Supabase
-- **Responsive** -- Mobile-friendly with sidebar navigation and safe-area support
+- **Grid & List Views** -- Switch between card grid and compact list layouts. Cards flip (3D animation) to reveal a notes editor on the back
+- **Notes** -- Attach personal notes to any place with debounced auto-save (800ms)
+- **Deduplication** -- Three-layer duplicate detection by Google Place ID, normalized URL, and title + address
+- **Swipe to Delete** -- Swipe cards or list items left on mobile to reveal a delete action
+- **Auth** -- Email/password authentication via Supabase with resilient session validation
+- **Responsive** -- Distinct mobile and desktop layouts: split map+list on desktop, stacked on mobile. Sidebar navigation, safe-area support for notched devices
 
 ## Tech Stack
 
@@ -27,6 +32,7 @@ MapOrganizer is a web app that helps you manage and organize places you've saved
 | UI           | Svelte 5 (runes)                    |
 | Styling      | Tailwind CSS v4                     |
 | Database     | Supabase (PostgreSQL + Auth + RLS)  |
+| Maps         | MapLibre GL + MapTiler              |
 | Build        | Vite 7                              |
 | Deployment   | Vercel                              |
 | CSV Parsing  | PapaParse                           |
@@ -36,34 +42,41 @@ MapOrganizer is a web app that helps you manage and organize places you've saved
 
 ```
 src/
-├── app.css                     # Tailwind theme & global styles
-├── app.html                    # HTML shell
-├── hooks.server.ts             # Supabase auth middleware
+├── app.css                        # Tailwind theme & global styles
+├── app.html                       # HTML shell
+├── hooks.server.ts                # Supabase auth middleware
 ├── lib/
-│   ├── supabase.ts             # Supabase client helpers
-│   ├── csv-parser.ts           # Google Takeout CSV parsing
-│   ├── google-places.ts        # Google Places API client
-│   ├── tag-colors.ts           # Tag color palette
-│   ├── tag-utils.ts            # System tag upsert logic
+│   ├── supabase.ts                # Supabase client helpers
+│   ├── csv-parser.ts              # Google Takeout CSV parsing
+│   ├── google-places.ts           # Google Places API client
+│   ├── tag-colors.ts              # Tag color palette & hash
+│   ├── tag-utils.ts               # System tag upsert logic
+│   ├── tag-order.ts               # Tag reorder persistence
+│   ├── actions/
+│   │   └── sortable.ts            # Drag-to-reorder Svelte action
 │   ├── types/
-│   │   └── database.ts         # Supabase type definitions
+│   │   └── database.ts            # Supabase type definitions
 │   └── components/
-│       ├── AddPlaceModal.svelte
-│       ├── PlaceCard.svelte
-│       ├── PlaceListItem.svelte
-│       ├── TagContextMenu.svelte
-│       ├── TagInput.svelte
-│       ├── TagManager.svelte
-│       └── TagSidebar.svelte
+│       ├── AddPlaceModal.svelte    # URL/CSV add place modal
+│       ├── MapView.svelte          # MapLibre GL map with markers
+│       ├── PlaceCard.svelte        # Grid card (flip, swipe, notes)
+│       ├── PlaceListItem.svelte    # List row (expand, swipe)
+│       ├── TagContextMenu.svelte   # Right-click tag menu
+│       ├── TagInput.svelte         # Inline tag add/remove
+│       ├── TagManager.svelte       # Tag CRUD modal
+│       └── TagSidebar.svelte       # Sidebar navigation
 └── routes/
-    ├── +page.svelte             # Landing page
-    ├── login/+page.svelte       # Auth page
-    ├── places/+page.svelte      # Main places library
-    ├── upload/+page.svelte      # CSV upload page
+    ├── +layout.svelte              # Root layout & nav
+    ├── +layout.ts                  # Supabase client setup
+    ├── +layout.server.ts           # Session & MapTiler key
+    ├── +page.svelte                # Landing page
+    ├── login/+page.svelte          # Auth page
+    ├── places/+page.svelte         # Main places library + map
+    ├── upload/+page.svelte         # CSV upload page
     └── api/places/
-        ├── add-by-url/+server.ts
-        ├── [id]/enrich/+server.ts
-        └── enrich-all/+server.ts
+        ├── add-by-url/+server.ts   # URL import + dedup
+        ├── [id]/enrich/+server.ts  # Single place enrichment
+        └── enrich-all/+server.ts   # Batch enrichment (10 at a time)
 ```
 
 ## Getting Started
@@ -72,7 +85,8 @@ src/
 
 - [Node.js](https://nodejs.org/) (LTS recommended)
 - A [Supabase](https://supabase.com/) project
-- A [Google Places API](https://developers.google.com/maps/documentation/places/web-service) key
+- A [Google Places API](https://developers.google.com/maps/documentation/places/web-service) key (for enrichment)
+- A [MapTiler](https://www.maptiler.com/) API key (for the map -- optional, falls back to demo tiles)
 
 ### 1. Install dependencies
 
@@ -92,17 +106,27 @@ cp .env.example .env
 PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
 GOOGLE_PLACES_API_KEY=your-google-places-api-key-here
+PUBLIC_MAPTILER_KEY=your-maptiler-api-key-here
 ```
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `PUBLIC_SUPABASE_URL` | Yes | Your Supabase project URL |
+| `PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anonymous/public key |
+| `GOOGLE_PLACES_API_KEY` | Yes | Server-side key for Google Places API (New) |
+| `PUBLIC_MAPTILER_KEY` | No | MapTiler API key for the map. Without it, the map panel shows a setup prompt |
 
 ### 3. Set up the database
 
 Run the SQL migration in your Supabase project's SQL Editor:
 
-```sh
-# File: supabase/migration.sql
+```
+supabase/migration.sql
 ```
 
 This creates the `places`, `lists`, and `list_places` tables along with row-level security policies and indexes.
+
+You will also need to create the `tags` and `place_tags` tables (used by the tagging system but not yet in the migration file). The expected schema is defined in `src/lib/types/database.ts`. The `tags` table includes an `order_index` integer column for persisting drag-to-reorder positions.
 
 ### 4. Start the dev server
 
@@ -112,19 +136,39 @@ npm run dev
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
+## Usage
+
+1. **Sign up** with email/password on the login page
+2. **Import places** via the Upload page (drag-and-drop Google Takeout CSV files) or paste a Google Maps URL into the search bar on the places page
+3. **Enrich** imported places by clicking "Fetch Details" to pull ratings, addresses, coordinates, and category data from Google
+4. **Tag** places with custom tags directly on each card or via the Tag Manager
+5. **Filter** by clicking category, area, or custom tags in the sidebar or inline filter bar
+6. **Browse** on the map -- click pins to see details, click cards to fly to their location
+7. **Reorder tags** by dragging them in the filter bar (long-press on mobile)
+
 ## Scripts
 
-| Command             | Description                  |
-| ------------------- | ---------------------------- |
-| `npm run dev`       | Start development server     |
-| `npm run build`     | Create production build      |
-| `npm run preview`   | Preview production build     |
-| `npm run check`     | Run type checking             |
-| `npm run check:watch` | Type checking in watch mode |
+| Command               | Description                  |
+| --------------------- | ---------------------------- |
+| `npm run dev`         | Start development server     |
+| `npm run build`       | Create production build      |
+| `npm run preview`     | Preview production build     |
+| `npm run check`       | Run type checking            |
+| `npm run check:watch` | Type checking in watch mode  |
 
 ## Deployment
 
-The project is configured for **Vercel** via `@sveltejs/adapter-vercel`. Push to your connected Git repository and Vercel will build and deploy automatically. Make sure to set the environment variables in your Vercel project settings.
+The project is configured for **Vercel** via `@sveltejs/adapter-vercel`. Push to your connected Git repository and Vercel will build and deploy automatically.
+
+Set the following environment variables in your Vercel project settings:
+- `PUBLIC_SUPABASE_URL`
+- `PUBLIC_SUPABASE_ANON_KEY`
+- `GOOGLE_PLACES_API_KEY`
+- `PUBLIC_MAPTILER_KEY`
+
+## Documentation
+
+See [IMPLEMENTATION.md](./IMPLEMENTATION.md) for detailed documentation of architecture decisions, trade-offs, and bugs encountered during development.
 
 ## License
 
