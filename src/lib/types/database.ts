@@ -145,6 +145,33 @@ export interface Database {
 					}
 				];
 			};
+		profiles: {
+			Row: {
+				id: string;
+				email: string | null;
+				name: string | null;
+				avatar_url: string | null;
+				created_at: string;
+				updated_at: string;
+			};
+			Insert: {
+				id: string;
+				email?: string | null;
+				name?: string | null;
+				avatar_url?: string | null;
+				created_at?: string;
+				updated_at?: string;
+			};
+			Update: {
+				id?: string;
+				email?: string | null;
+				name?: string | null;
+				avatar_url?: string | null;
+				created_at?: string;
+				updated_at?: string;
+			};
+			Relationships: [];
+		};
 		tags_table: {
 			Row: {
 				id: string;
@@ -221,9 +248,7 @@ export interface Database {
 
 export type Place = Database['public']['Tables']['places']['Row'];
 export type PlaceInsert = Database['public']['Tables']['places']['Insert'];
-export type List = Database['public']['Tables']['lists']['Row'];
-export type ListInsert = Database['public']['Tables']['lists']['Insert'];
-export type ListPlace = Database['public']['Tables']['list_places']['Row'];
+export type Profile = Database['public']['Tables']['profiles']['Row'];
 export type Tag = Database['public']['Tables']['tags_table']['Row'];
 export type TagInsert = Database['public']['Tables']['tags_table']['Insert'];
 export type PlaceTag = Database['public']['Tables']['place_tags']['Row'];
