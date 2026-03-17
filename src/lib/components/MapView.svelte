@@ -7,9 +7,10 @@
 		selectedPlaceId: string | null;
 		onPlaceSelect: (placeId: string) => void;
 		maptilerKey?: string;
+		mapMode?: 'collapsed' | 'expanded' | 'default';
 	}
 
-	let { places, selectedPlaceId, onPlaceSelect, maptilerKey = '' }: Props = $props();
+	let { places, selectedPlaceId, onPlaceSelect, maptilerKey = '', mapMode = 'default' }: Props = $props();
 
 	let container = $state<HTMLDivElement | null>(null);
 	let map: any = null;
@@ -18,6 +19,18 @@
 	let mapReady = $state(false);
 	let prevFitKey = '';
 	let mounted = $state(false);
+
+	const HANDLE_PX = 24;
+
+	function getFrameOffset(): [number, number] {
+		if (mapMode === 'collapsed') return [0, -(HANDLE_PX / 2)];
+		return [0, 0];
+	}
+
+	function getFramePadding(): number | { top: number; bottom: number; left: number; right: number } {
+		if (mapMode === 'collapsed') return { top: 8, bottom: HANDLE_PX + 8, left: 12, right: 12 };
+		return 50;
+	}
 
 	onMount(() => {
 		let ro: ResizeObserver | null = null;
@@ -82,6 +95,8 @@
 	$effect(() => {
 		if (!mapReady || !map) return;
 		const sid = selectedPlaceId;
+		const offset = getFrameOffset();
+		const mode = mapMode;
 
 		markersMap.forEach((entry, id) => {
 			entry.el.classList.toggle('map-marker--selected', id === sid);
@@ -94,9 +109,14 @@
 				map.flyTo({
 					center: [lngLat.lng, lngLat.lat],
 					zoom: Math.max(map.getZoom(), 13),
-					duration: 1000,
+					duration: 600,
+					offset,
 				});
-				if (!entry.marker.getPopup().isOpen()) entry.marker.togglePopup();
+				if (mode === 'collapsed') {
+					if (entry.marker.getPopup().isOpen()) entry.marker.togglePopup();
+				} else {
+					if (!entry.marker.getPopup().isOpen()) entry.marker.togglePopup();
+				}
 			}
 			markersMap.forEach((e, id) => {
 				if (id !== sid && e.marker.getPopup().isOpen()) e.marker.togglePopup();
@@ -143,7 +163,7 @@
 					onPlaceSelect(placeId);
 				});
 				el.addEventListener('mouseenter', () => {
-					if (!marker.getPopup().isOpen()) marker.togglePopup();
+					if (mapMode !== 'collapsed' && !marker.getPopup().isOpen()) marker.togglePopup();
 				});
 				el.addEventListener('mouseleave', () => {
 					if (placeId !== selectedPlaceId && marker.getPopup().isOpen()) marker.togglePopup();
@@ -177,14 +197,16 @@
 
 		if (coords.length === 0) return;
 
+		const padding = getFramePadding();
+
 		if (coords.length === 1) {
-			map[animate ? 'flyTo' : 'jumpTo']({ center: coords[0], zoom: 13 });
+			map[animate ? 'flyTo' : 'jumpTo']({ center: coords[0], zoom: 13, offset: getFrameOffset() });
 			return;
 		}
 
 		const bounds = new ml.LngLatBounds(coords[0], coords[0]);
 		for (const c of coords) bounds.extend(c);
-		map.fitBounds(bounds, { padding: 50, animate, maxZoom: 15 });
+		map.fitBounds(bounds, { padding, animate, maxZoom: 15 });
 	}
 
 	function esc(s: string): string {

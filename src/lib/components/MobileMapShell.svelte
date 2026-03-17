@@ -24,9 +24,8 @@
 	class="mobile-map-shell relative w-full shrink-0 overflow-hidden border-b border-warm-200 bg-warm-100"
 	style="height: {isExpanded ? '42vh' : `${COLLAPSED_PX}px`}"
 >
-	<!-- Map always renders at expanded height; outer container clips it -->
-	<div class="absolute inset-x-0 top-0 w-full" style="height: 42vh">
-		<MapView {places} {selectedPlaceId} {onPlaceSelect} {maptilerKey} />
+	<div class="h-full w-full">
+		<MapView {places} {selectedPlaceId} {onPlaceSelect} {maptilerKey} mapMode={isExpanded ? 'expanded' : 'collapsed'} />
 	</div>
 
 	<button
