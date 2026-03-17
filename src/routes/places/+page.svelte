@@ -7,6 +7,7 @@
 	import TagContextMenu from '$lib/components/TagContextMenu.svelte';
 	import AddPlaceModal from '$lib/components/AddPlaceModal.svelte';
 	import MapView from '$lib/components/MapView.svelte';
+	import MobileMapShell from '$lib/components/MobileMapShell.svelte';
 	import { sortable } from '$lib/actions/sortable';
 	import { saveTagOrder } from '$lib/tag-order';
 	import { getToasts, showToast, dismissToast } from '$lib/stores/toasts.svelte';
@@ -42,6 +43,17 @@
 	let searchInputEl = $state<HTMLInputElement | null>(null);
 
 	let autoApplyCurrentViewTags = $state(true);
+
+	let isMobile = $state(false);
+
+	$effect(() => {
+		function checkMobile() {
+			isMobile = window.innerWidth < 1024;
+		}
+		checkMobile();
+		window.addEventListener('resize', checkMobile);
+		return () => window.removeEventListener('resize', checkMobile);
+	});
 
 	function isGoogleMapsUrl(text: string): boolean {
 		const t = text.trim();
@@ -383,17 +395,31 @@
 	/>
 
 	<!-- Split layout: content + map -->
-	<div class="flex flex-col lg:ml-64 lg:flex-row">
-		<!-- Map panel: top on mobile, sticky right on desktop -->
-		<div class="relative h-[35vh] shrink-0 border-b border-warm-200 sm:h-[38vh] lg:order-2 lg:sticky lg:top-14 lg:h-[calc(100dvh-3.5rem)] lg:w-[42%] lg:self-start lg:border-b-0 lg:border-l">
-			<MapView places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} maptilerKey={data.maptilerKey} />
-		</div>
+	<div class={isMobile
+		? 'flex h-[calc(100dvh-3rem)] flex-col overflow-hidden sm:h-[calc(100dvh-3.5rem)]'
+		: 'flex flex-col lg:ml-64 lg:flex-row'}>
+
+		{#if isMobile}
+			<MobileMapShell
+				places={filteredPlaces}
+				{selectedPlaceId}
+				onPlaceSelect={handleMapPlaceSelect}
+				maptilerKey={data.maptilerKey}
+			/>
+		{:else}
+			<!-- Map panel: top on mobile, sticky right on desktop -->
+			<div class="relative h-[35vh] shrink-0 border-b border-warm-200 sm:h-[38vh] lg:order-2 lg:sticky lg:top-14 lg:h-[calc(100dvh-3.5rem)] lg:w-[42%] lg:self-start lg:border-b-0 lg:border-l">
+				<MapView places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} maptilerKey={data.maptilerKey} />
+			</div>
+		{/if}
 
 		<!-- Content panel -->
-		<div class="min-w-0 flex-1 lg:order-1">
+		<div class={isMobile
+			? 'flex-1 min-h-0 overflow-y-auto'
+			: 'min-w-0 flex-1 lg:order-1'}>
 		<div class="mx-auto px-2.5 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 lg:px-4">
 			<!-- Mobile sidebar toggle + search bar -->
-			<div class="sticky top-12 z-20 -mx-2.5 mb-1 bg-sage-100 px-2.5 py-1.5 sm:static sm:top-14 sm:mx-0 sm:mb-5 sm:bg-transparent sm:px-0 sm:py-0">
+			<div class="sticky {isMobile ? 'top-0' : 'top-12'} z-20 -mx-2.5 mb-1 bg-sage-100 px-2.5 py-1.5 sm:static sm:top-14 sm:mx-0 sm:mb-5 sm:bg-transparent sm:px-0 sm:py-0">
 				<div class="flex items-center gap-1.5 sm:gap-3">
 				<button
 					onclick={() => { sidebarOpen = true; }}
