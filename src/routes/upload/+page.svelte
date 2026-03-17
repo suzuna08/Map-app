@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import { parseGoogleMapsCSV, type ParseResult } from '$lib/csv-parser';
 	import type { PlaceInsert } from '$lib/types/database';
 
@@ -12,10 +11,6 @@
 	let uploading = $state(false);
 	let dragOver = $state(false);
 	let uploadResult = $state<{ added: number; skipped: number; errors: string[] } | null>(null);
-
-	$effect(() => {
-		if (!session) goto('/login');
-	});
 
 	async function handleFiles(fileList: FileList) {
 		const csvFiles = Array.from(fileList).filter((f) => f.name.endsWith('.csv'));

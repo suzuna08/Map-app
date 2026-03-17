@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import type { Place, Tag } from '$lib/types/database';
 	import TagSidebar from '$lib/components/TagSidebar.svelte';
 	import PlaceCard from '$lib/components/PlaceCard.svelte';
@@ -10,6 +9,8 @@
 	import MapView from '$lib/components/MapView.svelte';
 	import { sortable } from '$lib/actions/sortable';
 	import { saveTagOrder } from '$lib/tag-order';
+	import { getToasts, showToast, dismissToast } from '$lib/stores/toasts.svelte';
+	import { loadPlacesData, refreshTagsData, buildPlaceTagsMap, removeTagsFromPlace, applyTagsToPlace } from '$lib/stores/places.svelte';
 
 	let { data } = $props();
 	let supabase = $derived(data.supabase);
@@ -36,20 +37,10 @@
 
 	let selectedPlaceId = $state<string | null>(null);
 
-	// Inline URL add-place
 	let urlAdding = $state(false);
-	interface Toast {
-		id: number;
-		type: 'success' | 'duplicate' | 'error' | 'info';
-		title: string;
-		message: string;
-		actions?: Array<{ label: string; handler: () => void }>;
-	}
-	let toasts = $state<Toast[]>([]);
-	let toastCounter = 0;
+	let toasts = $derived(getToasts());
 	let searchInputEl = $state<HTMLInputElement | null>(null);
 
-	// Contextual capture state
 	let autoApplyCurrentViewTags = $state(true);
 
 	function isGoogleMapsUrl(text: string): boolean {
@@ -59,39 +50,14 @@
 
 	let detectedUrl = $derived(isGoogleMapsUrl(search) ? search.trim() : null);
 
-	function showToast(type: Toast['type'], title: string, message: string, actions?: Toast['actions']) {
-		const id = ++toastCounter;
-		toasts = [...toasts, { id, type, title, message, actions }];
-		const delay = type === 'error' ? 4000 : actions ? 5000 : 2500;
-		setTimeout(() => {
-			toasts = toasts.filter((t) => t.id !== id);
-		}, delay);
-	}
-
-	function dismissToast(id: number) {
-		toasts = toasts.filter((t) => t.id !== id);
-	}
-
 	async function removeContextTagsFromPlace(placeId: string, tagIds: string[]) {
-		for (const tagId of tagIds) {
-			await supabase.from('place_tags').delete().eq('place_id', placeId).eq('tag_id', tagId);
-		}
+		await removeTagsFromPlace(supabase, placeId, tagIds);
 		await loadData();
 		showToast('info', '', 'Tags removed');
 	}
 
 	async function applyContextTagsToPlace(placeId: string, tagIds: string[]) {
-		for (const tagId of tagIds) {
-			const { data: existing } = await supabase
-				.from('place_tags')
-				.select('id')
-				.eq('place_id', placeId)
-				.eq('tag_id', tagId)
-				.single();
-			if (!existing) {
-				await supabase.from('place_tags').insert({ place_id: placeId, tag_id: tagId });
-			}
-		}
+		await applyTagsToPlace(supabase, placeId, tagIds);
 		await loadData();
 		showToast('success', '', 'Tagged to current view');
 	}
@@ -196,48 +162,22 @@
 	}
 
 	$effect(() => {
-		if (!session) goto('/login');
-	});
-
-	$effect(() => {
 		if (session) loadData();
 	});
 
 	async function loadData() {
 		loading = true;
-		const [placesRes, tagsRes, placeTagsRes] = await Promise.all([
-			supabase.from('places').select('*').order('created_at', { ascending: false }),
-			supabase.from('tags').select('*').order('name'),
-			supabase.from('place_tags').select('place_id, tag_id')
-		]);
-		places = (placesRes.data ?? []) as Place[];
-		allTags = (tagsRes.data ?? []) as Tag[];
-		buildTagMap((placeTagsRes.data ?? []) as { place_id: string; tag_id: string }[]);
+		const result = await loadPlacesData(supabase);
+		places = result.places;
+		allTags = result.tags;
+		placeTagsMap = buildPlaceTagsMap(allTags, result.placeTags);
 		loading = false;
 	}
 
-	function buildTagMap(ptData: { place_id: string; tag_id: string }[]) {
-		const map: Record<string, Tag[]> = {};
-		for (const pt of ptData) {
-			const tag = allTags.find((t) => t.id === pt.tag_id);
-			if (tag) {
-				if (!map[pt.place_id]) map[pt.place_id] = [];
-				map[pt.place_id].push(tag);
-			}
-		}
-		for (const key of Object.keys(map)) {
-			map[key].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
-		}
-		placeTagsMap = map;
-	}
-
 	async function refreshTags() {
-		const [tagsRes, placeTagsRes] = await Promise.all([
-			supabase.from('tags').select('*').order('name'),
-			supabase.from('place_tags').select('place_id, tag_id')
-		]);
-		allTags = (tagsRes.data ?? []) as Tag[];
-		buildTagMap((placeTagsRes.data ?? []) as { place_id: string; tag_id: string }[]);
+		const result = await refreshTagsData(supabase);
+		allTags = result.tags;
+		placeTagsMap = buildPlaceTagsMap(allTags, result.placeTags);
 	}
 
 	// Tags actually in use by current places

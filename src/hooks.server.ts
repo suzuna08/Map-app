@@ -1,7 +1,9 @@
 import { createServerClient } from '@supabase/ssr';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
-import type { Handle } from '@sveltejs/kit';
+import { redirect, type Handle } from '@sveltejs/kit';
 import type { Database } from '$lib/types/database';
+
+const PROTECTED_ROUTES = ['/places', '/upload', '/api/places'];
 
 export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.supabase = createServerClient<Database>(
@@ -49,6 +51,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const { session, user } = await event.locals.safeGetSession();
 	event.locals.session = session;
 	event.locals.user = user;
+
+	if (!session && PROTECTED_ROUTES.some((r) => event.url.pathname.startsWith(r))) {
+		redirect(303, '/login');
+	}
 
 	return resolve(event, {
 		filterSerializedResponseHeaders(name) {
