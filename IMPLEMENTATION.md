@@ -12,6 +12,7 @@ Detailed documentation of the architecture, design decisions, trade-offs, and bu
 - [CSV Import Pipeline](#csv-import-pipeline)
 - [Google Places Enrichment](#google-places-enrichment)
 - [URL Import & Deduplication](#url-import--deduplication)
+- [Contextual Capture (Auto-Tagging)](#contextual-capture-auto-tagging)
 - [Tagging System](#tagging-system)
 - [Filtering & Sorting](#filtering--sorting)
 - [Map Integration](#map-integration)
@@ -30,8 +31,10 @@ Detailed documentation of the architecture, design decisions, trade-offs, and bu
 The app follows SvelteKit's file-based routing with a clear separation:
 
 - **Pages** (`src/routes/`) handle layout, navigation, and page-level state
-- **Components** (`src/lib/components/`) are reusable UI elements (PlaceCard, TagInput, etc.)
+- **Components** (`src/lib/components/`) are reusable UI elements (PlaceCard, TagInput, MapView, MobileMapShell, etc.)
+- **Stores** (`src/lib/stores/`) contain shared reactive state and data-access helpers (places data loading, toast notifications)
 - **Library code** (`src/lib/`) contains business logic (CSV parsing, Google API, tag utilities)
+- **Actions** (`src/lib/actions/`) contain Svelte actions (drag-and-drop sortable)
 - **API routes** (`src/routes/api/`) are server-side endpoints for operations that need secrets (Google Places API key)
 
 All data fetching on the places page happens client-side via the Supabase JS client, while enrichment and URL import go through server-side API routes because they need the private `GOOGLE_PLACES_API_KEY`. The map view uses MapLibre GL JS with MapTiler tiles, loaded client-side only via dynamic import to avoid SSR issues.
@@ -41,6 +44,10 @@ State management uses Svelte 5 runes throughout:
 - `$derived` for computed values (filtered lists, tag counts, etc.)
 - `$effect` for side effects (session redirects, data loading)
 - `$props` for component inputs (replaces Svelte 4's `export let`)
+
+Shared state is extracted into `.svelte.ts` modules in `src/lib/stores/`:
+- **`places.svelte.ts`**: Data-access functions (`loadPlacesData`, `refreshTagsData`, `buildPlaceTagsMap`, `removeTagsFromPlace`, `applyTagsToPlace`) that encapsulate Supabase queries and the placeTagsMap join logic. These are plain async functions, not Svelte stores -- the reactive state lives in the page components that call them.
+- **`toasts.svelte.ts`**: A module-level `$state` array of toast notifications with `showToast()`, `getToasts()`, and `dismissToast()` exports. This enables toasts to be triggered from any component (page, API callback, undo handler) without prop-drilling.
 
 Runes are enabled project-wide via `svelte.config.js` with `dynamicCompileOptions` -- all non-`node_modules` files are compiled in runes mode. There is no per-file `<svelte:options runes />` needed.
 
@@ -52,15 +59,21 @@ Runes are enabled project-wide via `svelte.config.js` with `dynamicCompileOption
 
 Auth is handled through `@supabase/ssr` with a server hook (`hooks.server.ts`) and a universal layout load (`+layout.ts`).
 
-**Server hook** (`hooks.server.ts`): Creates a server-side Supabase client that reads/writes cookies for session persistence. It exposes a `safeGetSession` helper on `event.locals`.
+**Server hook** (`hooks.server.ts`): Creates a server-side Supabase client that reads/writes cookies for session persistence. It exposes a `safeGetSession` helper on `event.locals`. Cookie options include `httpOnly: true`, `sameSite: 'lax'`, and a 30-day `maxAge` for session persistence across browser restarts.
 
 **The `safeGetSession` pattern**: `getSession()` reads the session from the JWT in the cookie, but the JWT could be tampered with. So after getting the session, it calls `getUser()` which makes an actual request to Supabase Auth to validate the token. If `getUser()` succeeds, the validated user is returned. If `getUser()` fails (error response or network exception), the function falls back to `session.user` from the JWT rather than rejecting the session entirely. This keeps the app functional when Supabase Auth is temporarily unreachable, while RLS policies still enforce row-level access control as a second layer of defense.
 
 **Universal layout** (`+layout.ts`): Creates a browser or server Supabase client depending on context. On the browser side, it uses `createBrowserClient`; on the server, `createServerClient` with empty cookie stubs (the real cookie handling happens in the hook).
 
-**Auth state sync**: The root layout (`+layout.svelte`) subscribes to `onAuthStateChange` and calls `invalidate('supabase:auth')` when the session changes (e.g., token refresh), which re-runs the layout load to update the session prop.
+**Auth state sync**: The root layout (`+layout.svelte`) subscribes to `onAuthStateChange` and calls `invalidate('supabase:auth')` when the session changes. To avoid unnecessary refetches, the listener compares `newSession?.expires_at` with the current session's `expires_at` and only invalidates if the expiry actually changed.
 
-**Route protection**: Individual pages use `$effect` to redirect to `/login` if there's no session. This is client-side only -- there's no server-side guard middleware.
+**Proactive token refresh**: The root layout schedules a timer to refresh the session 5 minutes before the JWT expires (`REFRESH_MARGIN_MS = 5 * 60 * 1000`). `scheduleTokenRefresh()` calculates the delay as `expiresAt - now - margin` and calls `supabase.auth.refreshSession()` when it fires. If the refresh fails (e.g., session revoked server-side), the user is redirected to `/login`. The timer is cleared and rescheduled on every auth state change.
+
+**Visibility-based session check**: A `visibilitychange` listener detects when the browser tab returns to the foreground. If the session is near expiry (within the 5-minute margin), it triggers an immediate refresh. If there's no current session, it invalidates to update the UI.
+
+**Server-side route protection**: `hooks.server.ts` defines a `PROTECTED_ROUTES` array (`/places`, `/upload`, `/api/places`). If there's no session and the request path starts with any protected route, the hook issues a `303` redirect to `/login?redirect=<intended_path>`. This is the primary access control mechanism, replacing the previous client-side-only `$effect` redirect approach.
+
+**Login page redirect**: The login page reads the `redirect` query param and uses `getSafeRedirect()` to validate it before navigating. The function rejects non-relative paths, double-slash prefixes (protocol-relative URLs), and paths that point back to `/login` itself. Invalid redirects fall back to `/places`.
 
 ---
 
@@ -77,6 +90,12 @@ Auth is handled through `@supabase/ssr` with a server hook (`hooks.server.ts`) a
 
 **`place_tags`** -- Junction table linking places to tags (many-to-many).
 
+**`profiles`** -- User profile data synced from Supabase Auth. Columns: `id` (references `auth.users`), `email`, `name`, `avatar_url`, `created_at`, `updated_at`. Auto-populated via two database triggers:
+- `on_auth_user_created`: Fires after insert on `auth.users`. Copies `email`, `full_name` (or `name`), and `avatar_url` from `raw_user_meta_data` into the profiles row.
+- `on_auth_user_updated`: Fires after update on `auth.users`. Keeps `email`, `name`, and `avatar_url` in sync when the user's auth data changes.
+
+Both triggers use `security definer` with `search_path = ''` to safely access the `auth` schema.
+
 **`lists`** and **`list_places`** -- Defined in the migration but not yet used in the UI. These were designed for user-created lists (like Google Maps lists) but the tagging system ended up being more flexible.
 
 ### Row-Level Security
@@ -88,6 +107,8 @@ All tables have RLS enabled. Policies ensure users can only see/modify their own
 The `migration.sql` file only defines `places`, `lists`, and `list_places`. The `tags` and `place_tags` tables (along with enrichment columns on `places`) were added later directly in Supabase. The TypeScript types in `database.ts` reflect the full schema.
 
 A separate `add_tag_order_index.sql` migration adds the `order_index` column to `tags` for drag-and-drop reordering. Because this column may not exist on older deployments, all code that reads or writes `order_index` uses `try/catch` with graceful fallback (see [Tag Reordering](#tag-reordering--drag-and-drop)).
+
+A third migration file, `add_profiles_table.sql`, creates the `profiles` table with RLS policies and the two auth triggers. This migration is independent of the others and can be run at any time.
 
 ### Type Name vs. Table Name
 
@@ -116,6 +137,8 @@ During CSV import, deduplication is URL-based only. The app loads all existing U
 ### Three-Strategy Lookup (`fetchPlaceDetails`)
 
 The enrichment system tries multiple strategies to find a place, falling back to the next if one fails:
+
+**Pre-strategy -- `share.google` scraping**: If the URL is a `share.google` link and no search text, coordinates, or chip place ID could be extracted from it, the function fetches the share page HTML and attempts to extract a place name from the `og:title` meta tag or the `<title>` tag (stripping Google-branded suffixes). This name becomes the `searchText` for Strategy 2.
 
 **Strategy 1 -- Place ID lookup**: If the Google Maps URL contains a `ChIJ...` identifier (found via regex), it makes a direct GET request to `places/{placeId}`. This is the most accurate method.
 
@@ -155,9 +178,14 @@ After enrichment, `upsertSystemTags` automatically creates and links category an
 Google Maps URLs come in many forms:
 - Full URLs: `https://www.google.com/maps/place/...`
 - Shortened: `https://maps.app.goo.gl/abc123`
+- Share links: `https://share.google/...`
 - With tracking params: `?g_st=ic`
 
 The `resolveGoogleMapsUrl` function handles shortened links by following redirects. It first strips tracking params with `cleanGoogleMapsUrl`, then tries `fetch` with `redirect: 'follow'`. If that fails, it tries `redirect: 'manual'` and follows the `Location` header step by step.
+
+**`share.google` handling**: Share links (`share.google/*`) often can't be resolved via HTTP redirects alone -- they may return an HTML page rather than redirecting. The resolver attempts multiple extraction strategies from the HTML response: `<meta>` refresh tags, direct Google Maps URLs in the page body, and `maps.google.*` links. If none of these yield a valid Maps URL, the function returns the original `share.google` URL and the caller falls back to search-based place lookup.
+
+For unresolvable share URLs, the `add-by-url` endpoint skips URL-based extraction (place ID, coordinate parsing) and relies entirely on the Places API text search. After the API call returns a `google_place_id`, a deferred duplicate check runs against that ID. The stored URL is rewritten to a canonical `google.com/maps/place/...?ftid=` form via `buildGoogleMapsUrl()` so that future duplicate checks work correctly.
 
 ### Three-Layer Deduplication
 
@@ -167,7 +195,7 @@ When adding a place by URL, the system checks for duplicates in three ways:
 2. **Normalized URL**: Strip trailing slashes and query params, then compare against all existing URLs
 3. **Title + Address**: After fetching details from Google, check if a place with the exact same title and address already exists (catches CSV-imported places that were later enriched)
 
-If a duplicate is found at any layer, the API returns `{ duplicate: true }` with the existing place data instead of inserting.
+If a duplicate is found at any layer, the API returns `{ duplicate: true }` with the existing place data instead of inserting. If context tagging is active (see [Contextual Capture](#contextual-capture-auto-tagging)), the duplicate response also includes `contextTagsApplied` indicating how many new tags were linked to the existing place.
 
 ### URL Normalization
 
@@ -179,7 +207,7 @@ Places added via URL import get `source_list: 'url-import'`, while CSV-imported 
 
 ### Inline URL Detection in Search
 
-The search bar doubles as a URL input. A regex (`isGoogleMapsUrl`) detects when the search field contains a Google Maps URL (matching `maps.google.*`, `google.*/maps`, `maps.app.goo.gl`, `goo.gl/maps`). When a URL is detected:
+The search bar doubles as a URL input. A regex (`isGoogleMapsUrl`) detects when the search field contains a Google Maps URL (matching `maps.google.*`, `google.*/maps`, `maps.app.goo.gl`, `goo.gl/maps`, `share.google`). When a URL is detected:
 
 - The search filter is bypassed (`matchesSearch` returns true when `detectedUrl !== null`), so all places remain visible
 - A "Press Enter to add" hint replaces the search icon
@@ -187,6 +215,37 @@ The search bar doubles as a URL input. A regex (`isGoogleMapsUrl`) detects when 
 - On success/duplicate/error, a toast is shown and the search field is cleared and refocused
 
 This avoids the need for a separate "Add Place" dialog for the common case of pasting a link.
+
+---
+
+## Contextual Capture (Auto-Tagging)
+
+When the user has custom tag filters active (e.g., viewing places tagged "Date Night"), new places added via URL import can be automatically tagged with those same tags. This creates a natural workflow: filter to a tag view, paste URLs, and they're automatically organized.
+
+### How It Works
+
+1. The places page tracks `selectedCustomIds` (currently active custom tag filter IDs) and `selectedCustomTagNames` (their display names)
+2. When a URL is detected in the search bar and custom tags are selected, a **contextual capture banner** appears below the search bar showing "Adding into: Tag1 + Tag2"
+3. The banner includes an "Auto-tag ON/OFF" toggle (`autoApplyCurrentViewTags` state) so users can disable it without clearing their filters
+4. When the URL is submitted, `contextTagIds` and `autoApplyContextTags` are sent in the POST body to `/api/places/add-by-url`
+
+### Server-Side Tag Application (`applyContextTags`)
+
+The endpoint validates context tag IDs before applying them:
+1. Queries the `tags` table to confirm each ID belongs to the current user and has `source: 'user'` (prevents linking to other users' tags or system tags)
+2. Checks `place_tags` for existing links to avoid duplicates
+3. Inserts only the missing tag links
+4. Returns the count of newly applied tags
+
+### Toast Feedback
+
+The response includes `contextTagsApplied` and `contextTagsRequested` counts, enabling nuanced toast messages:
+
+- **New place + tags applied**: "Added to Date Night" with an Undo action
+- **Duplicate + tags applied**: "Already saved. Added tags: Date Night" with an Undo action
+- **Duplicate + tags already present**: "Already saved in this view"
+- **New place + no tags + not visible in current filters**: "Added, but doesn't match this view" with "Tag to current view" and "Clear filters" actions
+- **Undo**: Calls `removeTagsFromPlace()` to unlink the auto-applied tags, then reloads data
 
 ---
 
@@ -261,6 +320,8 @@ The filter UI only shows tags that are currently in use by at least one place. A
 
 An `$effect` watches the valid tag IDs and compares them against the currently selected filter tags (`selectedTagIds`). If any selected tags no longer exist in the dataset (e.g., after a place was deleted and it was the only place with that tag), they're automatically removed from `selectedTagMap`. This prevents ghost filters that match nothing.
 
+Similarly, an `$effect` monitors `selectedSource` against the current `sourceLists`. If the selected source no longer exists in the dataset, it resets to `'all'`.
+
 ### Search
 
 Search is case-insensitive and checks across four fields: title, description, address, and tag names. All matching is done client-side with `String.includes()`.
@@ -286,19 +347,34 @@ The map uses [MapLibre GL JS](https://maplibre.org/) (an open-source fork of Map
 
 ### Split-View Layout
 
-The map and content share a single flex container, using CSS to reposition for different screen sizes:
+The map and content share a single flex container, using CSS and conditional rendering for different screen sizes:
 
-**Mobile (< lg)**: The layout is `flex-col`. The map panel is the first child, taking `35vh` height (38vh on sm+), and scrolls with the page. As the user scrolls past the map, the search bar sticks below the nav bar (`sticky top-12`). This preserves the existing mobile UX while adding the map as a contextual header.
+**Mobile (< lg)**: Uses a `MobileMapShell` component that wraps `MapView` with an interactive collapse/expand mechanism. The shell has two states:
+- **Collapsed** (default): 128px tall, showing a compact map preview. Markers are visible but popups are suppressed, and the attribution control fades to 45% opacity at 90% scale.
+- **Expanded**: 42vh tall, providing a full interactive map experience with popups and full-opacity controls.
+
+A drag-handle button at the bottom of the shell toggles between states with a 200ms CSS height transition. The `mapMode` prop (`'collapsed'` | `'expanded'`) is passed to `MapView` to adjust behaviors like popup display, attribution placement, fit-bounds padding, and fly-to offsets.
+
+The mobile layout uses `overflow: hidden` on the outer container with the content panel in a scrollable `flex-1 min-h-0 overflow-y-auto` div, preventing the map from scrolling with the page.
 
 **Desktop (lg+)**: The layout switches to `flex-row`. The map panel gets `order-2` (right side), `width: 42%`, and `position: sticky` at `top: 3.5rem` (just below the nav). This keeps the map visible at all times while the left content panel scrolls freely. The `align-self: start` property is required for sticky to work correctly in a flex row -- without it, the flex item stretches to the container height and sticky has no room to "stick".
 
-A single `MapView` component instance is used for both layouts. The container div changes shape via responsive classes, and a `ResizeObserver` calls `map.resize()` to keep the map canvas in sync with its container dimensions.
+**Breakpoint detection**: An `isMobile` reactive variable (updated via `resize` event listener, threshold at 1024px) controls which layout renders. This uses JS-based detection rather than CSS media queries because the mobile and desktop layouts use different component trees (`MobileMapShell` wrapping `MapView` vs. `MapView` alone).
+
+A `ResizeObserver` inside `MapView` calls `map.resize()` to keep the map canvas in sync with its container dimensions across both layouts.
 
 ### MapView Component (`MapView.svelte`)
 
-**Dynamic import**: MapLibre GL JS uses browser APIs (`canvas`, `WebGL`) that aren't available during SSR. The library is loaded via `await import('maplibre-gl')` inside `onMount`, wrapped in an IIFE to keep the cleanup function synchronous (Svelte's `onMount` doesn't support async cleanup returns). The CSS is imported statically at the top (`import 'maplibre-gl/dist/maplibre-gl.css'`) since Vite handles CSS imports correctly during SSR.
+**Dynamic import**: MapLibre GL JS uses browser APIs (`canvas`, `WebGL`) that aren't available during SSR. The library is loaded via `await import('maplibre-gl')` inside `onMount`, wrapped in an IIFE to keep the cleanup function synchronous (Svelte's `onMount` doesn't support async cleanup returns). The CSS is loaded via a `<link>` tag in `<svelte:head>` pointing to the unpkg CDN.
 
-**Environment variable**: The MapTiler API key is accessed via `$env/static/public` (SvelteKit's recommended approach for public env vars) rather than `import.meta.env`, which can be unreliable depending on Vite cache state.
+**Environment variable**: The MapTiler API key is passed as a `maptilerKey` prop from the parent (which gets it from `data.maptilerKey` set in `+layout.server.ts`). As a fallback, the component also checks `import.meta.env.PUBLIC_MAPTILER_KEY`.
+
+**`mapMode` prop**: Accepts `'collapsed'`, `'expanded'`, or `'default'`. This controls several behaviors:
+- **Attribution placement**: `'default'` puts it bottom-right; other modes put it top-left to avoid overlapping the shell's drag handle.
+- **Attribution styling**: Collapsed mode fades to 45% opacity and 90% scale; expanded mode shows full opacity. CSS scoped styles use `[data-map-mode]` attribute selectors.
+- **Popup behavior**: In collapsed mode, hover popups are suppressed and selection popups are closed (the map is too small for useful popups). In other modes, popups appear on hover and stay open for selected markers.
+- **Fit-bounds padding**: Collapsed mode uses `{ top: 8, bottom: HANDLE_PX + 8, left: 12, right: 12 }` to account for the drag handle. Default mode uses uniform 50px padding.
+- **Fly-to offset**: Collapsed mode applies a vertical offset of `-(HANDLE_PX / 2)` to center the target above the drag handle.
 
 ### Marker Rendering & Synchronization
 
@@ -413,13 +489,15 @@ A modal with two tabs: "Paste URL" and "Upload CSV". The CSV tab simply links to
 
 ### Toast Notification System
 
-Lightweight in-page toasts for URL add feedback (no external library):
+Lightweight in-page toasts for URL add and action feedback, implemented as a shared Svelte 5 store (`src/lib/stores/toasts.svelte.ts`):
 
-- **Data model**: Array of `{ id, type, title, message }` objects in page state. `showToast()` appends a new toast and schedules its removal.
-- **Types**: `success` (sage/green), `duplicate` (amber), `error` (red) -- each with matching background, border, and icon.
-- **Timing**: Success and duplicate toasts auto-dismiss after 2500ms; errors after 4000ms.
+- **Store module**: Uses module-level `$state<Toast[]>([])` for reactivity. Exports `showToast(type, title, message, actions?)`, `getToasts()`, and `dismissToast(id)`. Any component can trigger toasts without prop-drilling.
+- **Data model**: Each toast has `{ id, type, title, message, actions? }`. The `actions` field is an optional array of `{ label: string, handler: () => void }` for interactive toasts (e.g., "Undo", "Tag to current view", "Clear filters").
+- **Types**: `success` (sage/green), `duplicate` (amber), `error` (red), `info` (blue) -- each with matching background, border, and icon.
+- **Timing**: Success and duplicate toasts auto-dismiss after 2500ms; errors after 4000ms; toasts with actions after 5000ms (longer to give the user time to click).
 - **Animation**: Uses the `animate-in` class from `app.css` with a `toast-in` keyframe (opacity 0→1 + translateY 8px→0 + scale 0.96→1 over 250ms).
 - **Position**: Fixed at bottom-center (`fixed bottom-6 left-1/2 -translate-x-1/2`), stacked vertically with `gap-2`.
+- **Action buttons**: Rendered inline after the message with a `|` separator. Clicking an action calls its handler and immediately dismisses the toast via `dismissToast(toast.id)`.
 
 ### Layout Shift Prevention
 
@@ -443,7 +521,12 @@ The root layout renders its own `AddPlaceModal` instance (toggled by the nav's "
 
 ### Auth State Subscription
 
-`onMount` in the root layout subscribes to `onAuthStateChange`. To avoid unnecessary data refetches on routine token refreshes (~hourly), the listener compares `newSession?.expires_at` with the current session's `expires_at` and only calls `invalidate('supabase:auth')` if the expiry actually changed.
+`onMount` in the root layout subscribes to `onAuthStateChange`. The listener handles two events specifically:
+
+- **`SIGNED_OUT`**: Immediately clears the refresh timer and invalidates.
+- **Session change**: Compares `newSession?.expires_at` with the current session's `expires_at`. If the expiry changed, the refresh timer is cleared and rescheduled, and `invalidate('supabase:auth')` is called. This filters out duplicate events from routine token refreshes.
+
+A `visibilitychange` listener also checks the session when the tab regains focus. If the session is expired or near expiry, it triggers an immediate refresh. If there's no session at all, it invalidates to update the UI (e.g., show logged-out state).
 
 ### Global Styles (`app.css`)
 
@@ -461,7 +544,7 @@ Additional global styles handle safe area insets, tap highlight removal, overscr
 
 The app has distinct mobile and desktop layouts rather than just reflowing:
 
-- **Map layout**: Mobile shows the map as a scrollable header (35-38vh) above the content. Desktop uses a sticky right panel (42% width) alongside a scrollable left content area. Both use a single MapView instance repositioned via CSS flex properties.
+- **Map layout**: Mobile uses a `MobileMapShell` component with a collapsible map (128px collapsed / 42vh expanded) above a scrollable content panel. Desktop uses a sticky right panel (42% width) alongside a scrollable left content area. The two layouts render different component trees controlled by a JS `isMobile` flag (threshold: 1024px).
 - **PlaceCard**: Mobile uses a compact layout with smaller text, fewer visible details, and swipe-to-delete. Desktop shows price level, rating count, more metadata, and hover-reveal delete. The card grid uses 1-2 columns (reduced from 3 to accommodate the map panel).
 - **PlaceListItem**: Mobile has swipe-to-delete; desktop has hover-reveal action buttons.
 - **Tag filtering**: Mobile uses a tabbed horizontal scroll (Category | Area | Custom); desktop shows all three rows inline.
@@ -657,13 +740,25 @@ Public vars (prefixed `PUBLIC_`) are safe to expose to the browser. The Google A
 
 **Problem**: Supabase's auth state change listener fires on every token refresh (roughly every hour). Without guarding, this would re-invalidate the layout load and refetch all data unnecessarily.
 
-**Fix**: The listener in `+layout.svelte` compares `newSession?.expires_at` with the current `session?.expires_at`. It only calls `invalidate('supabase:auth')` if the expiry actually changed, filtering out duplicate events where the session content is identical.
+**Fix**: The listener in `+layout.svelte` compares `newSession?.expires_at` with the current `session?.expires_at`. It only calls `invalidate('supabase:auth')` if the expiry actually changed, filtering out duplicate events where the session content is identical. `SIGNED_OUT` events are handled separately and always invalidate.
 
 ### 11. Swipe-to-Delete Dismissal Conflicting with Card Flip
 
 **Problem**: On the mobile grid view after adding swipe-to-delete to PlaceCard, tapping the card while the delete action was revealed would trigger the 3D flip instead of dismissing the swipe. This was disorienting -- the card would flip while still shifted sideways.
 
 **Fix**: Added a swipe-awareness check to `handleFlip`: if `swipeX !== 0` (card is swiped open), tapping resets `swipeX` to 0 and returns early without flipping. The flip only triggers when the card is in its default (non-swiped) position.
+
+### 12. `share.google` URLs Not Resolvable via Redirects
+
+**Problem**: Google's newer share URL format (`share.google/*`) doesn't follow the same redirect pattern as `maps.app.goo.gl` short links. Server-side `fetch` with `redirect: 'follow'` often resolves back to the same `share.google` page or an intermediate page, never reaching a usable `google.com/maps` URL.
+
+**Fix**: The resolver now attempts to extract the destination from the HTML response body via three fallback strategies: `<meta>` refresh tag URL extraction, regex matching for `google.*/maps/place/` URLs, and `maps.google.*` link extraction. If all strategies fail, the original `share.google` URL is returned (instead of throwing), and the `add-by-url` endpoint detects this via `isShareGoogleUrl()`. It then skips URL-based extraction (place ID, coordinates) and falls back to scraping the share page for the place name (via `og:title` meta tag or `<title>` tag), which is used as the text search query for the Places API.
+
+### 13. Session Expiry During Background Tabs
+
+**Problem**: When a user leaves the app in a background tab for an extended period, the session JWT can expire silently. On returning to the tab, API calls fail with 401 errors but the UI still shows the authenticated state.
+
+**Fix**: Added a `visibilitychange` listener in the root layout that fires when the tab returns to the foreground. It checks whether the current session is near expiry (within a 5-minute margin) and proactively calls `supabase.auth.refreshSession()`. If no session exists at all, it calls `invalidate('supabase:auth')` to trigger a full state update. Combined with the scheduled `scheduleTokenRefresh()` timer, this ensures sessions are refreshed before they expire under normal conditions, and recovered quickly when returning from a long background period.
 
 ---
 
@@ -686,11 +781,15 @@ The `order_index` column on `tags` may not exist if the migration hasn't been ru
 ### 3. Debug `console.log` Statements
 
 Multiple `console.log` calls remain in production code:
-- `places/+page.svelte`: URL add debugging (lines 62, 75)
-- `api/places/add-by-url/+server.ts`: Extensive request/response logging throughout
+- `places/+page.svelte`: URL add debugging (lines 101, 118)
+- `api/places/add-by-url/+server.ts`: Extensive request/response logging throughout (lines 90, 97, 110, 124, 149, 165, 172, 239, 246)
 
 These should be removed or gated behind a debug flag before production deployment.
 
 ### 4. Two `normalizeUrl` Functions
 
 `cleanGoogleMapsUrl()` in `google-places.ts` strips all query params from shortened URLs aggressively. `normalizeUrl()` in `add-by-url/+server.ts` selectively strips tracking params while keeping place-identifying ones. Both serve URL normalization but with different strategies and no shared code.
+
+### 5. Mobile Layout Detection -- JS vs. CSS
+
+The mobile/desktop split uses a JS `isMobile` state variable (updated on `resize`, threshold 1024px) to conditionally render different component trees (`MobileMapShell` vs. bare `MapView`). This duplicates the `lg:` Tailwind breakpoint at 1024px but in JS. If the breakpoint changes in Tailwind, the JS threshold must also be updated manually. A `matchMedia` approach or a shared breakpoint constant would reduce this coupling.
