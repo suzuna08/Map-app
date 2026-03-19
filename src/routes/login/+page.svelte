@@ -14,6 +14,8 @@
 
 	const DEFAULT_REDIRECT = '/places';
 
+	const confirmError = $derived($page.url.searchParams.get('error') === 'invalid-confirmation-link');
+
 	function getSafeRedirect(url: string | null): string {
 		if (!url) return DEFAULT_REDIRECT;
 
@@ -27,6 +29,10 @@
 		}
 	}
 
+	function getEmailRedirectTo(): string {
+		return `${$page.url.origin}/auth/confirm?next=/login`;
+	}
+
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
 		loading = true;
@@ -34,7 +40,11 @@
 		message = '';
 
 		if (isSignUp) {
-			const { error: err } = await supabase.auth.signUp({ email, password });
+			const { error: err } = await supabase.auth.signUp({
+				email,
+				password,
+				options: { emailRedirectTo: getEmailRedirectTo() }
+			});
 			if (err) {
 				error = err.message;
 			} else {
@@ -70,6 +80,12 @@
 				{isSignUp ? 'Start organizing your saved places' : 'Sign in to your account'}
 			</p>
 		</div>
+
+		{#if confirmError}
+			<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+				Your confirmation link was invalid or has expired. Please sign up again.
+			</div>
+		{/if}
 
 		{#if error}
 			<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>
