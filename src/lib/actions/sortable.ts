@@ -4,6 +4,8 @@ export interface SortableOptions {
 	idAttribute: string;
 	longPressMs?: number;
 	disabled?: boolean;
+	/** CSS selector for elements that should NOT trigger drag (e.g. 'button, input, a') */
+	ignoreDragFrom?: string;
 }
 
 interface ItemRect {
@@ -13,6 +15,9 @@ interface ItemRect {
 	midX: number;
 	midY: number;
 }
+
+const TOUCH_MOVE_THRESHOLD = 64; // px² — cancel long-press if finger moves more than 8px
+const HAPTIC_STYLE_CLASS = 'sortable-dragging';
 
 export function sortable(node: HTMLElement, opts: SortableOptions) {
 	let options = opts;
@@ -30,6 +35,16 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 	let items: ItemRect[] = [];
 	let currentOrder: string[] = [];
 	let originalOrder: string[] = [];
+	let pendingTouchMoveHandler: ((e: TouchEvent) => void) | null = null;
+
+	function isTouchDevice(): boolean {
+		return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+	}
+
+	function shouldIgnoreTarget(target: HTMLElement): boolean {
+		if (!options.ignoreDragFrom) return false;
+		return !!target.closest(options.ignoreDragFrom);
+	}
 
 	function getItems(): ItemRect[] {
 		const els = Array.from(node.querySelectorAll(options.itemSelector)) as HTMLElement[];
@@ -142,7 +157,6 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 	function startDrag(el: HTMLElement, clientX: number, clientY: number, touch: boolean) {
 		if (options.disabled) return;
 
-		// Clear any text selection caused by long press
 		window.getSelection()?.removeAllRanges();
 
 		dragEl = el;
@@ -156,7 +170,7 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 		createGhost(el, clientX, clientY);
 
 		if (touch) {
-			document.addEventListener('touchmove', onTouchMove, { passive: false });
+			document.addEventListener('touchmove', onDragTouchMove, { passive: false });
 			document.addEventListener('touchend', onTouchEnd);
 			document.addEventListener('touchcancel', onTouchEnd);
 		} else {
@@ -208,10 +222,26 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 
 		document.removeEventListener('pointermove', onPointerMove);
 		document.removeEventListener('pointerup', onPointerUp);
-		document.removeEventListener('touchmove', onTouchMove);
+		document.removeEventListener('touchmove', onDragTouchMove);
 		document.removeEventListener('touchend', onTouchEnd);
 		document.removeEventListener('touchcancel', onTouchEnd);
+		cleanupPendingTouch();
 	}
+
+	function cleanupPendingTouch() {
+		if (longPressTimer) {
+			clearTimeout(longPressTimer);
+			longPressTimer = null;
+		}
+		if (pendingTouchMoveHandler) {
+			document.removeEventListener('touchmove', pendingTouchMoveHandler);
+			document.removeEventListener('touchend', onPendingTouchEnd);
+			document.removeEventListener('touchcancel', onPendingTouchEnd);
+			pendingTouchMoveHandler = null;
+		}
+	}
+
+	// --- Desktop pointer events ---
 
 	function onPointerDown(e: PointerEvent) {
 		if (options.disabled || e.button !== 0) return;
@@ -220,6 +250,8 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 		if (!target || !node.contains(target)) return;
 
 		if (e.pointerType === 'touch') return;
+
+		if (shouldIgnoreTarget(e.target as HTMLElement)) return;
 
 		e.preventDefault();
 		startDrag(target, e.clientX, e.clientY, false);
@@ -235,7 +267,11 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 		endDrag();
 	}
 
-	function onTouchStart(e: TouchEvent) {
+	// --- Touch events: two-phase approach ---
+	// Phase 1 (pending): Listen for touchmove during long-press wait to cancel if finger moves
+	// Phase 2 (dragging): After long-press fires, handle drag movement
+
+	function onNativeTouchStart(e: TouchEvent) {
 		if (options.disabled) return;
 
 		const touch = e.touches[0];
@@ -243,6 +279,8 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 
 		const target = (e.target as HTMLElement).closest(options.itemSelector) as HTMLElement | null;
 		if (!target || !node.contains(target)) return;
+
+		if (shouldIgnoreTarget(e.target as HTMLElement)) return;
 
 		startX = touch.clientX;
 		startY = touch.clientY;
@@ -252,25 +290,35 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 		const cx = touch.clientX;
 		const cy = touch.clientY;
 
+		// Track movement during the long-press wait (passive, so scrolling isn't blocked)
+		pendingTouchMoveHandler = (ev: TouchEvent) => {
+			const t = ev.touches[0];
+			if (!t) return;
+			const dx = t.clientX - startX;
+			const dy = t.clientY - startY;
+			if (dx * dx + dy * dy > TOUCH_MOVE_THRESHOLD) {
+				cleanupPendingTouch();
+			}
+		};
+		document.addEventListener('touchmove', pendingTouchMoveHandler, { passive: true });
+		document.addEventListener('touchend', onPendingTouchEnd);
+		document.addEventListener('touchcancel', onPendingTouchEnd);
+
 		longPressTimer = setTimeout(() => {
 			longPressTriggered = true;
+			cleanupPendingTouch();
 			startDrag(el, cx, cy, true);
-		}, options.longPressMs ?? 300);
+		}, options.longPressMs ?? 400);
 	}
 
-	function onTouchMove(e: TouchEvent) {
+	function onPendingTouchEnd() {
+		cleanupPendingTouch();
+		longPressTriggered = false;
+	}
+
+	function onDragTouchMove(e: TouchEvent) {
 		const touch = e.touches[0];
 		if (!touch) return;
-
-		if (!longPressTriggered && longPressTimer) {
-			const dx = touch.clientX - startX;
-			const dy = touch.clientY - startY;
-			if (dx * dx + dy * dy > 25) {
-				clearTimeout(longPressTimer);
-				longPressTimer = null;
-				return;
-			}
-		}
 
 		if (dragging) {
 			e.preventDefault();
@@ -288,27 +336,23 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 	}
 
 	function onTouchEnd() {
-		if (longPressTimer) {
-			clearTimeout(longPressTimer);
-			longPressTimer = null;
-		}
 		if (dragging) {
 			endDrag();
 		}
+		cleanupPendingTouch();
 		longPressTriggered = false;
 	}
 
-	function onNativeTouchStart(e: TouchEvent) {
-		if (options.disabled) return;
-
-		const target = (e.target as HTMLElement).closest(options.itemSelector) as HTMLElement | null;
-		if (!target || !node.contains(target)) return;
-
-		onTouchStart(e);
-	}
-
 	function applyStyles() {
+		const isTouch = isTouchDevice();
 		if (options.disabled) {
+			node.style.cursor = '';
+			node.style.webkitUserSelect = '';
+			node.style.userSelect = '';
+			(node.style as unknown as Record<string, string>).webkitTouchCallout = '';
+		} else if (isTouch) {
+			// On touch: don't force grab cursor or block user-select globally
+			// These are applied only during active drag via the ghost element
 			node.style.cursor = '';
 			node.style.webkitUserSelect = '';
 			node.style.userSelect = '';
@@ -336,10 +380,10 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 			node.removeEventListener('touchstart', onNativeTouchStart);
 			document.removeEventListener('pointermove', onPointerMove);
 			document.removeEventListener('pointerup', onPointerUp);
-			document.removeEventListener('touchmove', onTouchMove);
+			document.removeEventListener('touchmove', onDragTouchMove);
 			document.removeEventListener('touchend', onTouchEnd);
 			document.removeEventListener('touchcancel', onTouchEnd);
-			if (longPressTimer) clearTimeout(longPressTimer);
+			cleanupPendingTouch();
 			if (ghostEl) ghostEl.remove();
 			node.style.cursor = '';
 			node.style.webkitUserSelect = '';

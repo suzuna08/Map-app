@@ -204,8 +204,9 @@
 			onReorder: handleReorder,
 			itemSelector: '[data-tag-id]',
 			idAttribute: 'data-tag-id',
-			longPressMs: 300,
-			disabled: false
+			longPressMs: 400,
+			disabled: false,
+			ignoreDragFrom: 'button, input, [role="button"]'
 		}}
 	>
 		{#if allTags.length === 0}

@@ -168,8 +168,9 @@
 		onReorder: handleReorder,
 		itemSelector: '[data-tag-id]',
 		idAttribute: 'data-tag-id',
-		longPressMs: 300,
-		disabled: false
+		longPressMs: 400,
+		disabled: false,
+		ignoreDragFrom: 'button, input'
 	}}
 >
 	{#each visibleTags as tag (tag.id)}

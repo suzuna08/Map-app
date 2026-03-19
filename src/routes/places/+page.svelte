@@ -602,17 +602,17 @@
 					</button>
 				</div>
 
-				<!-- Tags for the active tab -->
-				<div
-					class="flex items-center gap-2 overflow-x-auto py-0.5 pr-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-					use:sortable={{
-						onReorder: handleTagReorder,
-						itemSelector: '[data-tag-id]',
-						idAttribute: 'data-tag-id',
-						longPressMs: 300,
-						disabled: false
-					}}
-				>
+			<!-- Tags for the active tab -->
+			<div
+				class="flex items-center gap-2 overflow-x-auto py-0.5 pr-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+				use:sortable={{
+					onReorder: handleTagReorder,
+					itemSelector: '[data-tag-id]',
+					idAttribute: 'data-tag-id',
+					longPressMs: 400,
+					disabled: true
+				}}
+			>
 					{#if mobileTagTab === 'category'}
 						{#each categoryTags as tag (tag.id)}
 							<button data-tag-id={tag.id} onclick={() => toggleTag(tag.id)} class="shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold transition-all {selectedTagMap[tag.id] ? 'border-brand-400 bg-brand-50 text-warm-800' : 'border-warm-200 text-warm-500'}">{tag.name}</button>
@@ -675,8 +675,9 @@
 								onReorder: handleTagReorder,
 								itemSelector: '[data-tag-id]',
 								idAttribute: 'data-tag-id',
-								longPressMs: 300,
-								disabled: false
+								longPressMs: 400,
+								disabled: false,
+								ignoreDragFrom: 'button, input'
 							}}
 						>
 							{#each categoryTags as tag (tag.id)}
@@ -703,8 +704,9 @@
 								onReorder: handleTagReorder,
 								itemSelector: '[data-tag-id]',
 								idAttribute: 'data-tag-id',
-								longPressMs: 300,
-								disabled: false
+								longPressMs: 400,
+								disabled: false,
+								ignoreDragFrom: 'button, input'
 							}}
 						>
 							{#each areaTags as tag (tag.id)}
@@ -730,8 +732,9 @@
 							onReorder: handleTagReorder,
 							itemSelector: '[data-tag-id]',
 							idAttribute: 'data-tag-id',
-							longPressMs: 300,
-							disabled: false
+							longPressMs: 400,
+							disabled: false,
+							ignoreDragFrom: 'button, input'
 						}}
 					>
 						{#each userTags as tag (tag.id)}
