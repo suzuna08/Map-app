@@ -129,12 +129,35 @@
 		return r ? r.toFixed(1) : '';
 	}
 
-	function toggleExpand(e: MouseEvent) {
+	function handleMobileRowTap(e: MouseEvent) {
+		const target = e.target as HTMLElement;
+		if (target.closest('a, button, input, textarea')) return;
+		if (swipeX !== 0) { swipeX = 0; return; }
+		if (!selected) {
+			onSelect?.(place.id);
+			return;
+		}
+		expanded = !expanded;
+	}
+
+	function handleDesktopRowClick(e: MouseEvent) {
 		const target = e.target as HTMLElement;
 		if (target.closest('a, button, input, textarea')) return;
 		onSelect?.(place.id);
 		expanded = !expanded;
 	}
+
+	let prevSelected = selected;
+	$effect(() => {
+		if (prevSelected && !selected) {
+			if (expanded) {
+				if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; autoSave(); }
+				expanded = false;
+			}
+			if (swipeX !== 0) swipeX = 0;
+		}
+		prevSelected = selected;
+	});
 
 	function scheduleAutoSave() {
 		saved = false;
@@ -185,7 +208,7 @@
 		>
 			<div
 				class="cursor-pointer px-3 py-2"
-				onclick={toggleExpand}
+				onclick={handleMobileRowTap}
 			>
 				<!-- Primary row: Name | Area • Category | Rating -->
 				<div class="flex items-center gap-2">
@@ -197,6 +220,10 @@
 					</svg>
 
 					<h3 class="min-w-0 flex-1 text-[13px] font-bold text-warm-800 {expanded ? '' : 'truncate'}">{place.title}</h3>
+
+					{#if selected && !expanded}
+						<span class="shrink-0 text-[9px] font-medium text-brand-400 animate-pulse">Tap to expand</span>
+					{/if}
 
 					<div class="w-10 shrink-0 text-right text-[11px] font-bold">
 						{#if place.rating}
@@ -267,7 +294,7 @@
 	<!-- Desktop: standard row -->
 	<div
 		class="group hidden h-11 cursor-pointer items-center gap-3 px-4 transition-colors sm:flex {selected ? 'bg-brand-50/70' : 'hover:bg-warm-50/80'}"
-		onclick={toggleExpand}
+		onclick={handleDesktopRowClick}
 	>
 		<svg
 			class="h-3 w-3 shrink-0 text-warm-300 transition-transform duration-200 {expanded ? 'rotate-90' : ''}"
