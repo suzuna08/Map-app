@@ -9,7 +9,7 @@ MapOrganizer is a web app that helps you manage and organize places you've saved
 ## Features
 
 - **CSV Import** -- Bulk-import saved places from a Google Takeout CSV export with drag-and-drop
-- **Inline URL Import** -- Paste a Google Maps link directly into the search bar and press Enter to add a place instantly, with toast notifications for success/duplicate/error feedback
+- **Inline URL Import** -- Paste a Google Maps link (including `share.google` links) directly into the search bar and press Enter to add a place instantly, with toast notifications for success/duplicate/error feedback
 - **Place Enrichment** -- Fetch ratings, addresses, phone numbers, coordinates, and more from the Google Places API (single or batch). Uses a three-strategy lookup: Place ID, text search with location bias, and coordinate fallback
 - **Interactive Map** -- All enriched places are plotted on a MapLibre GL map (powered by MapTiler). Click a marker to scroll to the card; click a card to fly to its pin. Shows a pastel base map style with custom pin markers and popups
 - **Flexible Tagging** -- Organize places with three tag types: category (auto-generated from Google place types), area (auto-generated from address), and custom (user-created with color coding)
@@ -21,8 +21,9 @@ MapOrganizer is a web app that helps you manage and organize places you've saved
 - **Notes** -- Attach personal notes to any place with debounced auto-save (800ms)
 - **Deduplication** -- Three-layer duplicate detection by Google Place ID, normalized URL, and title + address
 - **Swipe to Delete** -- Swipe cards or list items left on mobile to reveal a delete action
-- **Auth** -- Email/password authentication via Supabase with resilient session validation
-- **Responsive** -- Distinct mobile and desktop layouts: split map+list on desktop, stacked on mobile. Sidebar navigation, safe-area support for notched devices
+- **Contextual Capture** -- When viewing a custom tag filter, new places added via URL are automatically tagged to match. Includes an auto-tag toggle and undo support
+- **Auth** -- Email/password authentication via Supabase with server-side route protection, proactive token refresh, and resilient session validation
+- **Responsive** -- Distinct mobile and desktop layouts: split map+list on desktop, collapsible map on mobile. Sidebar navigation, safe-area support for notched devices
 
 ## Tech Stack
 
@@ -54,11 +55,15 @@ src/
 │   ├── tag-order.ts               # Tag reorder persistence
 │   ├── actions/
 │   │   └── sortable.ts            # Drag-to-reorder Svelte action
+│   ├── stores/
+│   │   ├── places.svelte.ts       # Data-access helpers (load, tag ops)
+│   │   └── toasts.svelte.ts       # Toast notification store
 │   ├── types/
 │   │   └── database.ts            # Supabase type definitions
 │   └── components/
 │       ├── AddPlaceModal.svelte    # URL/CSV add place modal
 │       ├── MapView.svelte          # MapLibre GL map with markers
+│       ├── MobileMapShell.svelte   # Collapsible mobile map wrapper
 │       ├── PlaceCard.svelte        # Grid card (flip, swipe, notes)
 │       ├── PlaceListItem.svelte    # List row (expand, swipe)
 │       ├── TagContextMenu.svelte   # Right-click tag menu
@@ -118,15 +123,17 @@ PUBLIC_MAPTILER_KEY=your-maptiler-api-key-here
 
 ### 3. Set up the database
 
-Run the SQL migration in your Supabase project's SQL Editor:
+Run the SQL migrations in your Supabase project's SQL Editor, in order:
 
 ```
 supabase/migration.sql
+supabase/add_tag_order_index.sql
+supabase/add_profiles_table.sql
 ```
 
-This creates the `places`, `lists`, and `list_places` tables along with row-level security policies and indexes.
+The first migration creates the `places`, `lists`, and `list_places` tables along with row-level security policies and indexes. The second adds the `order_index` column to `tags` for drag-to-reorder persistence. The third creates the `profiles` table with auto-sync triggers from Supabase Auth.
 
-You will also need to create the `tags` and `place_tags` tables (used by the tagging system but not yet in the migration file). The expected schema is defined in `src/lib/types/database.ts`. The `tags` table includes an `order_index` integer column for persisting drag-to-reorder positions.
+You will also need to create the `tags` and `place_tags` tables (used by the tagging system but not yet in the migration file). The expected schema is defined in `src/lib/types/database.ts`.
 
 ### 4. Start the dev server
 
