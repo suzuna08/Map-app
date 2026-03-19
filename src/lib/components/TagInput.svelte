@@ -23,12 +23,33 @@
 	let showSuggestions = $state(false);
 	let showInput = $state(false);
 	let inputEl = $state<HTMLInputElement | null>(null);
-	let dropdownPos = $state<{ top: number; left: number } | null>(null);
+	let dropdownPos = $state<{ top: number; left: number; maxWidth: number } | null>(null);
+	let posRafId = 0;
 
 	function updateDropdownPos() {
 		if (!inputEl) { dropdownPos = null; return; }
 		const rect = inputEl.getBoundingClientRect();
-		dropdownPos = { top: rect.bottom + 4, left: rect.left };
+		const vw = window.innerWidth;
+		const vh = window.innerHeight;
+		const left = Math.max(8, Math.min(rect.left, vw - 200));
+		const fitsBelow = rect.bottom + 4 + 200 < vh;
+		const top = fitsBelow ? rect.bottom + 4 : rect.top - 4;
+		dropdownPos = { top, left, maxWidth: Math.min(192, vw - left - 8) };
+	}
+
+	function startPosTracking() {
+		function tick() {
+			if (showSuggestions) {
+				updateDropdownPos();
+				posRafId = requestAnimationFrame(tick);
+			}
+		}
+		posRafId = requestAnimationFrame(tick);
+	}
+
+	function stopPosTracking() {
+		if (posRafId) cancelAnimationFrame(posRafId);
+		posRafId = 0;
 	}
 
 	function portal(node: HTMLElement) {
@@ -222,9 +243,9 @@
 			<input
 				bind:this={inputEl}
 				bind:value={inputValue}
-				onfocus={() => { showSuggestions = true; updateDropdownPos(); }}
-				onblur={() => { setTimeout(() => { showSuggestions = false; showInput = false; inputValue = ''; dropdownPos = null; }, 150); }}
-				oninput={() => updateDropdownPos()}
+				onfocus={() => { showSuggestions = true; updateDropdownPos(); startPosTracking(); }}
+				onblur={() => { setTimeout(() => { showSuggestions = false; showInput = false; inputValue = ''; dropdownPos = null; stopPosTracking(); }, 180); }}
+				oninput={() => { updateDropdownPos(); }}
 				onkeydown={handleKeydown}
 				placeholder="tag name..."
 				class="w-24 rounded-full border border-warm-200 bg-warm-50 px-2 py-0.5 text-xs text-warm-700 placeholder-warm-400 focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-400 sm:w-28 sm:px-2.5 sm:py-1"
@@ -247,8 +268,8 @@
 {#if showSuggestions && dropdownPos && (suggestions.length > 0 || showCreateOption)}
 	<div
 		use:portal
-		class="fixed z-[100] w-48 rounded-lg border border-warm-200 bg-white py-1 shadow-lg"
-		style="top: {dropdownPos.top}px; left: {dropdownPos.left}px"
+		class="fixed z-[9999] w-48 rounded-lg border border-warm-200 bg-white py-1 shadow-xl"
+		style="top: {dropdownPos.top}px; left: {dropdownPos.left}px; max-width: {dropdownPos.maxWidth}px; pointer-events: auto;"
 	>
 		{#each suggestions.slice(0, 5) as tag (tag.id)}
 			<button
