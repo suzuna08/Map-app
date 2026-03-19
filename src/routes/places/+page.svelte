@@ -8,7 +8,6 @@
 	import AddPlaceModal from '$lib/components/AddPlaceModal.svelte';
 	import MapView from '$lib/components/MapView.svelte';
 	import MobileMapShell from '$lib/components/MobileMapShell.svelte';
-	import TopBarTagAdd from '$lib/components/TopBarTagAdd.svelte';
 	import { sortable } from '$lib/actions/sortable';
 	import { saveTagOrder } from '$lib/tag-order';
 	import { getToasts, showToast, dismissToast } from '$lib/stores/toasts.svelte';
@@ -621,8 +620,8 @@
 					onReorder: handleTagReorder,
 					itemSelector: '[data-tag-id]',
 					idAttribute: 'data-tag-id',
-					longPressMs: 400,
-					disabled: true
+					longPressMs: 500,
+					disabled: false
 				}}
 			>
 					{#if mobileTagTab === 'category'}
@@ -658,23 +657,17 @@
 								{/if}
 							</button>
 						{/each}
-						<TopBarTagAdd
-							{supabase}
-							userId={session?.user?.id ?? ''}
-							{allTags}
-							onTagsChanged={refreshTags}
-						/>
-						{#if userTags.length > 0}
-							<button
-								onclick={() => { showTagManager = true; }}
-								class="inline-flex shrink-0 items-center rounded-full border border-warm-200 px-2 py-1 text-[10px] text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
-								aria-label="Manage tags"
-							>
-								<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-									<circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
-								</svg>
-							</button>
-						{/if}
+						<button
+							onclick={() => { showTagManager = true; }}
+							class="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-warm-300 px-2 py-1 text-[10px] text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
+							aria-label="Manage tags"
+						>
+							<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<line x1="12" y1="5" x2="12" y2="19" />
+								<line x1="5" y1="12" x2="19" y2="12" />
+							</svg>
+							Manage
+						</button>
 						{#if userTags.length === 0}
 							<span class="text-xs text-warm-400">No custom tags yet</span>
 						{/if}
@@ -770,24 +763,16 @@
 								{/if}
 							</button>
 						{/each}
-						<TopBarTagAdd
-							{supabase}
-							userId={session?.user?.id ?? ''}
-							{allTags}
-							onTagsChanged={refreshTags}
-							compact
-						/>
-						{#if userTags.length > 0}
-							<button
-								onclick={() => { showTagManager = true; }}
-								class="inline-flex items-center rounded-full border border-warm-200 px-1.5 py-0.5 text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
-								aria-label="Manage tags"
-							>
-								<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-									<circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
-								</svg>
-							</button>
-						{/if}
+						<button
+							onclick={() => { showTagManager = true; }}
+							class="inline-flex items-center gap-1 rounded-full border border-dashed border-warm-300 px-2 py-0.5 text-[11px] text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
+							aria-label="Manage tags"
+						>
+							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<line x1="12" y1="5" x2="12" y2="19" />
+								<line x1="5" y1="12" x2="19" y2="12" />
+							</svg>
+						</button>
 						{#if userTags.length === 0}
 							<span class="text-[11px] text-warm-400">No custom tags yet</span>
 						{/if}

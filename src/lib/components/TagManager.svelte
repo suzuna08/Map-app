@@ -131,8 +131,14 @@
 			if (editingId === tagId) cancelInlineEdit();
 		}, 150);
 	}
+
+	function portal(node: HTMLElement) {
+		document.body.appendChild(node);
+		return { destroy() { node.remove(); } };
+	}
 </script>
 
+<div use:portal>
 <!-- Backdrop -->
 <button
 	class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
@@ -295,4 +301,5 @@
 			{/if}
 		{/each}
 	</div>
+</div>
 </div>
