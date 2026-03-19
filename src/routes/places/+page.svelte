@@ -227,6 +227,13 @@
 		}, {})
 	);
 
+	// Reset selectedSource when it no longer exists in the dataset
+	$effect(() => {
+		if (selectedSource !== 'all' && !sourceLists.includes(selectedSource)) {
+			selectedSource = 'all';
+		}
+	});
+
 	let unenrichedCount = $derived(places.filter((p) => !p.enriched_at && p.url).length);
 
 	let selectedCategoryIds = $derived(selectedTagIds.filter((id) => categoryTags.some((t) => t.id === id)));
@@ -343,6 +350,8 @@
 	async function deletePlace(id: string) {
 		await supabase.from('places').delete().eq('id', id);
 		places = places.filter((p) => p.id !== id);
+		const { [id]: _, ...restMap } = placeTagsMap;
+		placeTagsMap = restMap;
 	}
 
 	async function handleTagReorder(orderedIds: string[]) {

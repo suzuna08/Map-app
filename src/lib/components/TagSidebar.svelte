@@ -46,8 +46,9 @@
 		'#b89760', '#7882a0', '#c08878', '#8a9462', '#a88290'
 	];
 
-	let categoryTags = $derived(allTags.filter((t) => t.source === 'category'));
-	let areaTags = $derived(allTags.filter((t) => t.source === 'area'));
+	let activeTagIds = $derived(new Set(Object.values(placeTagsMap).flat().map((t) => t.id)));
+	let categoryTags = $derived(allTags.filter((t) => t.source === 'category' && activeTagIds.has(t.id)));
+	let areaTags = $derived(allTags.filter((t) => t.source === 'area' && activeTagIds.has(t.id)));
 	let userTags = $derived(allTags.filter((t) => t.source === 'user'));
 	let selectedTagIds = $derived(Object.keys(selectedTagMap).filter((id) => selectedTagMap[id]));
 	let hasActiveFilters = $derived(selectedTagIds.length > 0);
