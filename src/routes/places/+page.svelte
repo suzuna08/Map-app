@@ -355,7 +355,18 @@
 	}
 
 	async function handleTagReorder(orderedIds: string[]) {
-		await saveTagOrder(supabase, orderedIds);
+		const prevTags = allTags;
+		allTags = allTags.map((t) => {
+			const idx = orderedIds.indexOf(t.id);
+			return idx >= 0 ? { ...t, order_index: idx } : t;
+		});
+
+		const result = await saveTagOrder(supabase, orderedIds);
+		if (!result.ok) {
+			allTags = prevTags;
+			showToast('error', '', 'Could not save tag order. Please try again.');
+			return;
+		}
 		await refreshTags();
 	}
 
@@ -676,8 +687,7 @@
 								itemSelector: '[data-tag-id]',
 								idAttribute: 'data-tag-id',
 								longPressMs: 400,
-								disabled: false,
-								ignoreDragFrom: 'button, input'
+								disabled: false
 							}}
 						>
 							{#each categoryTags as tag (tag.id)}
@@ -705,8 +715,7 @@
 								itemSelector: '[data-tag-id]',
 								idAttribute: 'data-tag-id',
 								longPressMs: 400,
-								disabled: false,
-								ignoreDragFrom: 'button, input'
+								disabled: false
 							}}
 						>
 							{#each areaTags as tag (tag.id)}
@@ -733,8 +742,7 @@
 							itemSelector: '[data-tag-id]',
 							idAttribute: 'data-tag-id',
 							longPressMs: 400,
-							disabled: false,
-							ignoreDragFrom: 'button, input'
+							disabled: false
 						}}
 					>
 						{#each userTags as tag (tag.id)}

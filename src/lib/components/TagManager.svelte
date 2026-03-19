@@ -101,8 +101,7 @@
 
 		duplicateWarning = '';
 		const orderIndex = await getNextOrderIndex(supabase, userId);
-		const insertData: Record<string, unknown> = { user_id: userId, name: displayName, color: newTagColor };
-		if (orderIndex !== null) insertData.order_index = orderIndex;
+		const insertData: Record<string, unknown> = { user_id: userId, name: displayName, color: newTagColor, order_index: orderIndex };
 		await supabase.from('tags').insert(insertData);
 		newTagName = '';
 		newTagColorOverride = null;
@@ -120,7 +119,10 @@
 	}
 
 	async function handleReorder(orderedIds: string[]) {
-		await saveTagOrder(supabase, orderedIds);
+		const result = await saveTagOrder(supabase, orderedIds);
+		if (!result.ok) {
+			console.error('[TagManager] reorder persistence failed');
+		}
 		onTagsChanged();
 	}
 

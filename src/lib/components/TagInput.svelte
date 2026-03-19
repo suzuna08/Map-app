@@ -92,8 +92,7 @@
 
 		if (!tag) {
 			const orderIndex = await getNextOrderIndex(supabase, userId);
-			const insertData: Record<string, unknown> = { user_id: userId, name: displayName, color: colorForTag(displayName) };
-			if (orderIndex !== null) insertData.order_index = orderIndex;
+			const insertData: Record<string, unknown> = { user_id: userId, name: displayName, color: colorForTag(displayName), order_index: orderIndex };
 			const { data } = await supabase
 				.from('tags')
 				.insert(insertData)
@@ -152,7 +151,10 @@
 	}
 
 	async function handleReorder(orderedIds: string[]) {
-		await saveTagOrder(supabase, orderedIds);
+		const result = await saveTagOrder(supabase, orderedIds);
+		if (!result.ok) {
+			console.error('[TagInput] reorder persistence failed');
+		}
 		onUpdate();
 	}
 

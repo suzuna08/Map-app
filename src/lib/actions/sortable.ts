@@ -4,7 +4,12 @@ export interface SortableOptions {
 	idAttribute: string;
 	longPressMs?: number;
 	disabled?: boolean;
-	/** CSS selector for elements that should NOT trigger drag (e.g. 'button, input, a') */
+	/**
+	 * CSS selector for elements that should NOT trigger drag.
+	 * Touch events on matching elements pass through to the element's own handler.
+	 * For desktop, we use a click-delay approach instead so drag handles and
+	 * clickable elements can coexist.
+	 */
 	ignoreDragFrom?: string;
 }
 
@@ -16,8 +21,8 @@ interface ItemRect {
 	midY: number;
 }
 
-const TOUCH_MOVE_THRESHOLD = 64; // px² — cancel long-press if finger moves more than 8px
-const HAPTIC_STYLE_CLASS = 'sortable-dragging';
+const TOUCH_MOVE_THRESHOLD = 64;
+const POINTER_DRAG_THRESHOLD = 9;
 
 export function sortable(node: HTMLElement, opts: SortableOptions) {
 	let options = opts;
@@ -30,16 +35,19 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 	let startY = 0;
 	let offsetX = 0;
 	let offsetY = 0;
-	let longPressTimer: ReturnType<typeof setTimeout> | null = null;
-	let longPressTriggered = false;
 	let items: ItemRect[] = [];
 	let currentOrder: string[] = [];
 	let originalOrder: string[] = [];
-	let pendingTouchMoveHandler: ((e: TouchEvent) => void) | null = null;
 
-	function isTouchDevice(): boolean {
-		return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-	}
+	// Desktop: delayed drag activation to distinguish click from drag
+	let pointerPending = false;
+	let pendingTarget: HTMLElement | null = null;
+	let suppressNextClick = false;
+
+	// Touch: long-press to activate drag
+	let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+	let longPressTriggered = false;
+	let pendingTouchMoveHandler: ((e: TouchEvent) => void) | null = null;
 
 	function shouldIgnoreTarget(target: HTMLElement): boolean {
 		if (!options.ignoreDragFrom) return false;
@@ -70,19 +78,21 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 		offsetY = clientY - rect.top;
 
 		ghostEl = el.cloneNode(true) as HTMLElement;
-		ghostEl.style.position = 'fixed';
-		ghostEl.style.zIndex = '9999';
-		ghostEl.style.pointerEvents = 'none';
-		ghostEl.style.width = `${rect.width}px`;
-		ghostEl.style.height = `${rect.height}px`;
-		ghostEl.style.left = `${clientX - offsetX}px`;
-		ghostEl.style.top = `${clientY - offsetY}px`;
-		ghostEl.style.transition = 'transform 0.15s ease, box-shadow 0.15s ease';
-		ghostEl.style.transform = 'scale(1.06)';
-		ghostEl.style.boxShadow = '0 8px 24px rgba(0,0,0,0.18)';
-		ghostEl.style.borderRadius = getComputedStyle(el).borderRadius;
-		ghostEl.style.opacity = '0.95';
-		ghostEl.style.cursor = 'grabbing';
+		Object.assign(ghostEl.style, {
+			position: 'fixed',
+			zIndex: '9999',
+			pointerEvents: 'none',
+			width: `${rect.width}px`,
+			height: `${rect.height}px`,
+			left: `${clientX - offsetX}px`,
+			top: `${clientY - offsetY}px`,
+			transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+			transform: 'scale(1.06)',
+			boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+			borderRadius: getComputedStyle(el).borderRadius,
+			opacity: '0.95',
+			cursor: 'grabbing'
+		});
 		document.body.appendChild(ghostEl);
 
 		el.style.opacity = '0.25';
@@ -113,7 +123,8 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 		const target = items[closest];
 		if (!target) return 0;
 
-		const isAfter = cy > target.midY + target.rect.height * 0.3 ||
+		const isAfter =
+			cy > target.midY + target.rect.height * 0.3 ||
 			(Math.abs(cy - target.midY) <= target.rect.height * 0.3 && cx > target.midX);
 
 		const closestOrderIdx = currentOrder.indexOf(target.id);
@@ -121,11 +132,6 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 	}
 
 	function applyShifts(newOrder: string[]) {
-		const oldPositions = new Map<string, { x: number; y: number }>();
-		for (const item of items) {
-			oldPositions.set(item.id, { x: item.rect.left, y: item.rect.top });
-		}
-
 		for (const item of items) {
 			if (item.id === dragId) continue;
 			const oldIdx = originalOrder.indexOf(item.id);
@@ -155,13 +161,14 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 	}
 
 	function startDrag(el: HTMLElement, clientX: number, clientY: number, touch: boolean) {
-		if (options.disabled) return;
+		if (options.disabled || dragging) return;
 
 		window.getSelection()?.removeAllRanges();
 
 		dragEl = el;
 		dragId = el.getAttribute(options.idAttribute) || '';
 		dragging = true;
+		node.setAttribute('data-sortable-dragging', '');
 
 		items = getItems();
 		originalOrder = getOrderedIds();
@@ -174,8 +181,8 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 			document.addEventListener('touchend', onTouchEnd);
 			document.addEventListener('touchcancel', onTouchEnd);
 		} else {
-			document.addEventListener('pointermove', onPointerMove);
-			document.addEventListener('pointerup', onPointerUp);
+			document.addEventListener('pointermove', onDragPointerMove);
+			document.addEventListener('pointerup', onDragPointerUp);
 		}
 	}
 
@@ -194,6 +201,7 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 	function endDrag() {
 		if (!dragging) return;
 		dragging = false;
+		node.removeAttribute('data-sortable-dragging');
 
 		if (ghostEl) {
 			ghostEl.remove();
@@ -220,12 +228,18 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 		currentOrder = [];
 		originalOrder = [];
 
-		document.removeEventListener('pointermove', onPointerMove);
-		document.removeEventListener('pointerup', onPointerUp);
+		document.removeEventListener('pointermove', onDragPointerMove);
+		document.removeEventListener('pointerup', onDragPointerUp);
 		document.removeEventListener('touchmove', onDragTouchMove);
 		document.removeEventListener('touchend', onTouchEnd);
 		document.removeEventListener('touchcancel', onTouchEnd);
-		cleanupPendingTouch();
+	}
+
+	function cleanupPendingPointer() {
+		pointerPending = false;
+		pendingTarget = null;
+		document.removeEventListener('pointermove', onPendingPointerMove);
+		document.removeEventListener('pointerup', onPendingPointerUp);
 	}
 
 	function cleanupPendingTouch() {
@@ -241,38 +255,68 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 		}
 	}
 
-	// --- Desktop pointer events ---
+	// ─── Desktop pointer events ───────────────────────────────────────
+	// Two-phase: pointerdown records start position, pointermove beyond
+	// threshold activates drag, pointerup without movement lets the
+	// click through to the element's own onclick handler.
 
 	function onPointerDown(e: PointerEvent) {
-		if (options.disabled || e.button !== 0) return;
+		if (options.disabled || e.button !== 0 || dragging) return;
+		if (e.pointerType === 'touch') return;
 
 		const target = (e.target as HTMLElement).closest(options.itemSelector) as HTMLElement | null;
 		if (!target || !node.contains(target)) return;
 
-		if (e.pointerType === 'touch') return;
+		startX = e.clientX;
+		startY = e.clientY;
+		pointerPending = true;
+		pendingTarget = target;
 
-		if (shouldIgnoreTarget(e.target as HTMLElement)) return;
-
-		e.preventDefault();
-		startDrag(target, e.clientX, e.clientY, false);
+		document.addEventListener('pointermove', onPendingPointerMove);
+		document.addEventListener('pointerup', onPendingPointerUp);
 	}
 
-	function onPointerMove(e: PointerEvent) {
+	function onPendingPointerMove(e: PointerEvent) {
+		if (!pointerPending || !pendingTarget) return;
+		const dx = e.clientX - startX;
+		const dy = e.clientY - startY;
+		if (dx * dx + dy * dy > POINTER_DRAG_THRESHOLD) {
+			const target = pendingTarget;
+			cleanupPendingPointer();
+			suppressNextClick = true;
+			startDrag(target, e.clientX, e.clientY, false);
+		}
+	}
+
+	function onPendingPointerUp() {
+		cleanupPendingPointer();
+	}
+
+	function onClickCapture(e: MouseEvent) {
+		if (suppressNextClick) {
+			e.stopPropagation();
+			e.preventDefault();
+			suppressNextClick = false;
+		}
+	}
+
+	function onDragPointerMove(e: PointerEvent) {
 		if (!dragging) return;
 		e.preventDefault();
 		updateDrag(e.clientX, e.clientY);
 	}
 
-	function onPointerUp() {
+	function onDragPointerUp() {
 		endDrag();
 	}
 
-	// --- Touch events: two-phase approach ---
-	// Phase 1 (pending): Listen for touchmove during long-press wait to cancel if finger moves
-	// Phase 2 (dragging): After long-press fires, handle drag movement
+	// ─── Touch events ─────────────────────────────────────────────────
+	// Long-press to activate drag. During the wait, a passive touchmove
+	// listener cancels if the finger moves (allowing scroll). Once the
+	// long-press fires, non-passive touchmove prevents scroll during drag.
 
 	function onNativeTouchStart(e: TouchEvent) {
-		if (options.disabled) return;
+		if (options.disabled || dragging) return;
 
 		const touch = e.touches[0];
 		if (!touch) return;
@@ -290,7 +334,6 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 		const cx = touch.clientX;
 		const cy = touch.clientY;
 
-		// Track movement during the long-press wait (passive, so scrolling isn't blocked)
 		pendingTouchMoveHandler = (ev: TouchEvent) => {
 			const t = ev.touches[0];
 			if (!t) return;
@@ -318,41 +361,31 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 
 	function onDragTouchMove(e: TouchEvent) {
 		const touch = e.touches[0];
-		if (!touch) return;
+		if (!touch || !dragging) return;
 
-		if (dragging) {
-			e.preventDefault();
-			updateDrag(touch.clientX, touch.clientY);
+		e.preventDefault();
+		updateDrag(touch.clientX, touch.clientY);
 
-			const containerRect = node.getBoundingClientRect();
-			const edgeZone = 40;
-			const scrollSpeed = 3;
-			if (touch.clientX < containerRect.left + edgeZone) {
-				node.scrollLeft -= scrollSpeed;
-			} else if (touch.clientX > containerRect.right - edgeZone) {
-				node.scrollLeft += scrollSpeed;
-			}
+		const containerRect = node.getBoundingClientRect();
+		const edgeZone = 40;
+		const scrollSpeed = 3;
+		if (touch.clientX < containerRect.left + edgeZone) {
+			node.scrollLeft -= scrollSpeed;
+		} else if (touch.clientX > containerRect.right - edgeZone) {
+			node.scrollLeft += scrollSpeed;
 		}
 	}
 
 	function onTouchEnd() {
-		if (dragging) {
-			endDrag();
-		}
+		if (dragging) endDrag();
 		cleanupPendingTouch();
 		longPressTriggered = false;
 	}
 
+	// ─── Lifecycle ────────────────────────────────────────────────────
+
 	function applyStyles() {
-		const isTouch = isTouchDevice();
 		if (options.disabled) {
-			node.style.cursor = '';
-			node.style.webkitUserSelect = '';
-			node.style.userSelect = '';
-			(node.style as unknown as Record<string, string>).webkitTouchCallout = '';
-		} else if (isTouch) {
-			// On touch: don't force grab cursor or block user-select globally
-			// These are applied only during active drag via the ghost element
 			node.style.cursor = '';
 			node.style.webkitUserSelect = '';
 			node.style.userSelect = '';
@@ -367,6 +400,7 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 
 	node.addEventListener('pointerdown', onPointerDown);
 	node.addEventListener('touchstart', onNativeTouchStart, { passive: true });
+	node.addEventListener('click', onClickCapture, true);
 
 	applyStyles();
 
@@ -378,11 +412,13 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 		destroy() {
 			node.removeEventListener('pointerdown', onPointerDown);
 			node.removeEventListener('touchstart', onNativeTouchStart);
-			document.removeEventListener('pointermove', onPointerMove);
-			document.removeEventListener('pointerup', onPointerUp);
+			node.removeEventListener('click', onClickCapture, true);
+			document.removeEventListener('pointermove', onDragPointerMove);
+			document.removeEventListener('pointerup', onDragPointerUp);
 			document.removeEventListener('touchmove', onDragTouchMove);
 			document.removeEventListener('touchend', onTouchEnd);
 			document.removeEventListener('touchcancel', onTouchEnd);
+			cleanupPendingPointer();
 			cleanupPendingTouch();
 			if (ghostEl) ghostEl.remove();
 			node.style.cursor = '';
