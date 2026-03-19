@@ -154,7 +154,7 @@ function extractArea(addressComponents: any[], formattedAddress?: string): strin
 }
 
 export function isGoogleMapsUrl(url: string): boolean {
-	return /^https?:\/\/(www\.)?(google\.[a-z.]+\/maps|maps\.google\.[a-z.]+|goo\.gl\/maps|maps\.app\.goo\.gl)/i.test(url);
+	return /^https?:\/\/(www\.)?(google\.[a-z.]+\/maps|maps\.google\.[a-z.]+|goo\.gl\/maps|maps\.app\.goo\.gl|share\.google)/i.test(url);
 }
 
 /**
@@ -166,36 +166,58 @@ export function isGoogleMapsUrl(url: string): boolean {
 export function cleanGoogleMapsUrl(url: string): string {
 	try {
 		const u = new URL(url);
-		if (/maps\.app\.goo\.gl|goo\.gl\/maps/i.test(u.host + u.pathname)) {
+		if (/maps\.app\.goo\.gl|goo\.gl\/maps|share\.google/i.test(u.host)) {
 			return u.origin + u.pathname;
 		}
 	} catch { /* fall through */ }
 	return url;
 }
 
+export function isShareGoogleUrl(url: string): boolean {
+	return /^https?:\/\/(www\.)?share\.google\//i.test(url);
+}
+
 export async function resolveGoogleMapsUrl(url: string): Promise<string> {
-	if (/goo\.gl|maps\.app\.goo\.gl/.test(url)) {
+	if (/goo\.gl|maps\.app\.goo\.gl|share\.google/.test(url)) {
 		const cleaned = cleanGoogleMapsUrl(url);
 		const noCache: RequestInit = { cache: 'no-store' };
 
-		// Try cleaned URL first, then original if that fails
 		for (const candidate of [cleaned, ...(cleaned !== url ? [url] : [])]) {
 			try {
 				const res = await fetch(candidate, { redirect: 'follow', ...noCache });
-				if (isGoogleMapsUrl(res.url)) return res.url;
+				if (isGoogleMapsUrl(res.url) && !isShareGoogleUrl(res.url)) return res.url;
+
+				// share.google pages may embed the destination URL in the HTML body
+				if (isShareGoogleUrl(candidate)) {
+					const html = await res.text();
+					const metaRefresh = html.match(/content=["']\d*;\s*url=(https?:\/\/[^"']+)/i);
+					if (metaRefresh && isGoogleMapsUrl(metaRefresh[1])) return metaRefresh[1];
+
+					const mapsLink = html.match(/https:\/\/www\.google\.[a-z.]+\/maps\/place\/[^\s"'<>]+/);
+					if (mapsLink) return mapsLink[0];
+
+					const dataLink = html.match(/https:\/\/maps\.google\.[a-z.]+\/[^\s"'<>]+/);
+					if (dataLink) return dataLink[0];
+				}
 			} catch { /* try next */ }
 		}
 
-		// Manual redirect: follow Location headers step-by-step
 		try {
 			const res = await fetch(cleaned, { redirect: 'manual', ...noCache });
 			const location = res.headers.get('location');
-			if (location && isGoogleMapsUrl(location)) return location;
+			if (location && isGoogleMapsUrl(location) && !isShareGoogleUrl(location)) return location;
 			if (location) {
 				const res2 = await fetch(location, { redirect: 'follow', ...noCache });
-				if (isGoogleMapsUrl(res2.url)) return res2.url;
+				if (isGoogleMapsUrl(res2.url) && !isShareGoogleUrl(res2.url)) return res2.url;
 			}
 		} catch { /* fall through */ }
+
+		// share.google URLs often can't be resolved via HTTP redirects alone.
+		// Return the original URL and let the caller fall back to search-based
+		// place lookup using whatever context is available.
+		if (isShareGoogleUrl(url)) {
+			return url;
+		}
 
 		throw new Error('Could not resolve shortened Google Maps link');
 	}
@@ -226,9 +248,28 @@ export async function fetchPlaceDetails(
 	const fieldMask =
 		'places.id,places.displayName,places.types,places.primaryType,places.rating,places.userRatingCount,places.priceLevel,places.formattedAddress,places.addressComponents,places.editorialSummary,places.location,places.nationalPhoneNumber,places.websiteUri';
 
-	const searchText = extractSearchTextFromUrl(googleMapsUrl) || placeName;
+	let searchText = extractSearchTextFromUrl(googleMapsUrl) || placeName;
 	const coords = extractCoordsFromUrl(googleMapsUrl);
 	const chipPlaceId = extractChipPlaceId(googleMapsUrl);
+
+	// For share.google URLs, try scraping the page for place name / metadata
+	if (!searchText && !coords && !chipPlaceId && isShareGoogleUrl(googleMapsUrl)) {
+		try {
+			const res = await fetch(googleMapsUrl, { redirect: 'follow', cache: 'no-store' as RequestCache });
+			const html = await res.text();
+
+			const ogTitle = html.match(/<meta\s+property=["']og:title["']\s+content=["']([^"']+)/i);
+			if (ogTitle) searchText = ogTitle[1];
+
+			if (!searchText) {
+				const titleTag = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+				if (titleTag) {
+					const cleaned = titleTag[1].replace(/\s*[-–|].*Google.*$/i, '').trim();
+					if (cleaned && cleaned.length > 1) searchText = cleaned;
+				}
+			}
+		} catch { /* fall through */ }
+	}
 
 	// Strategy 1: Look up by Place ID (ChIJ...) if found in URL
 	if (chipPlaceId && chipPlaceId.startsWith('ChIJ')) {
@@ -332,4 +373,10 @@ function parsePlaceResult(place: any): PlaceDetails {
 		phone: place.nationalPhoneNumber || null,
 		website: place.websiteUri || null
 	};
+}
+
+export function buildGoogleMapsUrl(placeId: string, placeName?: string): string {
+	const encodedName = placeName ? encodeURIComponent(placeName) : '';
+	const pathPart = encodedName ? `/maps/place/${encodedName}` : '/maps/place/';
+	return `https://www.google.com${pathPart}?ftid=${placeId}`;
 }

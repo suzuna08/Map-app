@@ -2,10 +2,12 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import {
 	isGoogleMapsUrl,
+	isShareGoogleUrl,
 	cleanGoogleMapsUrl,
 	resolveGoogleMapsUrl,
 	fetchPlaceDetails,
-	extractPlaceIdFromUrl
+	extractPlaceIdFromUrl,
+	buildGoogleMapsUrl
 } from '$lib/google-places';
 import type { Place } from '$lib/types/database';
 import { upsertSystemTags } from '$lib/tag-utils';
@@ -107,14 +109,19 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	console.log('[add-by-url] resolved:', resolvedUrl);
 
+	// share.google URLs may not resolve to a standard Maps URL.
+	// In that case, resolvedUrl will still be the share.google link.
+	// We skip URL-based extraction and rely on the Places API search.
+	const isUnresolvableShareUrl = isShareGoogleUrl(resolvedUrl);
+
 	if (!isGoogleMapsUrl(resolvedUrl)) {
 		throw error(400, 'The resolved link is not a valid Google Maps URL');
 	}
 
 	// --- Deduplication ---
-	const placeIdFromUrl = extractPlaceIdFromUrl(resolvedUrl);
-	const normalizedUrl = normalizeUrl(resolvedUrl);
-	console.log('[add-by-url] placeIdFromUrl:', placeIdFromUrl, 'normalizedUrl:', normalizedUrl);
+	const placeIdFromUrl = isUnresolvableShareUrl ? null : extractPlaceIdFromUrl(resolvedUrl);
+	const normalizedUrl = isUnresolvableShareUrl ? null : normalizeUrl(resolvedUrl);
+	console.log('[add-by-url] placeIdFromUrl:', placeIdFromUrl, 'normalizedUrl:', normalizedUrl, 'isShareUrl:', isUnresolvableShareUrl);
 
 	// Helper: handle duplicate place with optional context tag application
 	async function handleDuplicate(dupPlace: Place) {
@@ -150,12 +157,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		.eq('user_id', user.id)
 		.not('url', 'is', null);
 
-	const urlMatch = (existingPlaces ?? []).find(
-		(p: any) => p.url && normalizeUrl(p.url) === normalizedUrl
-	);
-	if (urlMatch) {
-		console.log('[add-by-url] DUPLICATE by URL:', (urlMatch as any).title, 'stored url:', (urlMatch as any).url);
-		return handleDuplicate(urlMatch as Place);
+	if (normalizedUrl) {
+		const urlMatch = (existingPlaces ?? []).find(
+			(p: any) => p.url && normalizeUrl(p.url) === normalizedUrl
+		);
+		if (urlMatch) {
+			console.log('[add-by-url] DUPLICATE by URL:', (urlMatch as any).title, 'stored url:', (urlMatch as any).url);
+			return handleDuplicate(urlMatch as Place);
+		}
 	}
 
 	// --- Fetch place details from Google ---
@@ -164,6 +173,23 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	if (!details) {
 		throw error(422, 'Could not find this place on Google Maps');
+	}
+
+	// For share.google URLs, we only get the google_place_id after the API call,
+	// so check for duplicates by google_place_id now.
+	if (isUnresolvableShareUrl && details.google_place_id) {
+		const { data: byPlaceId } = await locals.supabase
+			.from('places')
+			.select('*')
+			.eq('user_id', user.id)
+			.eq('google_place_id', details.google_place_id)
+			.limit(1)
+			.single();
+
+		if (byPlaceId) {
+			console.log('[add-by-url] DUPLICATE by placeId (post-fetch):', (byPlaceId as any).title);
+			return handleDuplicate(byPlaceId as Place);
+		}
 	}
 
 	// Title+address fallback dedupe (for places already enriched via CSV import)
@@ -186,12 +212,18 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	// --- Insert ---
 	const { display_name, ...dbFields } = details;
 
+	// Build a canonical Google Maps URL from the place ID when the input
+	// was a share.google link or other URL that doesn't work as a permalink.
+	const storedUrl = (isUnresolvableShareUrl && details.google_place_id)
+		? buildGoogleMapsUrl(details.google_place_id, display_name)
+		: resolvedUrl;
+
 	const { data: inserted, error: insertError } = await locals.supabase
 		.from('places')
 		.insert({
 			user_id: user.id,
 			title: display_name || 'Unnamed Place',
-			url: resolvedUrl,
+			url: storedUrl,
 			source_list: 'url-import',
 			...dbFields,
 			enriched_at: new Date().toISOString()

@@ -82,11 +82,18 @@
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Enter') createTag();
-		else if (e.key === 'Escape') {
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			createTag();
+		} else if (e.key === 'Escape') {
 			showNewTag = false;
 			newTagName = '';
 		}
+	}
+
+	function handleSubmit(e: Event) {
+		e.preventDefault();
+		createTag();
 	}
 </script>
 
@@ -193,28 +200,32 @@
 				</button>
 			</div>
 
-			{#if showNewTag}
-				<div class="mb-2 px-3">
-					<input
-						type="text"
-						bind:value={newTagName}
-						onkeydown={handleKeydown}
-						placeholder="Tag name..."
-						class="w-full rounded-md border border-warm-200 bg-white px-2.5 py-1.5 text-base focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400 sm:text-sm"
-						autofocus
-					/>
-				</div>
-			{/if}
+		{#if showNewTag}
+			<form onsubmit={handleSubmit} class="mb-2 flex items-center gap-1.5 px-3">
+				<input
+					type="text"
+					bind:value={newTagName}
+					onkeydown={handleKeydown}
+					placeholder="Tag name..."
+					class="min-w-0 flex-1 rounded-md border border-warm-200 bg-white px-2.5 py-1.5 text-sm focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+					autofocus
+				/>
+				<button
+					type="submit"
+					disabled={!newTagName.trim() || creating}
+					class="shrink-0 rounded-md bg-brand-500 px-2 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
+				>
+					{creating ? '...' : 'Add'}
+				</button>
+			</form>
+		{/if}
 
 			<div class="space-y-0.5">
 			{#each userTags as tag (tag.id)}
 				{@const count = tagCount(tag.id)}
-				<div
-					role="button"
-					tabindex="0"
+				<button
 					onclick={() => onTagToggle(tag.id)}
-					onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') onTagToggle(tag.id); }}
-					class="group flex w-full cursor-pointer items-center justify-between rounded-lg px-3 py-1.5 text-sm transition-colors {selectedTagMap[tag.id]
+					class="group flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-sm transition-colors {selectedTagMap[tag.id]
 						? 'bg-warm-200 text-warm-800'
 						: 'text-warm-600 hover:bg-warm-100'}"
 				>
@@ -225,20 +236,23 @@
 						></span>
 						<span class="truncate">{tag.name}</span>
 					</div>
-					<div class="flex items-center gap-1">
+					<div class="flex items-center gap-1.5">
 						<span class="text-xs text-warm-400">{count}</span>
-					<button
-						onclick={(e) => deleteTag(tag.id, e)}
-						class="rounded p-1.5 text-warm-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
-						aria-label="Delete tag {tag.name}"
-					>
+						<span
+							role="button"
+							tabindex="-1"
+							onclick={(e) => deleteTag(tag.id, e)}
+							onkeydown={(e) => { if (e.key === 'Enter') deleteTag(tag.id, e); }}
+							class="rounded p-0.5 text-warm-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+							aria-label="Delete tag {tag.name}"
+						>
 							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 								<line x1="18" y1="6" x2="6" y2="18" />
 								<line x1="6" y1="6" x2="18" y2="18" />
 							</svg>
-						</button>
+						</span>
 					</div>
-				</div>
+				</button>
 			{/each}
 
 				{#if userTags.length === 0 && !showNewTag}

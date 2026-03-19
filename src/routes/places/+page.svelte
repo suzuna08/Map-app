@@ -57,7 +57,7 @@
 
 	function isGoogleMapsUrl(text: string): boolean {
 		const t = text.trim();
-		return /^https?:\/\/(maps\.google\.|www\.google\.\w+\/maps|maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(t);
+		return /^https?:\/\/(maps\.google\.|www\.google\.\w+\/maps|maps\.app\.goo\.gl|goo\.gl\/maps|share\.google\/)/i.test(t);
 	}
 
 	let detectedUrl = $derived(isGoogleMapsUrl(search) ? search.trim() : null);
