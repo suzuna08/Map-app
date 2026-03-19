@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 
 	let { data } = $props();
 	let supabase = $derived(data.supabase);
@@ -10,6 +11,21 @@
 	let loading = $state(false);
 	let error = $state('');
 	let message = $state('');
+
+	const DEFAULT_REDIRECT = '/places';
+
+	function getSafeRedirect(url: string | null): string {
+		if (!url) return DEFAULT_REDIRECT;
+
+		try {
+			const decoded = decodeURIComponent(url);
+			if (!decoded.startsWith('/') || decoded.startsWith('//')) return DEFAULT_REDIRECT;
+			if (decoded.startsWith('/login')) return DEFAULT_REDIRECT;
+			return decoded;
+		} catch {
+			return DEFAULT_REDIRECT;
+		}
+	}
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
@@ -29,7 +45,8 @@
 			if (err) {
 				error = err.message;
 			} else {
-				goto('/places');
+				const redirectTo = getSafeRedirect($page.url.searchParams.get('redirect'));
+				goto(redirectTo);
 			}
 		}
 

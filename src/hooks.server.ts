@@ -62,7 +62,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.user = user;
 
 	if (!session && PROTECTED_ROUTES.some((r) => event.url.pathname.startsWith(r))) {
-		redirect(303, '/login');
+		const intended = event.url.pathname + event.url.search;
+		const loginUrl = `/login?redirect=${encodeURIComponent(intended)}`;
+		redirect(303, loginUrl);
 	}
 
 	return resolve(event, {
