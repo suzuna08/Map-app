@@ -97,16 +97,27 @@
 		return rating.toFixed(1);
 	}
 
-	function handleFlip(e: MouseEvent) {
+	function handleMobileTap(e: MouseEvent) {
 		const target = e.target as HTMLElement;
 		if (target.closest('a, button, input, textarea, [role="button"]')) return;
 		if (swipeX !== 0) { swipeX = 0; return; }
+		if (!selected) {
+			onSelect?.(place.id);
+			return;
+		}
+		flipped = !flipped;
+	}
+
+	function handleDesktopFlip(e: MouseEvent) {
+		const target = e.target as HTMLElement;
+		if (target.closest('a, button, input, textarea, [role="button"]')) return;
 		onSelect?.(place.id);
 		flipped = !flipped;
 	}
 
 	function flipToBack(e: MouseEvent) {
 		e.stopPropagation();
+		if (!selected) onSelect?.(place.id);
 		flipped = true;
 	}
 
@@ -115,6 +126,18 @@
 		if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; autoSave(); }
 		flipped = false;
 	}
+
+	let prevSelected = selected;
+	$effect(() => {
+		if (prevSelected && !selected) {
+			if (flipped) {
+				if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; autoSave(); }
+				flipped = false;
+			}
+			if (swipeX !== 0) swipeX = 0;
+		}
+		prevSelected = selected;
+	});
 
 	function scheduleAutoSave() {
 		saved = false;
@@ -164,7 +187,7 @@
 		ontouchmove={onSwipeMove}
 		ontouchend={onSwipeEnd}
 	>
-		<div class="[perspective:800px]" onclick={handleFlip}>
+		<div class="[perspective:800px]" onclick={handleMobileTap}>
 			<div
 				class="flip-inner relative transition-transform duration-500 [transform-style:preserve-3d]"
 				class:is-flipped={flipped}
@@ -221,6 +244,9 @@
 
 				<!-- Mobile action row: Maps | Website | Notes -->
 				<div class="mt-1.5 flex items-center gap-1 border-t border-warm-100 pt-1.5">
+					{#if selected && !flipped}
+						<span class="text-[9px] font-medium text-brand-400 animate-pulse">Tap to flip</span>
+					{/if}
 					{#if place.url}
 						<a
 							href={place.url}
@@ -302,7 +328,7 @@
 <!-- ============================================================ -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="hidden sm:block [perspective:1000px]" data-place-id={place.id} onclick={handleFlip}>
+<div class="hidden sm:block [perspective:1000px]" data-place-id={place.id} onclick={handleDesktopFlip}>
 	<div
 		class="flip-inner relative transition-transform duration-500 [transform-style:preserve-3d]"
 		class:is-flipped={flipped}
