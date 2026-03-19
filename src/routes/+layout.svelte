@@ -10,16 +10,64 @@
 	let session = $derived(data.session);
 	let showAddModal = $state(false);
 
+	const REFRESH_MARGIN_MS = 5 * 60 * 1000; // refresh 5 min before expiry
+
+	function scheduleTokenRefresh(expiresAt: number | undefined) {
+		if (!expiresAt) return undefined;
+		const msUntilExpiry = expiresAt * 1000 - Date.now();
+		const delay = Math.max(msUntilExpiry - REFRESH_MARGIN_MS, 0);
+		return setTimeout(async () => {
+			const { error } = await supabase.auth.refreshSession();
+			if (error) {
+				// Refresh failed — session may have been revoked server-side
+				goto('/login');
+			}
+		}, delay);
+	}
+
 	onMount(() => {
+		let refreshTimer = scheduleTokenRefresh(session?.expires_at);
+
 		const {
 			data: { subscription }
-		} = supabase.auth.onAuthStateChange((_, newSession) => {
+		} = supabase.auth.onAuthStateChange((event, newSession) => {
+			if (event === 'SIGNED_OUT') {
+				clearTimeout(refreshTimer);
+				invalidate('supabase:auth');
+				return;
+			}
+
 			if (newSession?.expires_at !== session?.expires_at) {
+				clearTimeout(refreshTimer);
+				refreshTimer = scheduleTokenRefresh(newSession?.expires_at);
 				invalidate('supabase:auth');
 			}
 		});
 
-		return () => subscription.unsubscribe();
+		function handleVisibilityChange() {
+			if (document.visibilityState !== 'visible') return;
+
+			supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+				if (!currentSession) {
+					invalidate('supabase:auth');
+					return;
+				}
+
+				const expiresAt = currentSession.expires_at ?? 0;
+				const isNearExpiry = expiresAt * 1000 - Date.now() < REFRESH_MARGIN_MS;
+				if (isNearExpiry) {
+					supabase.auth.refreshSession();
+				}
+			});
+		}
+
+		document.addEventListener('visibilitychange', handleVisibilityChange);
+
+		return () => {
+			clearTimeout(refreshTimer);
+			subscription.unsubscribe();
+			document.removeEventListener('visibilitychange', handleVisibilityChange);
+		};
 	});
 
 	async function handleSignOut() {

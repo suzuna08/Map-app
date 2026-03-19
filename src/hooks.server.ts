@@ -5,6 +5,8 @@ import type { Database } from '$lib/types/database';
 
 const PROTECTED_ROUTES = ['/places', '/upload', '/api/places'];
 
+const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
+
 export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.supabase = createServerClient<Database>(
 		PUBLIC_SUPABASE_URL,
@@ -14,7 +16,14 @@ export const handle: Handle = async ({ event, resolve }) => {
 				getAll: () => event.cookies.getAll(),
 				setAll: (cookiesToSet) => {
 					cookiesToSet.forEach(({ name, value, options }) => {
-						event.cookies.set(name, value, { ...options, path: '/' });
+						event.cookies.set(name, value, {
+							...options,
+							path: '/',
+							maxAge: options?.maxAge ?? SESSION_MAX_AGE_SECONDS,
+							httpOnly: true,
+							secure: event.url.protocol === 'https:',
+							sameSite: 'lax'
+						});
 					});
 				}
 			}
