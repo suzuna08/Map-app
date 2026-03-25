@@ -59,18 +59,16 @@
 						onclick={() => onToggle(placeIds, col.id)}
 						class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-warm-50"
 					>
-						<div
-							class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white"
-							style="background-color: {col.color ?? '#6366f1'}"
-						>
+						<div class="flex h-7 w-7 shrink-0 items-center justify-center">
 							{#if info.allIn}
-								<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+								<svg class="h-4 w-4 text-sage-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 									<polyline points="20 6 9 17 4 12" />
 								</svg>
 							{:else}
-								<svg class="h-4 w-4 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-									<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-								</svg>
+								<div
+									class="h-4 w-4 rounded-full opacity-60"
+									style="background-color: {col.color ?? '#a8935f'}"
+								></div>
 							{/if}
 						</div>
 						<div class="min-w-0 flex-1">

@@ -37,6 +37,34 @@
 	let editingDesc = $state(false);
 	let editDesc = $state(collection.description ?? '');
 
+	let editingColor = $state(false);
+	let colorPickerEl = $state<HTMLDivElement | null>(null);
+	const COLORS = [
+		'#a8935f', '#bda87a', '#7c8a6a', '#617054', '#978a74',
+		'#5a5042', '#98a485', '#b8c1a8', '#d0c09c', '#776841'
+	];
+
+	$effect(() => {
+		if (!editingColor) return;
+		function onClickOutside(e: MouseEvent) {
+			if (colorPickerEl && !colorPickerEl.contains(e.target as Node)) {
+				editingColor = false;
+			}
+		}
+		document.addEventListener('click', onClickOutside, true);
+		return () => document.removeEventListener('click', onClickOutside, true);
+	});
+
+	async function saveColor(color: string) {
+		if (color === collection.color) { editingColor = false; return; }
+		const ok = await updateCollection(supabase, collection.id, { color });
+		if (ok) {
+			collection = { ...collection, color };
+			showToast('success', '', 'Color updated');
+		}
+		editingColor = false;
+	}
+
 	let selectedPlaceId = $state<string | null>(null);
 	let isMobile = $state(false);
 
@@ -199,67 +227,88 @@
 	</div>
 
 	<!-- Header -->
-	<div class="mb-4 sm:mb-6">
+	<div class="mb-5 sm:mb-8">
 		<div class="flex items-start justify-between gap-3">
 			<div class="min-w-0 flex-1">
-				{#if editingName}
-					<input
-						type="text"
-						bind:value={editName}
-						onkeydown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') editingName = false; }}
-						onblur={saveName}
-						class="w-full rounded-lg border border-brand-300 bg-white px-2 py-1 text-xl font-extrabold text-warm-800 focus:outline-none focus:ring-2 focus:ring-brand-400/30 sm:text-2xl"
-						autofocus
-					/>
-				{:else}
-					<h1
-						class="cursor-pointer text-xl font-extrabold text-warm-800 transition-colors hover:text-brand-600 sm:text-2xl"
-						onclick={() => { editingName = true; editName = collection.name; }}
-					>
-						{collection.name}
-					</h1>
-				{/if}
-
-				{#if editingDesc}
-					<input
-						type="text"
-						bind:value={editDesc}
-						onkeydown={(e) => { if (e.key === 'Enter') saveDescription(); if (e.key === 'Escape') editingDesc = false; }}
-						onblur={saveDescription}
-						placeholder="Add a description..."
-						class="mt-1 w-full rounded-lg border border-warm-200 bg-white px-2 py-1 text-xs text-warm-500 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:text-sm"
-						autofocus
-					/>
-				{:else}
-					<p
-						class="mt-1 cursor-pointer text-xs text-warm-400 transition-colors hover:text-warm-600 sm:text-sm"
-						onclick={() => { editingDesc = true; editDesc = collection.description ?? ''; }}
-					>
-						{collection.description || 'Add a description...'}
-					</p>
-				{/if}
+				<div class="flex items-center gap-2.5">
+					<div class="relative" bind:this={colorPickerEl}>
+						<button
+							onclick={() => { editingColor = !editingColor; }}
+							class="h-5 w-5 shrink-0 rounded-full transition-all hover:scale-110 hover:ring-2 hover:ring-warm-300 hover:ring-offset-1 sm:h-6 sm:w-6"
+							style="background-color: {collection.color ?? '#a8935f'}"
+							aria-label="Change collection color"
+						></button>
+						{#if editingColor}
+							<div class="absolute left-0 top-full z-20 mt-2 flex flex-wrap gap-1.5 rounded-xl border border-warm-200 bg-white p-2.5 shadow-lg" style="width: max-content; max-width: 175px;">
+								{#each COLORS as color}
+									<button
+										onclick={() => saveColor(color)}
+										class="h-5.5 w-5.5 rounded-full transition-all {collection.color === color ? 'ring-2 ring-offset-1 ring-warm-400 scale-110' : 'opacity-60 hover:opacity-100'}"
+										style="background-color: {color}"
+										aria-label="Select color {color}"
+									></button>
+								{/each}
+							</div>
+						{/if}
+					</div>
+					<div class="min-w-0 flex-1">
+						{#if editingName}
+							<input
+								type="text"
+								bind:value={editName}
+								onkeydown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') editingName = false; }}
+								onblur={saveName}
+								class="w-full rounded-lg border border-warm-200 bg-warm-50 px-2 py-1 text-lg font-extrabold text-warm-800 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:text-2xl"
+								autofocus
+							/>
+						{:else}
+							<h1
+								class="cursor-pointer truncate text-lg font-extrabold text-warm-800 transition-colors hover:text-brand-600 sm:text-2xl"
+								onclick={() => { editingName = true; editName = collection.name; }}
+							>
+								{collection.name}
+							</h1>
+						{/if}
+						{#if editingDesc}
+							<input
+								type="text"
+								bind:value={editDesc}
+								onkeydown={(e) => { if (e.key === 'Enter') saveDescription(); if (e.key === 'Escape') editingDesc = false; }}
+								onblur={saveDescription}
+								placeholder="Add a description..."
+								class="mt-1 w-full rounded-lg border border-warm-200 bg-warm-50 px-2 py-1 text-xs text-warm-500 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:text-sm"
+								autofocus
+							/>
+						{:else}
+							<p
+								class="mt-0.5 cursor-pointer text-xs text-warm-400 transition-colors hover:text-warm-500 sm:text-sm"
+								onclick={() => { editingDesc = true; editDesc = collection.description ?? ''; }}
+							>
+								{collection.description || 'Add a description...'}
+							</p>
+						{/if}
+					</div>
+				</div>
 			</div>
 
-			<!-- Actions: Share + Add -->
 			<div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
-				<!-- Share button -->
 				{#if collection.visibility === 'link_access'}
 					<button
 						onclick={copyShareLink}
-						class="inline-flex items-center gap-1 rounded-lg border border-sage-200 bg-sage-50 px-2 py-1 text-[10px] font-bold text-sage-700 transition-colors hover:bg-sage-100 sm:px-3 sm:py-1.5 sm:text-xs"
+						class="rounded-md p-1.5 text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600 sm:p-2"
+						aria-label="Copy share link"
 					>
-						<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
 							<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
 						</svg>
-						<span class="hidden sm:inline">Copy Link</span>
 					</button>
 				{/if}
 				<button
 					onclick={toggleSharing}
 					class="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold transition-colors sm:px-3 sm:py-1.5 sm:text-xs
 						{collection.visibility === 'link_access'
-							? 'border-sage-200 text-sage-600 hover:bg-sage-50'
+							? 'border-sage-200 bg-sage-50 text-sage-700 hover:bg-sage-100'
 							: 'border-warm-200 text-warm-500 hover:bg-warm-50'}"
 				>
 					<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -270,13 +319,13 @@
 							<line x1="1" y1="1" x2="23" y2="23" />
 						{/if}
 					</svg>
-					{collection.visibility === 'link_access' ? 'Public' : 'Private'}
+					{collection.visibility === 'link_access' ? 'Shared' : 'Private'}
 				</button>
 				<button
 					onclick={() => { showAddModal = true; }}
-					class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-[10px] font-bold text-white transition-colors hover:bg-brand-700 sm:px-3 sm:py-1.5 sm:text-xs"
+					class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700 sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-sm"
 				>
-					<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
 					</svg>
 					<span class="hidden sm:inline">Add Places</span>
@@ -285,11 +334,10 @@
 		</div>
 	</div>
 
-	<!-- Sort + view toggle -->
+	<!-- Controls -->
 	<div class="mb-3 flex items-center justify-between sm:mb-4">
 		<p class="text-[11px] font-semibold text-warm-500 sm:text-sm">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</p>
 		<div class="flex items-center gap-1.5 sm:gap-2">
-			<!-- Search within collection -->
 			<div class="relative">
 				<svg class="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -298,7 +346,7 @@
 					type="text"
 					bind:value={search}
 					placeholder="Search..."
-					class="w-28 rounded-md border border-warm-200 bg-white py-1 pl-7 pr-2 text-[10px] font-medium text-warm-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:w-40 sm:text-xs"
+					class="w-28 rounded-lg border border-warm-200 bg-warm-50 py-1 pl-7 pr-2 text-[10px] font-medium text-warm-600 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:w-40 sm:text-xs"
 				/>
 			</div>
 			<select

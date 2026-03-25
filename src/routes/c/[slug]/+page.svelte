@@ -52,18 +52,14 @@
 	<!-- Header -->
 	<div class="mb-4 text-center sm:mb-6">
 		<div
-			class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl text-white sm:h-14 sm:w-14 sm:rounded-2xl"
-			style="background-color: {collection.color ?? '#6366f1'}"
-		>
-			<svg class="h-6 w-6 sm:h-7 sm:w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-			</svg>
-		</div>
+			class="mx-auto mb-3 flex h-8 w-8 items-center justify-center rounded-full sm:h-10 sm:w-10"
+			style="background-color: {collection.color ?? '#a8935f'}; opacity: 0.7"
+		></div>
 		<h1 class="text-xl font-extrabold text-warm-800 sm:text-2xl">{collection.name}</h1>
 		{#if collection.description}
-			<p class="mt-1 text-xs text-warm-500 sm:text-sm">{collection.description}</p>
+			<p class="mt-1 text-xs text-warm-400 sm:text-sm">{collection.description}</p>
 		{/if}
-		<p class="mt-1 text-[11px] text-warm-400">{places.length} {places.length === 1 ? 'place' : 'places'}</p>
+		<p class="mt-1.5 inline-block rounded-full bg-warm-100 px-2.5 py-0.5 text-[11px] font-bold text-warm-500">{places.length} {places.length === 1 ? 'place' : 'places'}</p>
 	</div>
 
 	<!-- Map -->

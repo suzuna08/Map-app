@@ -39,7 +39,7 @@ export async function createCollection(
 			user_id: userId,
 			name,
 			description: opts?.description ?? null,
-			color: opts?.color ?? '#6366f1'
+			color: opts?.color ?? '#a8935f'
 		})
 		.select(LISTS_COLUMNS)
 		.single();
