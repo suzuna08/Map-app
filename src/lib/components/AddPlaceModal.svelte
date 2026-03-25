@@ -14,6 +14,15 @@
 	let resultPlace = $state<Place | null>(null);
 	let errorMessage = $state('');
 
+	interface IntelSuggestions {
+		primary_category: string;
+		operational_status: string;
+		market_niche: string;
+		discussion_pillar: string | null;
+		suggested_tags: string[];
+	}
+	let intelSuggestions = $state<IntelSuggestions | null>(null);
+
 	async function handleSubmit() {
 		const trimmed = urlInput.trim();
 		if (!trimmed) return;
@@ -21,6 +30,7 @@
 		status = 'loading';
 		errorMessage = '';
 		resultPlace = null;
+		intelSuggestions = null;
 
 		try {
 			const res = await fetch('/api/places/add-by-url', {
@@ -43,6 +53,10 @@
 
 			resultPlace = data.place as Place;
 
+			if (data.intel) {
+				intelSuggestions = data.intel as IntelSuggestions;
+			}
+
 			if (data.duplicate) {
 				status = 'duplicate';
 			} else {
@@ -59,6 +73,7 @@
 		urlInput = '';
 		status = 'idle';
 		resultPlace = null;
+		intelSuggestions = null;
 		errorMessage = '';
 	}
 
@@ -182,6 +197,34 @@
 							<p class="mt-2 line-clamp-2 text-xs text-warm-500">{resultPlace.description}</p>
 						{/if}
 					</div>
+
+					{#if intelSuggestions && intelSuggestions.suggested_tags.length > 0}
+						<div class="mt-3 rounded-xl border border-brand-100 bg-brand-50/50 p-4">
+							<div class="mb-2 flex items-center gap-1.5">
+								<svg class="h-4 w-4 text-brand-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M12 2L2 7l10 5 10-5-10-5z" />
+									<path d="M2 17l10 5 10-5" />
+									<path d="M2 12l10 5 10-5" />
+								</svg>
+								<span class="text-xs font-bold text-brand-700">Suggested Tags</span>
+							</div>
+							<div class="flex flex-wrap gap-1.5">
+								{#each intelSuggestions.suggested_tags as tag}
+									<span class="rounded-full bg-brand-100 px-2.5 py-0.5 text-[10px] font-bold text-brand-700">{tag}</span>
+								{/each}
+							</div>
+							<div class="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-warm-400">
+								<span>{intelSuggestions.primary_category}</span>
+								<span class="text-warm-200">·</span>
+								<span>{intelSuggestions.market_niche}</span>
+								{#if intelSuggestions.discussion_pillar}
+									<span class="text-warm-200">·</span>
+									<span>{intelSuggestions.discussion_pillar}</span>
+								{/if}
+							</div>
+						</div>
+					{/if}
+
 					<div class="mt-4 flex items-center gap-3">
 						<a
 							href="/places"
