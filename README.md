@@ -9,7 +9,7 @@ MapOrganizer is a web app that helps you manage and organize places you've saved
 ## Features
 
 - **CSV Import** -- Bulk-import saved places from a Google Takeout CSV export with drag-and-drop
-- **Inline URL Import** -- Paste a Google Maps link (including `share.google` links) directly into the search bar and press Enter to add a place instantly, with toast notifications for success/duplicate/error feedback
+- **Inline URL Import** -- Paste a Google Maps link (including `share.google` links) directly into the search bar on the Places page and press Enter to add a place instantly, with toast notifications for success/duplicate/error feedback. The same flow is also available in the navbar's "+ Add Place" modal
 - **Place Enrichment** -- Fetch ratings, addresses, phone numbers, coordinates, and more from the Google Places API (single or batch). Uses a three-strategy lookup: Place ID, text search with location bias, and coordinate fallback
 - **Interactive Map** -- All enriched places are plotted on a MapLibre GL map (powered by MapTiler). Click a marker to scroll to the card; click a card to fly to its pin. Shows a pastel base map style with custom pin markers and popups
 - **Flexible Tagging** -- Organize places with three tag types: category (auto-generated from Google place types), area (auto-generated from address), and custom (user-created with color coding)
@@ -146,7 +146,7 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 ## Usage
 
 1. **Sign up** with email/password on the login page
-2. **Import places** via the Upload page (drag-and-drop Google Takeout CSV files) or paste a Google Maps URL into the search bar on the places page
+2. **Import places** via the navbar's "+ Add Place" button (paste a Google Maps URL or go to CSV upload), or paste a Google Maps URL directly into the search bar on the Places page and press Enter
 3. **Enrich** imported places by clicking "Fetch Details" to pull ratings, addresses, coordinates, and category data from Google
 4. **Tag** places with custom tags directly on each card or via the Tag Manager
 5. **Filter** by clicking category, area, or custom tags in the sidebar or inline filter bar

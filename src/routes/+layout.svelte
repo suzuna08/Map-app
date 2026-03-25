@@ -131,7 +131,7 @@
 	{#if showAddModal}
 		<AddPlaceModal
 			onClose={() => { showAddModal = false; }}
-			onPlaceAdded={() => { invalidate('supabase:auth'); }}
+			onPlaceAdded={() => { invalidate('supabase:auth'); window.dispatchEvent(new CustomEvent('place-added')); }}
 		/>
 	{/if}
 </div>

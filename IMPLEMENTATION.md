@@ -485,7 +485,7 @@ A modal with two tabs: "Paste URL" and "Upload CSV". The CSV tab simply links to
 
 **Status flow**: The URL tab uses a state machine: `idle` → `loading` → `success` | `duplicate` | `error`. Each state shows different UI (input field, spinner, success message with place title, or error message). After success/duplicate, the modal can be closed.
 
-**Refresh strategy**: The modal exists in two contexts with different refresh behaviors. In the root layout (`+layout.svelte`), `onPlaceAdded` calls `invalidate('supabase:auth')` to re-run all load functions. On the places page, `onPlaceAdded` calls `loadData()` directly to refresh the local state without a full invalidation.
+**Single entry point**: The modal is rendered once in the root layout (`+layout.svelte`), toggled by the navbar's "+ Add Place" button. This is the sole explicit add-place entry point (the search bar's inline URL paste is a complementary quick-add path). When a place is added via this modal, it dispatches a `place-added` CustomEvent on `window`, which the places page listens for to refresh its local state via `loadData()`. This avoids the need for a second modal instance on the places page.
 
 ### Toast Notification System
 
@@ -513,11 +513,11 @@ Google Fonts (Nunito, weights 400--800) is loaded via `<link>` tags in the root 
 
 ### Navigation Bar
 
-The nav is sticky (`sticky top-0 z-30`) with a frosted-glass effect (`backdrop-blur-lg bg-warm-50/85`). Heights differ by breakpoint: `h-12` (48px) on mobile, `sm:h-14` (56px) on desktop. The "Add Place" button in the nav shows only an icon on mobile, with text added at `sm+`.
+The nav is sticky (`sticky top-0 z-30`) with a frosted-glass effect (`backdrop-blur-lg bg-warm-50/85`). Heights differ by breakpoint: `h-12` (48px) on mobile, `sm:h-14` (56px) on desktop. The "Add Place" button in the nav shows only an icon on mobile, with text added at `sm+`. This is the single explicit add-place entry point for the entire app -- it opens the `AddPlaceModal` with URL paste and CSV upload tabs.
 
 ### Layout-Level AddPlaceModal
 
-The root layout renders its own `AddPlaceModal` instance (toggled by the nav's "+ Add Place" button). This is separate from the places page's inline AddPlaceModal. The layout version uses `invalidate('supabase:auth')` for refresh since it doesn't have access to the places page's local `loadData()` function.
+The root layout renders the single `AddPlaceModal` instance (toggled by the nav's "+ Add Place" button). This serves as the primary explicit add-place entry point alongside the search bar's inline URL paste. The layout version uses `invalidate('supabase:auth')` for auth refresh and dispatches a `window` `place-added` CustomEvent so the places page can call its local `loadData()` to refresh the place list immediately.
 
 ### Auth State Subscription
 

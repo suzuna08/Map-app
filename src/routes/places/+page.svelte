@@ -5,7 +5,6 @@
 	import PlaceListItem from '$lib/components/PlaceListItem.svelte';
 	import TagManager from '$lib/components/TagManager.svelte';
 	import TagContextMenu from '$lib/components/TagContextMenu.svelte';
-	import AddPlaceModal from '$lib/components/AddPlaceModal.svelte';
 	import MapView from '$lib/components/MapView.svelte';
 	import MobileMapShell from '$lib/components/MobileMapShell.svelte';
 	import { sortable } from '$lib/actions/sortable';
@@ -54,7 +53,7 @@
 	let enrichResult = $state<{ enriched: number; total: number } | null>(null);
 	let sidebarOpen = $state(false);
 	let showTagManager = $state(false);
-	let showAddPlace = $state(false);
+	
 	let viewMode = $state<'grid' | 'list'>('grid');
 	let sortBy = $state<'newest' | 'oldest' | 'az' | 'za' | 'rating' | 'most-tags' | 'tag-group'>('newest');
 	let mobileTagTab = $state<'category' | 'area' | 'custom'>('category');
@@ -83,7 +82,16 @@
 		}
 		checkMobile();
 		window.addEventListener('resize', checkMobile);
-		return () => window.removeEventListener('resize', checkMobile);
+
+		function handleExternalPlaceAdded() {
+			loadData();
+		}
+		window.addEventListener('place-added', handleExternalPlaceAdded);
+
+		return () => {
+			window.removeEventListener('resize', checkMobile);
+			window.removeEventListener('place-added', handleExternalPlaceAdded);
+		};
 	});
 
 	function isGoogleMapsUrl(text: string): boolean {
@@ -911,20 +919,7 @@
 
 			<!-- Results count + sort + view toggle -->
 			<div class="mb-1.5 flex items-center justify-between sm:mb-4">
-				<div class="flex items-center gap-2">
-					<p class="text-[11px] font-semibold text-warm-500 sm:text-sm">{filteredPlaces.length} places</p>
-					<button
-						onclick={() => { showAddPlace = true; }}
-						class="inline-flex items-center gap-1 rounded-md border border-brand-400 px-1.5 py-0.5 text-[10px] font-bold text-brand-600 transition-colors hover:bg-brand-50 sm:px-2 sm:py-1 sm:text-[11px]"
-						aria-label="Add place"
-					>
-						<svg class="h-2.5 w-2.5 sm:h-3 sm:w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-							<line x1="12" y1="5" x2="12" y2="19" />
-							<line x1="5" y1="12" x2="19" y2="12" />
-						</svg>
-						Add place
-					</button>
-				</div>
+				<p class="text-[11px] font-semibold text-warm-500 sm:text-sm">{filteredPlaces.length} places</p>
 				<div class="flex items-center gap-1.5 sm:gap-2">
 					<select
 						bind:value={sortBy}
@@ -1046,12 +1041,6 @@
 	</div>
 </div>
 
-	{#if showAddPlace}
-		<AddPlaceModal
-			onClose={() => { showAddPlace = false; }}
-			onPlaceAdded={() => { loadData(); }}
-		/>
-	{/if}
 
 	<!-- Add existing places to collection modal -->
 	{#if showAddToCollection && browseScope.type === 'collection'}
