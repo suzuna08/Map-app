@@ -17,6 +17,7 @@ Detailed documentation of the architecture, design decisions, trade-offs, and bu
 - [Filtering & Sorting](#filtering--sorting)
 - [Saved Views](#saved-views)
 - [Collections](#collections)
+- [Intel Tagging System](#intel-tagging-system)
 - [Map Integration](#map-integration)
 - [UI Components & Interactions](#ui-components--interactions)
 - [Root Layout & Global Concerns](#root-layout--global-concerns)
@@ -35,11 +36,13 @@ The app follows SvelteKit's file-based routing with a clear separation:
 - **Pages** (`src/routes/`) handle layout, navigation, and page-level state
 - **Components** (`src/lib/components/`) are reusable UI elements (PlaceCard, TagInput, MapView, MobileMapShell, etc.)
 - **Stores** (`src/lib/stores/`) contain shared reactive state and data-access helpers (places data loading, toast notifications)
-- **Library code** (`src/lib/`) contains business logic (CSV parsing, Google API, tag utilities)
+- **Library code** (`src/lib/`) contains business logic (CSV parsing, Google API, tag utilities, intel tagging engine)
 - **Actions** (`src/lib/actions/`) contain Svelte actions (drag-and-drop sortable)
-- **API routes** (`src/routes/api/`) are server-side endpoints for operations that need secrets (Google Places API key)
+- **API routes** (`src/routes/api/`) are server-side endpoints for operations that need secrets (Google Places API key) and admin operations (intel catalog seeding)
 
 All data fetching on the places page happens client-side via the Supabase JS client, while enrichment and URL import go through server-side API routes because they need the private `GOOGLE_PLACES_API_KEY`. The map view uses MapLibre GL JS with MapTiler tiles, loaded client-side only via dynamic import to avoid SSR issues.
+
+**Server-side data preloading**: Pages with heavy data requirements (`places`, `collections`, `collections/[id]`, `c/[slug]`) use `+page.server.ts` files to preload data in parallel on the server before hydration. For example, `places/+page.server.ts` fetches places, tags, place_tags, lists, and list_places concurrently. This reduces the initial client-side waterfall while keeping subsequent interactions client-side only.
 
 State management uses Svelte 5 runes throughout:
 - `$state` for mutable reactive variables
@@ -73,9 +76,11 @@ Auth is handled through `@supabase/ssr` with a server hook (`hooks.server.ts`) a
 
 **Visibility-based session check**: A `visibilitychange` listener detects when the browser tab returns to the foreground. If the session is near expiry (within the 5-minute margin), it triggers an immediate refresh. If there's no current session, it invalidates to update the UI.
 
-**Server-side route protection**: `hooks.server.ts` defines a `PROTECTED_ROUTES` array (`/places`, `/upload`, `/api/places`). If there's no session and the request path starts with any protected route, the hook issues a `303` redirect to `/login?redirect=<intended_path>`. This is the primary access control mechanism, replacing the previous client-side-only `$effect` redirect approach.
+**Server-side route protection**: `hooks.server.ts` defines a `PROTECTED_ROUTES` array (`/places`, `/upload`, `/api/places`, `/collections`). If there's no session and the request path starts with any protected route, the hook issues a `303` redirect to `/login?redirect=<intended_path>`. This is the primary access control mechanism, replacing the previous client-side-only `$effect` redirect approach.
 
 **Login page redirect**: The login page reads the `redirect` query param and uses `getSafeRedirect()` to validate it before navigating. The function rejects non-relative paths, double-slash prefixes (protocol-relative URLs), and paths that point back to `/login` itself. Invalid redirects fall back to `/places`.
+
+**Email confirmation** (`auth/confirm/+server.ts`): A GET endpoint that handles email confirmation callbacks. Supports both PKCE flows (via `code` query param and `exchangeCodeForSession`) and magic link flows (via `token_hash` + `type` params and `verifyOtp`). On success, redirects to the `next` query param (defaults to `/login`). On failure, redirects to `/login?error=invalid-confirmation-link`.
 
 ---
 
@@ -98,7 +103,15 @@ Auth is handled through `@supabase/ssr` with a server hook (`hooks.server.ts`) a
 
 Both triggers use `security definer` with `search_path = ''` to safely access the `auth` schema.
 
-**`lists`** and **`list_places`** -- Used for the Collections feature. `lists` stores user-created collections with name, description, color, visibility (`'private'` or `'link_access'`), and optional `share_slug` for public sharing. `list_places` is the junction table linking places to collections. Extended via `add_collections_columns.sql` migration.
+**`lists`** and **`list_places`** -- Used for the Collections feature. `lists` stores user-created collections with name, description, color, visibility (`'private'` or `'link_access'`), and optional `share_slug` for public sharing. `list_places` is the junction table linking places to collections, with a `position` column for manual ordering. Extended via `add_collections_columns.sql` and `add_list_places_position.sql` migrations.
+
+**`saved_views`** -- Persists user-defined filter/sort/layout presets. Stores `filters_json` (JSONB with category, area, custom tag IDs and source), `sort_by`, and `layout_mode`. See [Saved Views](#saved-views).
+
+**`google_place_type_catalog`** -- Stores the official Google Places API (New) type keys with metadata: `type_key`, `can_be_primary`, `table_group` (A/B/C), `status` (active/deprecated/unmapped). Read-only for authenticated users; admin writes happen via service role or the `/api/admin/intel-catalog` endpoint.
+
+**`intel_tag_mappings`** -- Maps Google type keys to internal product-level classifications: `primary_category`, `operational_status`, `market_niche`, `discussion_pillar`, and `suggested_tags` (JSONB array). References `google_place_type_catalog` via foreign key. This is the editable layer that separates external taxonomy from internal business intelligence.
+
+**`place_intel_tags`** -- Optional per-place cache of computed intel tag results. Stores the resolved classification, source types, and an `approved` flag for future user-approval workflows. Unique on `place_id`.
 
 ### Row-Level Security
 
@@ -111,6 +124,14 @@ The `migration.sql` file only defines `places`, `lists`, and `list_places`. The 
 A separate `add_tag_order_index.sql` migration adds the `order_index` column to `tags` for drag-and-drop reordering. Because this column may not exist on older deployments, all code that reads or writes `order_index` uses `try/catch` with graceful fallback (see [Tag Reordering](#tag-reordering--drag-and-drop)).
 
 A third migration file, `add_profiles_table.sql`, creates the `profiles` table with RLS policies and the two auth triggers. This migration is independent of the others and can be run at any time.
+
+A fourth migration file, `add_saved_views.sql`, creates the `saved_views` table with full CRUD RLS policies scoped to `auth.uid() = user_id`.
+
+A fifth migration file, `add_collections_columns.sql`, adds `visibility` and `share_slug` columns to `lists` and creates three public-access RLS policies for link-accessible collections.
+
+A sixth migration file, `add_list_places_position.sql`, adds a `position` integer column to `list_places` for manual ordering within collections.
+
+A seventh migration file, `add_intel_tag_system.sql`, creates three tables for the intel tagging system: `google_place_type_catalog` (type registry), `intel_tag_mappings` (classification rules), and `place_intel_tags` (per-place computed cache). Catalog and mappings are read-only for authenticated users; place intel tags have full CRUD policies scoped to the owning user.
 
 ### Type Name vs. Table Name
 
@@ -501,6 +522,52 @@ The root layout nav bar includes a "My Collections" link (shortened to "Collecti
 
 ---
 
+## Intel Tagging System
+
+### What It Is
+
+The intel tagging system is a structured intelligence layer that maps Google Place types to internal product-level classifications. It transforms Google's external taxonomy (e.g., `restaurant`, `gym`, `bakery`) into a richer internal model with categories, market niches, operational signals, and suggested tags. The engine is pure computation -- no side effects, no database writes -- with optional persistence via Supabase.
+
+### Architecture
+
+The system has three layers:
+
+1. **Google Place Type Catalog** (`src/lib/google-place-types.ts`): A complete registry of 100+ official Google Places API (New) type keys, split into Table A (searchable/primary types) and Table B (returned-only types). Each entry has `type_key`, `can_be_primary`, `table_group`, and `status`. Provides `lookupGoogleType()` and `isKnownGoogleType()` for fast lookups.
+
+2. **Intel Tag Mappings** (`src/lib/intel-tag-mappings.ts`): An editable mapping table of ~80 entries that maps Google type keys to internal classifications across categories like Dining, Cafe, Nightlife, Fitness, Wellness, Attractions, Shopping, Lodging, Services, and Entertainment. Each mapping specifies: `primary_category`, `operational_status`, `market_niche`, `discussion_pillar`, and `suggested_tags`. Provides `lookupMapping()`, `getAllMappings()`, and `getMappingOrDefault()`.
+
+3. **Intel Tagging Engine** (`src/lib/intel-tagging.ts`): Pure computation that takes raw Google Place data (`primaryType` + `types` array) and produces a structured `IntelTagResult` with six output layers:
+   - Primary Category -- top-level bucket
+   - Operational Status -- business model signal
+   - Market Niche -- finer market positioning
+   - Discussion Pillar -- optional prompt anchor for market discussions
+   - Suggested Tags -- deduplicated tag proposals aggregated from all matched mappings
+   - Catalog Metadata -- which types were recognized vs unknown
+
+### Resolution Strategy
+
+The engine prioritizes `primaryType` (from Google's response) as the authoritative source. If `primaryType` has a mapping, it determines the primary category, status, niche, and pillar. Otherwise, the engine scans the `types` array in order and uses the first mapped type. Suggested tags are aggregated from *all* matched mappings (not just the authoritative one) and deduplicated.
+
+### API Endpoints
+
+**`GET /api/places/[id]/intel-tags`**: Computes intel tags for a single place. Optionally re-fetches from Google for full type data (if the place has a URL). Supports `?market=true` query param to include a `MarketDiscussionOutput` payload (prompt-ready JSON for downstream market discussion use cases).
+
+**`POST /api/admin/intel-catalog`**: Seeds or refreshes the `google_place_type_catalog` and `intel_tag_mappings` Supabase tables from the TypeScript seed data. Supports `'upsert'` (default, updates existing) or `'full'` mode. `GET` returns current catalog/mapping stats for observability.
+
+### Integration with Enrichment
+
+Intel tags are computed automatically during place enrichment. Both the single-place (`/api/places/[id]/enrich`) and batch (`/api/places/enrich-all`) endpoints call `computeIntelTags()` after fetching Google Place details and include the intel result in their responses. The `add-by-url` endpoint also computes intel tags for newly imported places.
+
+### Verification
+
+`src/lib/intel-tagging.verify.ts` provides end-to-end test cases (e.g., Taipei gym, Taipei restaurant) that validate catalog lookup, mapping resolution, and intel result quality. Run with `npx tsx src/lib/intel-tagging.verify.ts`.
+
+### Database Persistence (Optional)
+
+The `place_intel_tags` table caches computed results per place. This is optional; the system operates compute-first without persistence. The table includes an `approved` boolean for future user-approval workflows. The `google_place_type_catalog` and `intel_tag_mappings` tables provide durable backend storage, seeded from the TypeScript source via the admin endpoint.
+
+---
+
 ## Map Integration
 
 ### Technology Choice: MapLibre GL JS + MapTiler
@@ -643,6 +710,10 @@ Accessed via the "+" button in the custom tags row. A modal that manages user ta
 - **Sortable list**: The tag list supports drag-and-drop reordering using the same `sortable` action as the filter tag rows.
 - **User tags only**: The parent passes `allTags={userTags}` -- category and area tags are excluded from management since they're system-generated.
 
+### TopBarTagAdd
+
+A compact tag creation component (`TopBarTagAdd.svelte`) used in the filter bar area. Renders as a small "+ Add" dashed-border pill that expands into an inline input on click. Features the same portal-based dropdown as `TagInput` for suggestions, auto-title-case normalization, deterministic color assignment via `colorForTag()`, and `order_index` assignment via `getNextOrderIndex()`. Designed for quick tag creation without opening the full TagManager modal.
+
 ### AddPlaceModal
 
 A modal with two tabs: "Paste URL" and "Upload CSV". The CSV tab simply links to the `/upload` page rather than embedding the upload flow.
@@ -722,7 +793,7 @@ The app has distinct mobile and desktop layouts rather than just reflowing:
 
 ### Svelte Config (`svelte.config.js`)
 
-Uses `@sveltejs/adapter-vercel` for deployment. The `vitePlugin.dynamicCompileOptions` callback enables Svelte 5 runes mode for all non-`node_modules` files, so no per-file `<svelte:options runes />` is needed.
+Uses `@sveltejs/adapter-vercel` for deployment with `runtime: 'nodejs22.x'`. The `vitePlugin.dynamicCompileOptions` callback enables Svelte 5 runes mode for all non-`node_modules` files, so no per-file `<svelte:options runes />` is needed.
 
 ### Vite Config (`vite.config.ts`)
 

@@ -24,7 +24,8 @@ MapOrganizer is a web app that helps you manage and organize places you've saved
 - **Contextual Capture** -- When viewing a custom tag filter, new places added via URL are automatically tagged to match. Includes an auto-tag toggle and undo support
 - **Saved Views** -- Save the current filter/sort/layout state as a named preset. Views auto-update when you tweak filters while active. Create, rename, and delete views. Persisted per-user in Supabase
 - **Collections** -- Create curated, shareable groups of places. Collections are independent from filters: add places individually or from your current filtered view, then manage membership manually. Share a collection via a public link (`/c/slug`), toggle between private and link-accessible visibility, and browse any collection with the same grid/list view and sort options as the main places page
-- **Auth** -- Email/password authentication via Supabase with server-side route protection, proactive token refresh, and resilient session validation
+- **Intel Tagging** -- Structured intelligence layer that maps Google Place types to internal classifications (primary category, operational status, market niche, discussion pillar, suggested tags). Pure computation engine with a full Google Place type catalog (100+ types) and editable mapping rules. Optional database persistence and admin seeding endpoint
+- **Auth** -- Email/password authentication via Supabase with server-side route protection, proactive token refresh, and resilient session validation. Email confirmation callback endpoint
 - **Responsive** -- Distinct mobile and desktop layouts: split map+list on desktop, collapsible map on mobile. Sidebar navigation, safe-area support for notched devices
 
 ## Tech Stack
@@ -47,11 +48,16 @@ MapOrganizer is a web app that helps you manage and organize places you've saved
 src/
 ├── app.css                        # Tailwind theme & global styles
 ├── app.html                       # HTML shell
+├── app.d.ts                       # SvelteKit app types (Locals, PageData)
 ├── hooks.server.ts                # Supabase auth middleware
 ├── lib/
 │   ├── supabase.ts                # Supabase client helpers
 │   ├── csv-parser.ts              # Google Takeout CSV parsing
 │   ├── google-places.ts           # Google Places API client
+│   ├── google-place-types.ts      # Full Google Place type catalog (Table A + B)
+│   ├── intel-tagging.ts           # Intel tagging engine (pure computation)
+│   ├── intel-tag-mappings.ts      # Google type → internal classification mappings
+│   ├── intel-tagging.verify.ts    # Verification tests for intel tagging
 │   ├── tag-colors.ts              # Tag color palette & hash
 │   ├── tag-utils.ts               # System tag upsert logic
 │   ├── tag-order.ts               # Tag reorder persistence
@@ -63,7 +69,7 @@ src/
 │   │   ├── saved-views.svelte.ts  # Saved Views CRUD & filter snapshot
 │   │   └── toasts.svelte.ts       # Toast notification store
 │   ├── types/
-│   │   └── database.ts            # Supabase type definitions
+│   │   └── database.ts            # Supabase type definitions (10 tables)
 │   └── components/
 │       ├── AddPlaceModal.svelte    # URL/CSV add place modal
 │       ├── AddToCollectionModal.svelte # Add place to collection picker
@@ -75,23 +81,37 @@ src/
 │       ├── TagContextMenu.svelte   # Right-click tag menu
 │       ├── TagInput.svelte         # Inline tag add/remove
 │       ├── TagManager.svelte       # Tag CRUD modal
-│       └── TagSidebar.svelte       # Sidebar navigation
+│       ├── TagSidebar.svelte       # Sidebar navigation
+│       └── TopBarTagAdd.svelte     # Top bar tag creation shortcut
 └── routes/
     ├── +layout.svelte              # Root layout & nav
     ├── +layout.ts                  # Supabase client setup
     ├── +layout.server.ts           # Session & MapTiler key
     ├── +page.svelte                # Landing page
     ├── login/+page.svelte          # Auth page
-    ├── places/+page.svelte         # Main places library + map
+    ├── auth/confirm/+server.ts     # Email confirmation callback
+    ├── places/
+    │   ├── +page.svelte            # Main places library + map
+    │   └── +page.server.ts         # Server-side data preload
     ├── collections/
     │   ├── +page.svelte            # Collections index
-    │   └── [id]/+page.svelte       # Collection detail page
-    ├── c/[slug]/+page.svelte       # Public shared collection
+    │   ├── +page.server.ts         # Collections list server load
+    │   └── [id]/
+    │       ├── +page.svelte        # Collection detail page
+    │       └── +page.server.ts     # Collection detail server load
+    ├── c/[slug]/
+    │   ├── +page.svelte            # Public shared collection
+    │   └── +page.server.ts         # Public collection server load
     ├── upload/+page.svelte         # CSV upload page
-    └── api/places/
-        ├── add-by-url/+server.ts   # URL import + dedup
-        ├── [id]/enrich/+server.ts  # Single place enrichment
-        └── enrich-all/+server.ts   # Batch enrichment (10 at a time)
+    └── api/
+        ├── admin/
+        │   └── intel-catalog/+server.ts  # Seed/refresh intel catalog tables
+        └── places/
+            ├── add-by-url/+server.ts     # URL import + dedup
+            ├── [id]/
+            │   ├── enrich/+server.ts     # Single place enrichment
+            │   └── intel-tags/+server.ts # Intel tag computation per place
+            └── enrich-all/+server.ts     # Batch enrichment (10 at a time)
 ```
 
 ## Getting Started
@@ -141,9 +161,11 @@ supabase/add_tag_order_index.sql
 supabase/add_profiles_table.sql
 supabase/add_saved_views.sql
 supabase/add_collections_columns.sql
+supabase/add_list_places_position.sql
+supabase/add_intel_tag_system.sql
 ```
 
-The first migration creates the `places`, `lists`, and `list_places` tables along with row-level security policies and indexes. The second adds the `order_index` column to `tags` for drag-to-reorder persistence. The third creates the `profiles` table with auto-sync triggers from Supabase Auth. The fourth creates the `saved_views` table for user-defined filter/sort/layout presets. The fifth extends `lists` with `visibility` and `share_slug` columns for collections sharing, plus public-access RLS policies.
+The first migration creates the `places`, `lists`, and `list_places` tables along with row-level security policies and indexes. The second adds the `order_index` column to `tags` for drag-to-reorder persistence. The third creates the `profiles` table with auto-sync triggers from Supabase Auth. The fourth creates the `saved_views` table for user-defined filter/sort/layout presets. The fifth extends `lists` with `visibility` and `share_slug` columns for collections sharing, plus public-access RLS policies. The sixth adds a `position` column to `list_places` for manual ordering within collections. The seventh creates the `google_place_type_catalog`, `intel_tag_mappings`, and `place_intel_tags` tables for the intel tagging system.
 
 You will also need to create the `tags` and `place_tags` tables (used by the tagging system but not yet in the migration file). The expected schema is defined in `src/lib/types/database.ts`.
 
