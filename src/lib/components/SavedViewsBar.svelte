@@ -17,7 +17,8 @@
 		viewMode = 'grid',
 		onApply,
 		onViewsChanged,
-		onCreateCollection
+		onCreateCollection,
+		onAddToCollection
 	}: {
 		supabase: SupabaseClient<Database>;
 		userId: string;
@@ -32,6 +33,7 @@
 		onApply: (view: SavedView) => void;
 		onViewsChanged: () => void;
 		onCreateCollection?: (view: SavedView) => void;
+		onAddToCollection?: (view: SavedView) => void;
 	} = $props();
 
 	let showCreateInput = $state(false);
@@ -199,7 +201,11 @@
 					<button
 						onclick={(e) => { e.stopPropagation(); toggleMenu(view.id, e); }}
 						class="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-warm-200 text-warm-500 transition-opacity hover:bg-warm-300 hover:text-warm-700 sm:h-[18px] sm:w-[18px]
-							{menuOpenId === view.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}"
+							{menuOpenId === view.id
+								? 'opacity-100'
+								: activeSavedViewId === view.id
+									? 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100'
+									: 'opacity-0 sm:group-hover:opacity-100'}"
 						aria-label="View options for {view.name}"
 					>
 						<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
@@ -252,13 +258,13 @@
 	</div>
 </div>
 
-<!-- Dropdown menu rendered outside the overflow container via fixed positioning -->
+<!-- Desktop: dropdown menu via fixed positioning -->
 {#if menuOpenId}
 	{@const view = savedViews.find((v) => v.id === menuOpenId)}
 	{#if view}
 		<div
 			data-sv-menu
-			class="fixed z-50 w-44 rounded-lg border border-warm-200 bg-white py-1 shadow-lg"
+			class="fixed z-50 hidden w-44 rounded-lg border border-warm-200 bg-white py-1 shadow-lg sm:block"
 			style="left: {menuPos.x}px; top: {menuPos.y}px;"
 		>
 			<button
@@ -279,7 +285,18 @@
 					<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
 					</svg>
-					Save as Collection
+					New Collection
+				</button>
+			{/if}
+			{#if onAddToCollection}
+				<button
+					onclick={(e) => { e.stopPropagation(); const v = view; menuOpenId = null; onAddToCollection!(v); }}
+					class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] font-medium text-warm-600 hover:bg-warm-50 hover:text-warm-800"
+				>
+					<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+					</svg>
+					Add to Collection…
 				</button>
 			{/if}
 			<div class="my-1 border-t border-warm-100"></div>
@@ -292,6 +309,81 @@
 				</svg>
 				Delete
 			</button>
+		</div>
+
+		<!-- Mobile: bottom sheet -->
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="fixed inset-0 z-50 flex items-end sm:hidden"
+			onclick={() => { menuOpenId = null; }}
+			data-sv-menu
+		>
+			<div class="absolute inset-0 bg-warm-900/40 backdrop-blur-sm"></div>
+			<div
+				class="relative z-10 w-full rounded-t-2xl border-t border-warm-200 bg-white pb-6 pt-2 shadow-xl"
+				onclick={(e) => e.stopPropagation()}
+			>
+				<div class="mx-auto mb-2 h-1 w-8 rounded-full bg-warm-200"></div>
+				<div class="flex items-center justify-between border-b border-warm-100 px-5 pb-3">
+					<div class="flex items-center gap-2">
+						<svg class="h-3.5 w-3.5 text-brand-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+						</svg>
+						<span class="text-sm font-bold text-warm-800">{view.name}</span>
+					</div>
+					<button onclick={() => { menuOpenId = null; }} class="rounded-lg p-1.5 text-warm-400 hover:bg-warm-100" aria-label="Close">
+						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+						</svg>
+					</button>
+				</div>
+
+				<div class="px-2 pt-2">
+					<button
+						onclick={() => startRename(view)}
+						class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium text-warm-700 active:bg-warm-50"
+					>
+						<svg class="h-4 w-4 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+							<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+						</svg>
+						Rename
+					</button>
+					{#if onCreateCollection}
+						<button
+							onclick={(e) => { e.stopPropagation(); const v = view; menuOpenId = null; onCreateCollection!(v); }}
+							class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium text-warm-700 active:bg-warm-50"
+						>
+							<svg class="h-4 w-4 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+							</svg>
+							New Collection
+						</button>
+					{/if}
+					{#if onAddToCollection}
+						<button
+							onclick={(e) => { e.stopPropagation(); const v = view; menuOpenId = null; onAddToCollection!(v); }}
+							class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium text-warm-700 active:bg-warm-50"
+						>
+							<svg class="h-4 w-4 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+							</svg>
+							Add to Collection…
+						</button>
+					{/if}
+					<div class="mx-4 my-1 border-t border-warm-100"></div>
+					<button
+						onclick={() => handleDelete(view)}
+						class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium text-red-500 active:bg-red-50"
+					>
+						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+						</svg>
+						Delete
+					</button>
+				</div>
+			</div>
 		</div>
 	{/if}
 {/if}

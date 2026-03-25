@@ -8,11 +8,12 @@
 	import MapView from '$lib/components/MapView.svelte';
 	import MobileMapShell from '$lib/components/MobileMapShell.svelte';
 	import SavedViewsBar from '$lib/components/SavedViewsBar.svelte';
+	import AddToCollectionModal from '$lib/components/AddToCollectionModal.svelte';
 	import { sortable } from '$lib/actions/sortable';
 	import { saveTagOrder } from '$lib/tag-order';
 	import { getToasts, showToast, dismissToast } from '$lib/stores/toasts.svelte';
 	import { loadPlacesData, refreshTagsData, buildPlaceTagsMap, removeTagsFromPlace, applyTagsToPlace } from '$lib/stores/places.svelte';
-	import { loadCollections, addPlaceToCollection, removePlaceFromCollection, isPlaceInCollection, optimisticAdd, optimisticRemove, createCollection } from '$lib/stores/collections.svelte';
+	import { loadCollections, addPlaceToCollection, addPlacesToCollection, removePlaceFromCollection, isPlaceInCollection, optimisticAdd, optimisticRemove, createCollection } from '$lib/stores/collections.svelte';
 	import { loadSavedViews, updateSavedView, buildFiltersSnapshot } from '$lib/stores/saved-views.svelte';
 	import type { CollectionMemberMap } from '$lib/stores/collections.svelte';
 
@@ -413,25 +414,28 @@
 		})
 	);
 
+	function getPlaceIdsForView(view: SavedView): string[] {
+		const f = (view.filters_json ?? {}) as SavedViewFilters;
+		const viewCategoryIds = f.categoryTagIds ?? [];
+		const viewAreaIds = f.areaTagIds ?? [];
+		const viewCustomIds = f.customTagIds ?? [];
+		const viewSource = f.source ?? 'all';
+
+		return scopedPlaces
+			.filter((p) => {
+				const pTagIds = (placeTagsMap[p.id] ?? []).map((t) => t.id);
+				const matchesSource = viewSource === 'all' || p.source_list === viewSource;
+				const matchesCategory = viewCategoryIds.length === 0 || viewCategoryIds.some((id: string) => pTagIds.includes(id));
+				const matchesArea = viewAreaIds.length === 0 || viewAreaIds.some((id: string) => pTagIds.includes(id));
+				const matchesCustom = viewCustomIds.length === 0 || viewCustomIds.every((id: string) => pTagIds.includes(id));
+				return matchesSource && matchesCategory && matchesArea && matchesCustom;
+			})
+			.map((p) => p.id);
+	}
+
 	async function createCollectionFromView(view: SavedView) {
 		try {
-			const f = (view.filters_json ?? {}) as SavedViewFilters;
-			const viewCategoryIds = f.categoryTagIds ?? [];
-			const viewAreaIds = f.areaTagIds ?? [];
-			const viewCustomIds = f.customTagIds ?? [];
-			const viewSource = f.source ?? 'all';
-
-			const ids = scopedPlaces
-				.filter((p) => {
-					const pTagIds = (placeTagsMap[p.id] ?? []).map((t) => t.id);
-					const matchesSource = viewSource === 'all' || p.source_list === viewSource;
-					const matchesCategory = viewCategoryIds.length === 0 || viewCategoryIds.some((id: string) => pTagIds.includes(id));
-					const matchesArea = viewAreaIds.length === 0 || viewAreaIds.some((id: string) => pTagIds.includes(id));
-					const matchesCustom = viewCustomIds.length === 0 || viewCustomIds.every((id: string) => pTagIds.includes(id));
-					return matchesSource && matchesCategory && matchesArea && matchesCustom;
-				})
-				.map((p) => p.id);
-
+			const ids = getPlaceIdsForView(view);
 			if (ids.length === 0) {
 				showToast('info', '', 'No places match this view');
 				return;
@@ -452,6 +456,36 @@
 			console.error('[createCollectionFromView]', err);
 			showToast('error', '', 'Failed to create collection');
 		}
+	}
+
+	let viewPickerPlaceIds = $state<string[]>([]);
+	let viewPickerLabel = $state('');
+	let showViewCollectionPicker = $state(false);
+
+	function addToCollectionFromView(view: SavedView) {
+		const ids = getPlaceIdsForView(view);
+		if (ids.length === 0) {
+			showToast('info', '', 'No places match this view');
+			return;
+		}
+		viewPickerPlaceIds = ids;
+		viewPickerLabel = `${ids.length} places from "${view.name}"`;
+		showViewCollectionPicker = true;
+	}
+
+	async function handleViewPickerToggle(placeIds: string[], collectionId: string) {
+		const existing = collectionPlacesMap[collectionId] ?? [];
+		const result = await addPlacesToCollection(supabase, collectionId, placeIds, existing);
+		if (result.added > 0) {
+			const msg = result.skipped > 0
+				? `Added ${result.added} places (${result.skipped} already in collection)`
+				: `Added ${result.added} places`;
+			showToast('success', '', msg);
+		} else {
+			showToast('info', '', 'All places already in this collection');
+		}
+		await refreshCollections();
+		showViewCollectionPicker = false;
 	}
 
 	let sortedPlaces = $derived(
@@ -744,6 +778,7 @@
 				onApply={applySavedView}
 				onViewsChanged={refreshSavedViews}
 				onCreateCollection={createCollectionFromView}
+				onAddToCollection={addToCollectionFromView}
 			/>
 
 			<!-- Reserved filter summary area (always present to prevent layout shift) -->
@@ -1218,6 +1253,18 @@
 			allTags={userTags}
 			onClose={() => { contextMenuTag = null; }}
 			onTagsChanged={refreshTags}
+		/>
+	{/if}
+
+	<!-- Collection picker for "Add to Collection" from saved view -->
+	{#if showViewCollectionPicker}
+		<AddToCollectionModal
+			placeIds={viewPickerPlaceIds}
+			label={viewPickerLabel}
+			{collections}
+			{collectionPlacesMap}
+			onToggle={handleViewPickerToggle}
+			onClose={() => { showViewCollectionPicker = false; }}
 		/>
 	{/if}
 

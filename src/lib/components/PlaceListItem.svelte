@@ -438,11 +438,11 @@
 
 {#if showCollectionPicker && onToggleCollection}
 	<AddToCollectionModal
-		placeId={place.id}
-		placeTitle={place.title}
+		placeIds={[place.id]}
+		label={place.title}
 		{collections}
 		collectionPlacesMap={collectionPlacesMap}
-		onToggle={onToggleCollection}
+		onToggle={(ids, colId) => onToggleCollection(ids[0], colId)}
 		onClose={() => { showCollectionPicker = false; }}
 	/>
 {/if}

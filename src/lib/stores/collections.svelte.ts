@@ -109,12 +109,28 @@ export async function addPlaceToCollection(
 export async function addPlacesToCollection(
 	supabase: SupabaseClient<Database>,
 	collectionId: string,
-	placeIds: string[]
-) {
-	if (placeIds.length === 0) return;
-	const rows = placeIds.map((place_id) => ({ list_id: collectionId, place_id }));
-	const { error } = await supabase.from('list_places').insert(rows);
-	if (error) console.error('[addPlacesToCollection]', error);
+	placeIds: string[],
+	existingMemberIds?: string[]
+): Promise<{ added: number; skipped: number }> {
+	if (placeIds.length === 0) return { added: 0, skipped: 0 };
+
+	const existingSet = new Set(existingMemberIds ?? []);
+	const newIds = existingMemberIds !== undefined
+		? placeIds.filter((id) => !existingSet.has(id))
+		: placeIds;
+	const skipped = placeIds.length - newIds.length;
+
+	if (newIds.length === 0) return { added: 0, skipped };
+
+	const rows = newIds.map((place_id) => ({ list_id: collectionId, place_id }));
+	const { error } = await supabase
+		.from('list_places')
+		.upsert(rows, { onConflict: 'list_id,place_id', ignoreDuplicates: true });
+	if (error) {
+		console.error('[addPlacesToCollection]', error);
+		return { added: 0, skipped: 0 };
+	}
+	return { added: newIds.length, skipped };
 }
 
 export async function removePlaceFromCollection(

@@ -3,18 +3,25 @@
 	import type { CollectionMemberMap } from '$lib/stores/collections.svelte';
 
 	interface Props {
-		placeId: string;
-		placeTitle: string;
+		placeIds: string[];
+		label: string;
 		collections: Collection[];
 		collectionPlacesMap: CollectionMemberMap;
-		onToggle: (placeId: string, collectionId: string) => void;
+		onToggle: (placeIds: string[], collectionId: string) => void;
 		onClose: () => void;
 	}
 
-	let { placeId, placeTitle, collections, collectionPlacesMap, onToggle, onClose }: Props = $props();
+	let { placeIds, label, collections, collectionPlacesMap, onToggle, onClose }: Props = $props();
 
-	function isInCollection(collectionId: string): boolean {
-		return (collectionPlacesMap[collectionId] ?? []).includes(placeId);
+	let isBatch = $derived(placeIds.length > 1);
+
+	function membershipInfo(collectionId: string): { allIn: boolean; someIn: boolean; count: number } {
+		const members = collectionPlacesMap[collectionId] ?? [];
+		let inCount = 0;
+		for (const id of placeIds) {
+			if (members.includes(id)) inCount++;
+		}
+		return { allIn: inCount === placeIds.length, someIn: inCount > 0, count: inCount };
 	}
 </script>
 
@@ -29,7 +36,7 @@
 		<div class="flex items-center justify-between border-b border-warm-100 px-4 py-3">
 			<div class="min-w-0 flex-1">
 				<h2 class="text-sm font-bold text-warm-800">Add to Collection</h2>
-				<p class="truncate text-[11px] text-warm-400">{placeTitle}</p>
+				<p class="truncate text-[11px] text-warm-400">{label}</p>
 			</div>
 			<button onclick={onClose} class="shrink-0 rounded-lg p-1.5 text-warm-400 hover:bg-warm-100 hover:text-warm-600" aria-label="Close">
 				<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -46,17 +53,17 @@
 				</div>
 			{:else}
 				{#each collections as col (col.id)}
-					{@const inCol = isInCollection(col.id)}
+					{@const info = membershipInfo(col.id)}
 					{@const count = (collectionPlacesMap[col.id] ?? []).length}
 					<button
-						onclick={() => onToggle(placeId, col.id)}
+						onclick={() => onToggle(placeIds, col.id)}
 						class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-warm-50"
 					>
 						<div
 							class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white"
 							style="background-color: {col.color ?? '#6366f1'}"
 						>
-							{#if inCol}
+							{#if info.allIn}
 								<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 									<polyline points="20 6 9 17 4 12" />
 								</svg>
@@ -70,8 +77,10 @@
 							<p class="truncate text-sm font-semibold text-warm-800">{col.name}</p>
 							<p class="text-[11px] text-warm-400">{count} {count === 1 ? 'place' : 'places'}</p>
 						</div>
-						{#if inCol}
-							<span class="shrink-0 text-[10px] font-bold text-sage-600">Added</span>
+						{#if info.allIn}
+							<span class="shrink-0 text-[10px] font-bold text-sage-600">All added</span>
+						{:else if isBatch && info.someIn}
+							<span class="shrink-0 text-[10px] font-bold text-warm-400">{info.count} already in</span>
 						{/if}
 					</button>
 				{/each}

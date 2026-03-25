@@ -101,16 +101,15 @@
 			<div class="flex items-center gap-1 sm:gap-3">
 				<a
 					href="/places"
-					class="rounded-lg px-2 py-1 text-xs font-bold text-warm-600 transition-colors hover:bg-warm-100 hover:text-warm-800 sm:px-3 sm:py-1.5 sm:text-sm"
+					class="rounded-lg px-1.5 py-1 text-[11px] font-bold text-warm-600 transition-colors hover:bg-warm-100 hover:text-warm-800 sm:px-3 sm:py-1.5 sm:text-sm"
 				>
-					My Places
+					Places
 				</a>
 				<a
 					href="/collections"
-					class="rounded-lg px-2 py-1 text-xs font-bold text-warm-600 transition-colors hover:bg-warm-100 hover:text-warm-800 sm:px-3 sm:py-1.5 sm:text-sm"
+					class="rounded-lg px-1.5 py-1 text-[11px] font-bold text-warm-600 transition-colors hover:bg-warm-100 hover:text-warm-800 sm:px-3 sm:py-1.5 sm:text-sm"
 				>
-					<span class="hidden sm:inline">My Collections</span>
-					<span class="sm:hidden">Collections</span>
+					Collections
 				</a>
 				<button
 					onclick={() => { showAddModal = true; }}
