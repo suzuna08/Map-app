@@ -15,6 +15,8 @@ Detailed documentation of the architecture, design decisions, trade-offs, and bu
 - [Contextual Capture (Auto-Tagging)](#contextual-capture-auto-tagging)
 - [Tagging System](#tagging-system)
 - [Filtering & Sorting](#filtering--sorting)
+- [Saved Views](#saved-views)
+- [Collections](#collections)
 - [Map Integration](#map-integration)
 - [UI Components & Interactions](#ui-components--interactions)
 - [Root Layout & Global Concerns](#root-layout--global-concerns)
@@ -96,7 +98,7 @@ Auth is handled through `@supabase/ssr` with a server hook (`hooks.server.ts`) a
 
 Both triggers use `security definer` with `search_path = ''` to safely access the `auth` schema.
 
-**`lists`** and **`list_places`** -- Defined in the migration but not yet used in the UI. These were designed for user-created lists (like Google Maps lists) but the tagging system ended up being more flexible.
+**`lists`** and **`list_places`** -- Used for the Collections feature. `lists` stores user-created collections with name, description, color, visibility (`'private'` or `'link_access'`), and optional `share_slug` for public sharing. `list_places` is the junction table linking places to collections. Extended via `add_collections_columns.sql` migration.
 
 ### Row-Level Security
 
@@ -334,6 +336,168 @@ Seven sort options, all client-side:
 - Rating (descending, nulls last)
 - Most tagged (by count of tags in `placeTagsMap`)
 - Tag group (alphabetically by first user tag name, untagged places sorted last via `\uffff`)
+
+---
+
+## Saved Views
+
+### What They Are
+
+Saved Views are lightweight user-defined presets that capture the current browsing/filter state on the places page. They are **not** collections of places -- they save the filter configuration, not a set of place IDs. They let users quickly return to a preferred filtered/sorted view without re-selecting tags and sort options each time.
+
+### What Is Stored
+
+Each saved view persists:
+- **Filter state**: selected category tag IDs, area tag IDs, custom tag IDs, and source filter
+- **Sort option**: the current `sortBy` value (newest, oldest, A-Z, etc.)
+- **Layout mode**: grid or list
+
+Not stored in MVP: map center/zoom, selected place, collection scope, search text.
+
+### Data Model
+
+**`saved_views`** table (migration: `supabase/add_saved_views.sql`):
+- `id` (uuid, PK)
+- `user_id` (uuid, FK to `auth.users`)
+- `name` (text)
+- `filters_json` (jsonb) -- stores `{ categoryTagIds?, areaTagIds?, customTagIds?, source? }`
+- `sort_by` (text, default `'newest'`)
+- `layout_mode` (text, default `'grid'`)
+- `created_at`, `updated_at` (timestamptz)
+
+RLS policies restrict all operations to `auth.uid() = user_id`.
+
+### Architecture
+
+Follows the same patterns as the existing codebase:
+
+- **Data-access helpers** (`src/lib/stores/saved-views.svelte.ts`): Pure async functions (`loadSavedViews`, `createSavedView`, `updateSavedView`, `deleteSavedView`, `buildFiltersSnapshot`) matching the style of `places.svelte.ts` and `collections.svelte.ts`. No module-level reactive state.
+- **Types** (`src/lib/types/database.ts`): `SavedView`, `SavedViewInsert`, `SavedViewFilters` interface.
+- **Component** (`src/lib/components/SavedViewsBar.svelte`): Reusable bar component receiving all needed state as props and calling back via `onApply` and `onViewsChanged`. The three-dot menu uses `position: fixed` to escape the `overflow-x-auto` scrollable container (same approach as TagInput's portal dropdown).
+- **Integration** (`src/routes/places/+page.svelte`): Loads saved views on mount, manages `activeSavedViewId` state, provides `applySavedView()` to restore filter/sort/layout, and auto-saves filter changes back to the active view with an 800ms debounce.
+
+### UI Placement
+
+The SavedViewsBar renders on the places page between the search bar area and the filter summary / filter chip rows.
+
+**Desktop**: Horizontal row of pill-shaped buttons, each with a bookmark icon and the view name. The active view has a distinct brand-colored border/background/ring. A "Save View" dashed-border button appears at the end. A three-dot menu on each pill provides rename and delete actions. The dropdown menu uses `position: fixed` with coordinates from `getBoundingClientRect()` to escape the `overflow-x-auto` container that would otherwise clip it.
+
+**Mobile**: Same horizontal row, but horizontally scrollable (`overflow-x-auto`) with hidden scrollbars. Pills are compact and touch-friendly. The "Save View" trigger shows only a "+" icon on small screens, expanding to "Save View" text at `sm+`. The create input dismisses on blur (with a 150ms delay to avoid racing with button clicks) or on Escape.
+
+### User Actions
+
+- **Create**: Click the "+ Save View" button, type a name, press Enter or click Save. Captures current filter/sort/layout state. Clicking outside the input (blur) dismisses it if empty.
+- **Apply**: Click a saved view pill to restore its filter/sort/layout state. Click again to deactivate (clears all filters).
+- **Rename**: Open the three-dot menu → Rename. Inline input replaces the pill; Enter or blur saves.
+- **Delete**: Open the three-dot menu → Delete. Removes the view with toast confirmation.
+
+### Auto-Save on Filter Change
+
+When a saved view is active (`activeSavedViewId` is set) and the user changes any filter (toggles a tag, switches source, changes sort or layout), the view auto-saves to reflect the new state. This eliminates a manual "update" step.
+
+**Implementation**: An `$effect` in `+page.svelte` compares the current filter state against the active view's stored `filters_json`. If they differ:
+
+1. A debounce timer (800ms) is started/reset -- rapid changes (e.g., toggling multiple tags) are batched into a single save
+2. After the debounce, `buildFiltersSnapshot()` captures the current filter/sort/layout state
+3. `updateSavedView()` sends a PATCH to Supabase via PostgREST (`UPDATE saved_views SET filters_json = ... WHERE id = ... AND auth.uid() = user_id`)
+4. `refreshSavedViews()` reloads the saved views so the local state reflects the persisted data
+5. An `autoSaving` flag prevents the effect from re-triggering during the save cycle
+
+The 800ms debounce matches the notes auto-save pattern used elsewhere in the app. There is no server-side logic beyond Supabase's standard PostgREST + RLS -- all orchestration is client-side.
+
+### Trade-offs
+
+- **Auto-save vs. explicit save**: Saved views auto-update when filters change, which is convenient but means a user can't temporarily explore different filters without altering the view. Clicking the active view pill again deactivates it (clears filters), which provides an escape hatch. A future improvement could add a "lock" toggle to prevent auto-save on specific views.
+- **Tag ID references, not names**: Saved views store tag IDs in `filters_json`. If a tag is deleted, those IDs become stale and the saved view silently skips them (the stale filter auto-cleanup effect handles this). An alternative would be to store tag names, but that would break on renames.
+- **No search text persistence**: Search text is intentionally excluded. Saved views are meant for filter presets, not full session restoration. Including search would make applying a view feel like it's "typing for you."
+- **Client-side only filtering**: Consistent with the existing architecture -- saved views restore the client-side filter state and the existing `$derived` chain handles the rest.
+- **Fixed-position dropdown**: The three-dot menu uses `position: fixed` with `getBoundingClientRect()` coordinates rather than a portal to `document.body`. This is simpler than the TagInput portal approach but doesn't reposition on scroll. Acceptable here because the menu is small and dismissed quickly.
+
+---
+
+## Collections
+
+### What They Are
+
+Collections are user-created, persistent groups of places. Unlike Saved Views (which store filter configurations), Collections store actual place IDs. A collection can be created empty or populated from the current filtered result set, but after creation it becomes fully independent -- it does not auto-sync with filters or saved views.
+
+### Data Model
+
+Collections reuse the existing `lists` and `list_places` tables from the original schema:
+
+- **`lists`** → Collections. Extended with:
+  - `visibility` (text, default `'private'`): `'private'` or `'link_access'`
+  - `share_slug` (text, nullable, unique): URL-safe random identifier for public sharing
+- **`list_places`** → Collection membership (many-to-many junction)
+
+A migration file (`supabase/add_collections_columns.sql`) adds these columns and creates three new RLS policies:
+1. Public SELECT on `lists` where `visibility = 'link_access'`
+2. Public SELECT on `list_places` via parent list visibility
+3. Public SELECT on `places` that belong to a `link_access` collection (via join through `list_places` → `lists`)
+
+### Routes
+
+**`/collections`** — Index page showing all user collections as cards in a responsive grid. Each card shows the name, place count, color accent, visibility badge, and last-updated date. Supports creating new collections with a name and color picker.
+
+**`/collections/[id]`** — Detail page for a single collection. Shows:
+- Editable name and description (click to edit inline)
+- Grid/list toggle with PlaceCard and PlaceListItem reuse
+- Search within collection
+- Sort by recent, A–Z, or rating
+- "+ Add Places" modal with search over all user places not in the collection
+- Share toggle (private ↔ link_access) with copy-link button
+
+**`/c/[slug]`** — Public read-only share page. Accessed without authentication. Shows a clean layout with the collection name, description, place count, and all places in grid or list view. Each place shows category, area, rating, and links to Google Maps/website. No editing capabilities.
+
+### Store Architecture
+
+`src/lib/stores/collections.svelte.ts` follows the same async-helper pattern as `places.svelte.ts` and `saved-views.svelte.ts`:
+
+- **`loadCollections()`**: Fetches all user collections and builds the `CollectionMemberMap` (record of collection ID → place ID arrays)
+- **`createCollection()`**: Creates a collection, optionally bulk-inserting place IDs
+- **`updateCollection()`**: Updates name, description, color, visibility, or share_slug
+- **`deleteCollection()`**: Deletes a collection (cascade removes `list_places` rows)
+- **`addPlaceToCollection()` / `addPlacesToCollection()`**: Single or batch membership insert
+- **`removePlaceFromCollection()`**: Removes a place from a collection
+- **`enableSharing()` / `disableSharing()`**: Toggles visibility and generates/clears the share slug
+- **`loadCollectionBySlug()`**: Loads a collection by slug for the public share page
+- **`optimisticAdd()` / `optimisticRemove()`**: Pure functions for optimistic UI updates on the `CollectionMemberMap`
+
+### Adding Places
+
+Three entry points for adding places to collections:
+
+1. **From PlaceCard / PlaceListItem**: A folder+plus icon button in the action row opens `AddToCollectionModal`, which lists all collections with checkmarks for current membership. Toggling adds/removes instantly with optimistic updates and toast feedback.
+
+2. **From collection detail page**: The "+ Add Places" button opens a modal showing all user places not yet in the collection, with search. Clicking a place adds it immediately.
+
+3. **Bulk on creation**: (Future enhancement) Collections can be created from the current filtered view, capturing all visible place IDs at creation time.
+
+**Mobile**: All add/remove actions use explicit buttons and modals — no drag-and-drop dependency. The `AddToCollectionModal` renders as a bottom-sheet (rounded top corners, `items-end` on mobile) for thumb-friendly interaction.
+
+**Desktop**: Same modal pattern, centered on screen. The PlaceCard and PlaceListItem buttons appear in the hover-reveal action row alongside Maps, Website, and Notes.
+
+### Sharing
+
+Simple MVP sharing:
+
+1. **Toggle**: Click the Private/Public button on the collection detail page
+2. **Enable**: Generates a random 10-character alphanumeric slug, sets `visibility = 'link_access'`
+3. **Copy**: The "Copy Link" button copies `{origin}/c/{slug}` to clipboard
+4. **Disable**: Sets `visibility = 'private'`, nullifies the slug
+
+The public page (`/c/[slug]`) loads data via a server load function that queries `lists` filtered by `share_slug` and `visibility = 'link_access'`. RLS policies allow anonymous SELECT on collections and their places when visibility is `link_access`.
+
+### Navigation
+
+The root layout nav bar includes a "My Collections" link (shortened to "Collections" on mobile) between "My Places" and the "+ Add Place" button. The `/collections` route is protected (requires auth). The `/c/[slug]` route is public.
+
+### Trade-offs
+
+- **No drag-and-drop for adding to collections**: While the existing codebase has drag-and-drop for tag reordering, adding places to collections uses only explicit button/modal interactions. This ensures mobile compatibility and avoids conflicts with swipe-to-delete gestures.
+- **Slug-based sharing vs. collection ID sharing**: Using a random slug prevents enumeration attacks and makes share URLs non-guessable. The slug is generated client-side, which has a negligible collision risk for 10-character alphanumeric strings.
+- **No collaborators**: Sharing is read-only. The owner is the only editor. This simplifies RLS policies and avoids the complexity of shared editing state.
+- **Public place data exposure**: When a collection is shared, all place data (title, address, rating, etc.) becomes publicly readable via the RLS policies. This is intentional for the sharing use case, but users should be aware that making a collection public exposes its place details.
 
 ---
 

@@ -1,7 +1,9 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
-	import type { Place, Tag } from '$lib/types/database';
+	import type { Place, Tag, Collection } from '$lib/types/database';
+	import type { CollectionMemberMap } from '$lib/stores/collections.svelte';
 	import TagInput from './TagInput.svelte';
+	import AddToCollectionModal from './AddToCollectionModal.svelte';
 
 	interface Props {
 		place: Place;
@@ -18,6 +20,12 @@
 		onTagContextMenu?: (tag: Tag, x: number, y: number) => void;
 		selected?: boolean;
 		onSelect?: (placeId: string) => void;
+		collections?: Collection[];
+		collectionPlacesMap?: CollectionMemberMap;
+		collectionPickerOpen?: boolean;
+		onCollectionPickerToggle?: (placeId: string) => void;
+		onCollectionPickerClose?: () => void;
+		onToggleCollection?: (placeId: string, collectionId: string) => void;
 	}
 
 	let {
@@ -35,6 +43,12 @@
 		onTagContextMenu,
 		selected = false,
 		onSelect,
+		collections = [],
+		collectionPlacesMap = {},
+		collectionPickerOpen = false,
+		onCollectionPickerToggle,
+		onCollectionPickerClose,
+		onToggleCollection,
 	}: Props = $props();
 
 	let confirmDelete = $state(false);
@@ -283,6 +297,20 @@
 						</svg>
 						Notes
 					</button>
+					{#if onCollectionPickerToggle}
+						<button
+							onclick={(e) => { e.stopPropagation(); onCollectionPickerToggle?.(place.id); }}
+							class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+							aria-label="Add to collection"
+						>
+							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+							</svg>
+							<svg class="h-2 w-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+								<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+							</svg>
+						</button>
+					{/if}
 				</div>
 			</article>
 		</div>
@@ -438,6 +466,20 @@
 						</svg>
 						Notes
 					</button>
+					{#if onCollectionPickerToggle}
+						<button
+							onclick={(e) => { e.stopPropagation(); onCollectionPickerToggle?.(place.id); }}
+							class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+							aria-label="Add to collection"
+						>
+							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+							</svg>
+							<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+								<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+							</svg>
+						</button>
+					{/if}
 					<div class="ml-auto">
 						{#if confirmDelete}
 							<button
@@ -507,3 +549,14 @@
 		transform: rotateY(180deg);
 	}
 </style>
+
+{#if collectionPickerOpen && onToggleCollection && onCollectionPickerClose}
+	<AddToCollectionModal
+		placeId={place.id}
+		placeTitle={place.title}
+		{collections}
+		collectionPlacesMap={collectionPlacesMap}
+		onToggle={onToggleCollection}
+		onClose={onCollectionPickerClose}
+	/>
+{/if}

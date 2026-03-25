@@ -22,6 +22,8 @@ MapOrganizer is a web app that helps you manage and organize places you've saved
 - **Deduplication** -- Three-layer duplicate detection by Google Place ID, normalized URL, and title + address
 - **Swipe to Delete** -- Swipe cards or list items left on mobile to reveal a delete action
 - **Contextual Capture** -- When viewing a custom tag filter, new places added via URL are automatically tagged to match. Includes an auto-tag toggle and undo support
+- **Saved Views** -- Save the current filter/sort/layout state as a named preset. Views auto-update when you tweak filters while active. Create, rename, and delete views. Persisted per-user in Supabase
+- **Collections** -- Create curated, shareable groups of places. Collections are independent from filters: add places individually or from your current filtered view, then manage membership manually. Share a collection via a public link (`/c/slug`), toggle between private and link-accessible visibility, and browse any collection with the same grid/list view and sort options as the main places page
 - **Auth** -- Email/password authentication via Supabase with server-side route protection, proactive token refresh, and resilient session validation
 - **Responsive** -- Distinct mobile and desktop layouts: split map+list on desktop, collapsible map on mobile. Sidebar navigation, safe-area support for notched devices
 
@@ -57,15 +59,19 @@ src/
 │   │   └── sortable.ts            # Drag-to-reorder Svelte action
 │   ├── stores/
 │   │   ├── places.svelte.ts       # Data-access helpers (load, tag ops)
+│   │   ├── collections.svelte.ts  # Collection CRUD, membership & sharing helpers
+│   │   ├── saved-views.svelte.ts  # Saved Views CRUD & filter snapshot
 │   │   └── toasts.svelte.ts       # Toast notification store
 │   ├── types/
 │   │   └── database.ts            # Supabase type definitions
 │   └── components/
 │       ├── AddPlaceModal.svelte    # URL/CSV add place modal
+│       ├── AddToCollectionModal.svelte # Add place to collection picker
 │       ├── MapView.svelte          # MapLibre GL map with markers
 │       ├── MobileMapShell.svelte   # Collapsible mobile map wrapper
-│       ├── PlaceCard.svelte        # Grid card (flip, swipe, notes)
-│       ├── PlaceListItem.svelte    # List row (expand, swipe)
+│       ├── PlaceCard.svelte        # Grid card (flip, swipe, notes, collections)
+│       ├── PlaceListItem.svelte    # List row (expand, swipe, collections)
+│       ├── SavedViewsBar.svelte    # Saved Views preset pill bar
 │       ├── TagContextMenu.svelte   # Right-click tag menu
 │       ├── TagInput.svelte         # Inline tag add/remove
 │       ├── TagManager.svelte       # Tag CRUD modal
@@ -77,6 +83,10 @@ src/
     ├── +page.svelte                # Landing page
     ├── login/+page.svelte          # Auth page
     ├── places/+page.svelte         # Main places library + map
+    ├── collections/
+    │   ├── +page.svelte            # Collections index
+    │   └── [id]/+page.svelte       # Collection detail page
+    ├── c/[slug]/+page.svelte       # Public shared collection
     ├── upload/+page.svelte         # CSV upload page
     └── api/places/
         ├── add-by-url/+server.ts   # URL import + dedup
@@ -129,9 +139,11 @@ Run the SQL migrations in your Supabase project's SQL Editor, in order:
 supabase/migration.sql
 supabase/add_tag_order_index.sql
 supabase/add_profiles_table.sql
+supabase/add_saved_views.sql
+supabase/add_collections_columns.sql
 ```
 
-The first migration creates the `places`, `lists`, and `list_places` tables along with row-level security policies and indexes. The second adds the `order_index` column to `tags` for drag-to-reorder persistence. The third creates the `profiles` table with auto-sync triggers from Supabase Auth.
+The first migration creates the `places`, `lists`, and `list_places` tables along with row-level security policies and indexes. The second adds the `order_index` column to `tags` for drag-to-reorder persistence. The third creates the `profiles` table with auto-sync triggers from Supabase Auth. The fourth creates the `saved_views` table for user-defined filter/sort/layout presets. The fifth extends `lists` with `visibility` and `share_slug` columns for collections sharing, plus public-access RLS policies.
 
 You will also need to create the `tags` and `place_tags` tables (used by the tagging system but not yet in the migration file). The expected schema is defined in `src/lib/types/database.ts`.
 

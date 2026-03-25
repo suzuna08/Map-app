@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Place, Tag, Collection, BrowseScope } from '$lib/types/database';
+	import type { Place, Tag, Collection, BrowseScope, SavedView, SavedViewFilters } from '$lib/types/database';
 	import TagSidebar from '$lib/components/TagSidebar.svelte';
 	import PlaceCard from '$lib/components/PlaceCard.svelte';
 	import PlaceListItem from '$lib/components/PlaceListItem.svelte';
@@ -7,11 +7,13 @@
 	import TagContextMenu from '$lib/components/TagContextMenu.svelte';
 	import MapView from '$lib/components/MapView.svelte';
 	import MobileMapShell from '$lib/components/MobileMapShell.svelte';
+	import SavedViewsBar from '$lib/components/SavedViewsBar.svelte';
 	import { sortable } from '$lib/actions/sortable';
 	import { saveTagOrder } from '$lib/tag-order';
 	import { getToasts, showToast, dismissToast } from '$lib/stores/toasts.svelte';
 	import { loadPlacesData, refreshTagsData, buildPlaceTagsMap, removeTagsFromPlace, applyTagsToPlace } from '$lib/stores/places.svelte';
-	import { loadCollections, addPlaceToCollection, removePlaceFromCollection, isPlaceInCollection, optimisticAdd, optimisticRemove } from '$lib/stores/collections.svelte';
+	import { loadCollections, addPlaceToCollection, removePlaceFromCollection, isPlaceInCollection, optimisticAdd, optimisticRemove, createCollection } from '$lib/stores/collections.svelte';
+	import { loadSavedViews, updateSavedView, buildFiltersSnapshot } from '$lib/stores/saved-views.svelte';
 	import type { CollectionMemberMap } from '$lib/stores/collections.svelte';
 
 	let { data } = $props();
@@ -73,6 +75,9 @@
 	let searchInputEl = $state<HTMLInputElement | null>(null);
 
 	let autoApplyCurrentViewTags = $state(true);
+
+	let savedViews = $state<SavedView[]>([]);
+	let activeSavedViewId = $state<string | null>(null);
 
 	let isMobile = $state(false);
 
@@ -239,6 +244,35 @@
 		collectionPlacesMap = result.collectionPlacesMap;
 	}
 
+	async function refreshSavedViews() {
+		savedViews = await loadSavedViews(supabase);
+	}
+
+	function applySavedView(view: SavedView) {
+		if (activeSavedViewId === view.id) {
+			activeSavedViewId = null;
+			selectedTagMap = {};
+			selectedSource = 'all';
+			return;
+		}
+
+		const f = (view.filters_json ?? {}) as SavedViewFilters;
+		const tagMap: Record<string, boolean> = {};
+		for (const id of f.categoryTagIds ?? []) tagMap[id] = true;
+		for (const id of f.areaTagIds ?? []) tagMap[id] = true;
+		for (const id of f.customTagIds ?? []) tagMap[id] = true;
+		selectedTagMap = tagMap;
+		selectedSource = f.source ?? 'all';
+		sortBy = (view.sort_by ?? 'newest') as typeof sortBy;
+		viewMode = (view.layout_mode ?? 'grid') as typeof viewMode;
+		activeSavedViewId = view.id;
+	}
+
+	$effect(() => {
+		void supabase;
+		refreshSavedViews();
+	});
+
 	async function refreshTags() {
 		const result = await refreshTagsData(supabase);
 		allTags = result.tags;
@@ -292,6 +326,36 @@
 	let selectedCategoryIds = $derived(selectedTagIds.filter((id) => categoryTags.some((t) => t.id === id)));
 	let selectedAreaIds = $derived(selectedTagIds.filter((id) => areaTags.some((t) => t.id === id)));
 	let selectedCustomIds = $derived(selectedTagIds.filter((id) => userTags.some((t) => t.id === id)));
+
+	// Auto-save the active saved view when user changes filters (debounced)
+	let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+	let autoSaving = false;
+
+	$effect(() => {
+		if (!activeSavedViewId || autoSaving) return;
+		const view = savedViews.find((v) => v.id === activeSavedViewId);
+		if (!view) { activeSavedViewId = null; return; }
+		const f = (view.filters_json ?? {}) as SavedViewFilters;
+		const catMatch = JSON.stringify([...(f.categoryTagIds ?? [])].sort()) === JSON.stringify([...selectedCategoryIds].sort());
+		const areaMatch = JSON.stringify([...(f.areaTagIds ?? [])].sort()) === JSON.stringify([...selectedAreaIds].sort());
+		const customMatch = JSON.stringify([...(f.customTagIds ?? [])].sort()) === JSON.stringify([...selectedCustomIds].sort());
+		const sourceMatch = (f.source ?? 'all') === selectedSource;
+		if (catMatch && areaMatch && customMatch && sourceMatch) return;
+
+		if (autoSaveTimer) clearTimeout(autoSaveTimer);
+		const viewId = activeSavedViewId;
+		autoSaveTimer = setTimeout(async () => {
+			autoSaving = true;
+			const filters = buildFiltersSnapshot(selectedCategoryIds, selectedAreaIds, selectedCustomIds, selectedSource);
+			await updateSavedView(supabase, viewId, {
+				filtersJson: filters,
+				sortBy,
+				layoutMode: viewMode
+			});
+			await refreshSavedViews();
+			autoSaving = false;
+		}, 800);
+	});
 
 	let selectedCustomTagNames = $derived(
 		selectedCustomIds.map((id) => userTags.find((t) => t.id === id)?.name).filter((n): n is string => !!n)
@@ -348,6 +412,47 @@
 			return matchesSearch && matchesSource && matchesCategory && matchesArea && matchesCustom;
 		})
 	);
+
+	async function createCollectionFromView(view: SavedView) {
+		try {
+			const f = (view.filters_json ?? {}) as SavedViewFilters;
+			const viewCategoryIds = f.categoryTagIds ?? [];
+			const viewAreaIds = f.areaTagIds ?? [];
+			const viewCustomIds = f.customTagIds ?? [];
+			const viewSource = f.source ?? 'all';
+
+			const ids = scopedPlaces
+				.filter((p) => {
+					const pTagIds = (placeTagsMap[p.id] ?? []).map((t) => t.id);
+					const matchesSource = viewSource === 'all' || p.source_list === viewSource;
+					const matchesCategory = viewCategoryIds.length === 0 || viewCategoryIds.some((id: string) => pTagIds.includes(id));
+					const matchesArea = viewAreaIds.length === 0 || viewAreaIds.some((id: string) => pTagIds.includes(id));
+					const matchesCustom = viewCustomIds.length === 0 || viewCustomIds.every((id: string) => pTagIds.includes(id));
+					return matchesSource && matchesCategory && matchesArea && matchesCustom;
+				})
+				.map((p) => p.id);
+
+			if (ids.length === 0) {
+				showToast('info', '', 'No places match this view');
+				return;
+			}
+			const userId = session?.user?.id;
+			if (!userId) {
+				showToast('error', '', 'You must be signed in');
+				return;
+			}
+			const col = await createCollection(supabase, userId, view.name, { placeIds: ids });
+			if (col) {
+				showToast('success', '', `Collection "${view.name}" created with ${ids.length} places`);
+				await refreshCollections();
+			} else {
+				showToast('error', '', 'Could not create collection');
+			}
+		} catch (err) {
+			console.error('[createCollectionFromView]', err);
+			showToast('error', '', 'Failed to create collection');
+		}
+	}
 
 	let sortedPlaces = $derived(
 		[...filteredPlaces].sort((a, b) => {
@@ -623,6 +728,23 @@
 					</div>
 				{/if}
 			</div>
+
+			<!-- Saved Views bar -->
+			<SavedViewsBar
+				{supabase}
+				userId={session?.user?.id ?? ''}
+				{savedViews}
+				{activeSavedViewId}
+				{selectedCategoryIds}
+				{selectedAreaIds}
+				{selectedCustomIds}
+				{selectedSource}
+				{sortBy}
+				{viewMode}
+				onApply={applySavedView}
+				onViewsChanged={refreshSavedViews}
+				onCreateCollection={createCollectionFromView}
+			/>
 
 			<!-- Reserved filter summary area (always present to prevent layout shift) -->
 			<div class="mb-1 flex min-h-[28px] flex-wrap items-center gap-1.5 sm:mb-3 sm:min-h-[32px] sm:gap-2">

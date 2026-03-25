@@ -1,7 +1,9 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
-	import type { Place, Tag } from '$lib/types/database';
+	import type { Place, Tag, Collection } from '$lib/types/database';
+	import type { CollectionMemberMap } from '$lib/stores/collections.svelte';
 	import TagInput from './TagInput.svelte';
+	import AddToCollectionModal from './AddToCollectionModal.svelte';
 
 	interface Props {
 		place: Place;
@@ -16,9 +18,14 @@
 		onDelete?: (placeId: string) => void;
 		selected?: boolean;
 		onSelect?: (placeId: string) => void;
+		collections?: Collection[];
+		collectionPlacesMap?: CollectionMemberMap;
+		onToggleCollection?: (placeId: string, collectionId: string) => void;
 	}
 
-	let { place, placeTags, allTags, supabase, userId, onTagClick, onTagContextMenu, onTagsChanged, onNoteChanged, onDelete, selected = false, onSelect }: Props = $props();
+	let { place, placeTags, allTags, supabase, userId, onTagClick, onTagContextMenu, onTagsChanged, onNoteChanged, onDelete, selected = false, onSelect, collections = [], collectionPlacesMap = {}, onToggleCollection }: Props = $props();
+
+	let showCollectionPicker = $state(false);
 
 	let userTags = $derived(placeTags.filter((t) => t.source === 'user'));
 	let firstTag = $derived(userTags[0] ?? null);
@@ -340,6 +347,17 @@
 		</div>
 
 		<div class="flex w-16 shrink-0 items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+			{#if onToggleCollection}
+				<button
+					onclick={(e) => { e.stopPropagation(); showCollectionPicker = true; }}
+					class="rounded p-1 text-warm-300 transition-colors hover:bg-brand-50 hover:text-brand-500"
+					aria-label="Add to collection"
+				>
+					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+					</svg>
+				</button>
+			{/if}
 			{#if place.url}
 				<a
 					href={place.url}
@@ -417,3 +435,14 @@
 		</div>
 	{/if}
 </div>
+
+{#if showCollectionPicker && onToggleCollection}
+	<AddToCollectionModal
+		placeId={place.id}
+		placeTitle={place.title}
+		{collections}
+		collectionPlacesMap={collectionPlacesMap}
+		onToggle={onToggleCollection}
+		onClose={() => { showCollectionPicker = false; }}
+	/>
+{/if}

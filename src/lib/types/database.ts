@@ -79,36 +79,42 @@ export interface Database {
 				};
 				Relationships: [];
 			};
-			lists: {
-				Row: {
-					id: string;
-					user_id: string;
-					name: string;
-					description: string | null;
-					color: string | null;
-					created_at: string;
-					updated_at: string;
-				};
-				Insert: {
-					id?: string;
-					user_id: string;
-					name: string;
-					description?: string | null;
-					color?: string | null;
-					created_at?: string;
-					updated_at?: string;
-				};
-				Update: {
-					id?: string;
-					user_id?: string;
-					name?: string;
-					description?: string | null;
-					color?: string | null;
-					created_at?: string;
-					updated_at?: string;
-				};
-				Relationships: [];
+		lists: {
+			Row: {
+				id: string;
+				user_id: string;
+				name: string;
+				description: string | null;
+				color: string | null;
+				visibility: string;
+				share_slug: string | null;
+				created_at: string;
+				updated_at: string;
 			};
+			Insert: {
+				id?: string;
+				user_id: string;
+				name: string;
+				description?: string | null;
+				color?: string | null;
+				visibility?: string;
+				share_slug?: string | null;
+				created_at?: string;
+				updated_at?: string;
+			};
+			Update: {
+				id?: string;
+				user_id?: string;
+				name?: string;
+				description?: string | null;
+				color?: string | null;
+				visibility?: string;
+				share_slug?: string | null;
+				created_at?: string;
+				updated_at?: string;
+			};
+			Relationships: [];
+		};
 			list_places: {
 				Row: {
 					id: string;
@@ -369,6 +375,39 @@ export interface Database {
 				];
 			};
 		};
+			saved_views: {
+				Row: {
+					id: string;
+					user_id: string;
+					name: string;
+					filters_json: SavedViewFilters;
+					sort_by: string;
+					layout_mode: string;
+					created_at: string;
+					updated_at: string;
+				};
+				Insert: {
+					id?: string;
+					user_id: string;
+					name: string;
+					filters_json?: SavedViewFilters;
+					sort_by?: string;
+					layout_mode?: string;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Update: {
+					id?: string;
+					user_id?: string;
+					name?: string;
+					filters_json?: SavedViewFilters;
+					sort_by?: string;
+					layout_mode?: string;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Relationships: [];
+			};
 		Views: Record<string, never>;
 		Functions: Record<string, never>;
 		Enums: Record<string, never>;
@@ -385,6 +424,7 @@ export type PlaceTag = Database['public']['Tables']['place_tags']['Row'];
 
 export type Collection = Database['public']['Tables']['lists']['Row'];
 export type CollectionInsert = Database['public']['Tables']['lists']['Insert'];
+export type CollectionUpdate = Database['public']['Tables']['lists']['Update'];
 
 export type BrowseScope =
 	| { type: 'all' }
@@ -398,4 +438,14 @@ export type GooglePlaceTypeCatalogRow = Database['public']['Tables']['google_pla
 export type IntelTagMappingRow = Database['public']['Tables']['intel_tag_mappings']['Row'];
 export type PlaceIntelTagRow = Database['public']['Tables']['place_intel_tags']['Row'];
 export type PlaceIntelTagInsert = Database['public']['Tables']['place_intel_tags']['Insert'];
+
+export interface SavedViewFilters {
+	categoryTagIds?: string[];
+	areaTagIds?: string[];
+	customTagIds?: string[];
+	source?: string;
+}
+
+export type SavedView = Database['public']['Tables']['saved_views']['Row'];
+export type SavedViewInsert = Database['public']['Tables']['saved_views']['Insert'];
 

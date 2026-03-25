@@ -1,0 +1,516 @@
+<script lang="ts">
+	import type { Place, Tag, Collection } from '$lib/types/database';
+	import PlaceCard from '$lib/components/PlaceCard.svelte';
+	import PlaceListItem from '$lib/components/PlaceListItem.svelte';
+	import { buildPlaceTagsMap, refreshTagsData } from '$lib/stores/places.svelte';
+	import {
+		updateCollection,
+		addPlacesToCollection,
+		removePlaceFromCollection,
+		enableSharing,
+		disableSharing
+	} from '$lib/stores/collections.svelte';
+	import { showToast, getToasts, dismissToast } from '$lib/stores/toasts.svelte';
+
+	let { data } = $props();
+	let supabase = $derived(data.supabase);
+	let session = $derived(data.session);
+
+	let collection = $state<Collection>((data as any).collection);
+	let places = $state<Place[]>((data as any).places ?? []);
+	let placeIds = $state<string[]>((data as any).placeIds ?? []);
+	let allTags = $state<Tag[]>((data as any).tags ?? []);
+	let placeTagsMap = $state<Record<string, Tag[]>>(
+		buildPlaceTagsMap((data as any).tags ?? [], (data as any).placeTags ?? [])
+	);
+	let allPlaces = $state<Place[]>((data as any).allPlaces ?? []);
+
+	let toasts = $derived(getToasts());
+	let viewMode = $state<'grid' | 'list'>('grid');
+	let sortBy = $state<'newest' | 'az' | 'rating'>('newest');
+	let search = $state('');
+	let showAddModal = $state(false);
+	let addSearch = $state('');
+	let addTagFilter = $state<Record<string, boolean>>({});
+	let editingName = $state(false);
+	let editName = $state(collection.name);
+	let editingDesc = $state(false);
+	let editDesc = $state(collection.description ?? '');
+
+	let selectedPlaceId = $state<string | null>(null);
+	let isMobile = $state(false);
+
+	$effect(() => {
+		function check() { isMobile = window.innerWidth < 1024; }
+		check();
+		window.addEventListener('resize', check);
+		return () => window.removeEventListener('resize', check);
+	});
+
+	let filteredPlaces = $derived(
+		places.filter((p) => {
+			if (!search) return true;
+			const s = search.toLowerCase();
+			return (
+				p.title.toLowerCase().includes(s) ||
+				(p.address ?? '').toLowerCase().includes(s) ||
+				(p.category ?? '').toLowerCase().includes(s)
+			);
+		})
+	);
+
+	let sortedPlaces = $derived(
+		[...filteredPlaces].sort((a, b) => {
+			switch (sortBy) {
+				case 'az': return a.title.localeCompare(b.title);
+				case 'rating': return (b.rating ?? 0) - (a.rating ?? 0);
+				default: return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+			}
+		})
+	);
+
+	let userTags = $derived(allTags.filter((t) => t.source === 'user').sort((a, b) => a.name.localeCompare(b.name)));
+	let addSelectedTagIds = $derived(Object.keys(addTagFilter).filter((id) => addTagFilter[id]));
+
+	let nonMemberPlaces = $derived(
+		allPlaces.filter((p) => !placeIds.includes(p.id)).filter((p) => {
+			if (addSearch) {
+				const s = addSearch.toLowerCase();
+				const matchesText = p.title.toLowerCase().includes(s) || (p.area ?? '').toLowerCase().includes(s) || (p.category ?? '').toLowerCase().includes(s);
+				if (!matchesText) return false;
+			}
+			if (addSelectedTagIds.length > 0) {
+				const pTagIds = (placeTagsMap[p.id] ?? []).map((t) => t.id);
+				if (!addSelectedTagIds.every((id) => pTagIds.includes(id))) return false;
+			}
+			return true;
+		})
+	);
+
+	function toggleAddTagFilter(tagId: string) {
+		const copy = { ...addTagFilter };
+		if (copy[tagId]) { delete copy[tagId]; } else { copy[tagId] = true; }
+		addTagFilter = copy;
+	}
+
+	async function refreshTags() {
+		const result = await refreshTagsData(supabase);
+		allTags = result.tags;
+		placeTagsMap = buildPlaceTagsMap(allTags, result.placeTags);
+	}
+
+	async function handleRemovePlace(placeId: string) {
+		await removePlaceFromCollection(supabase, collection.id, placeId);
+		placeIds = placeIds.filter((id) => id !== placeId);
+		places = places.filter((p) => p.id !== placeId);
+		showToast('info', '', 'Removed from collection');
+	}
+
+	async function handleAddPlace(placeId: string) {
+		if (placeIds.includes(placeId)) return;
+		await addPlacesToCollection(supabase, collection.id, [placeId]);
+		placeIds = [...placeIds, placeId];
+		const fullPlace = allPlaces.find((p) => p.id === placeId);
+		if (fullPlace) {
+			const { data: placeData } = await supabase
+				.from('places')
+				.select('id, user_id, title, note, url, source_list, created_at, google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at')
+				.eq('id', placeId)
+				.single();
+			if (placeData) places = [...places, placeData as Place];
+		}
+		showToast('success', '', 'Added to collection');
+	}
+
+	async function handleAddMultiple(ids: string[]) {
+		const newIds = ids.filter((id) => !placeIds.includes(id));
+		if (newIds.length === 0) return;
+		await addPlacesToCollection(supabase, collection.id, newIds);
+		placeIds = [...placeIds, ...newIds];
+		const { data: newPlaces } = await supabase
+			.from('places')
+			.select('id, user_id, title, note, url, source_list, created_at, google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at')
+			.in('id', newIds);
+		if (newPlaces) places = [...places, ...(newPlaces as Place[])];
+		showToast('success', '', `Added ${newIds.length} places`);
+		showAddModal = false;
+	}
+
+	async function saveName() {
+		const trimmed = editName.trim();
+		if (!trimmed || trimmed === collection.name) { editingName = false; return; }
+		const ok = await updateCollection(supabase, collection.id, { name: trimmed });
+		if (ok) { collection = { ...collection, name: trimmed }; }
+		editingName = false;
+	}
+
+	async function saveDescription() {
+		const trimmed = editDesc.trim();
+		if (trimmed === (collection.description ?? '')) { editingDesc = false; return; }
+		const ok = await updateCollection(supabase, collection.id, { description: trimmed || undefined });
+		if (ok) { collection = { ...collection, description: trimmed || null }; }
+		editingDesc = false;
+	}
+
+	async function toggleSharing() {
+		if (collection.visibility === 'link_access') {
+			const ok = await disableSharing(supabase, collection.id);
+			if (ok) {
+				collection = { ...collection, visibility: 'private', share_slug: null };
+				showToast('info', '', 'Sharing disabled');
+			}
+		} else {
+			const slug = await enableSharing(supabase, collection.id);
+			if (slug) {
+				collection = { ...collection, visibility: 'link_access', share_slug: slug };
+				showToast('success', '', 'Sharing enabled');
+			}
+		}
+	}
+
+	function copyShareLink() {
+		if (!collection.share_slug) return;
+		const url = `${window.location.origin}/c/${collection.share_slug}`;
+		navigator.clipboard.writeText(url);
+		showToast('success', '', 'Link copied to clipboard');
+	}
+
+	function handleCardSelect(placeId: string) {
+		selectedPlaceId = placeId;
+	}
+
+	function updateNote(placeId: string, note: string) {
+		places = places.map((p) => (p.id === placeId ? { ...p, note } : p));
+	}
+
+	function toggleTag(_tagId: string) { /* noop on collection detail */ }
+</script>
+
+<svelte:head>
+	<title>{collection.name} — MapOrganizer</title>
+</svelte:head>
+
+<div class="mx-auto max-w-4xl px-3 py-4 sm:px-6 sm:py-8">
+	<!-- Breadcrumb -->
+	<div class="mb-3 flex items-center gap-1.5 text-xs text-warm-400 sm:mb-4 sm:text-sm">
+		<a href="/collections" class="transition-colors hover:text-warm-600">Collections</a>
+		<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6" /></svg>
+		<span class="font-semibold text-warm-600">{collection.name}</span>
+	</div>
+
+	<!-- Header -->
+	<div class="mb-4 sm:mb-6">
+		<div class="flex items-start justify-between gap-3">
+			<div class="min-w-0 flex-1">
+				{#if editingName}
+					<input
+						type="text"
+						bind:value={editName}
+						onkeydown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') editingName = false; }}
+						onblur={saveName}
+						class="w-full rounded-lg border border-brand-300 bg-white px-2 py-1 text-xl font-extrabold text-warm-800 focus:outline-none focus:ring-2 focus:ring-brand-400/30 sm:text-2xl"
+						autofocus
+					/>
+				{:else}
+					<h1
+						class="cursor-pointer text-xl font-extrabold text-warm-800 transition-colors hover:text-brand-600 sm:text-2xl"
+						onclick={() => { editingName = true; editName = collection.name; }}
+					>
+						{collection.name}
+					</h1>
+				{/if}
+
+				{#if editingDesc}
+					<input
+						type="text"
+						bind:value={editDesc}
+						onkeydown={(e) => { if (e.key === 'Enter') saveDescription(); if (e.key === 'Escape') editingDesc = false; }}
+						onblur={saveDescription}
+						placeholder="Add a description..."
+						class="mt-1 w-full rounded-lg border border-warm-200 bg-white px-2 py-1 text-xs text-warm-500 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:text-sm"
+						autofocus
+					/>
+				{:else}
+					<p
+						class="mt-1 cursor-pointer text-xs text-warm-400 transition-colors hover:text-warm-600 sm:text-sm"
+						onclick={() => { editingDesc = true; editDesc = collection.description ?? ''; }}
+					>
+						{collection.description || 'Add a description...'}
+					</p>
+				{/if}
+			</div>
+
+			<!-- Actions: Share + Add -->
+			<div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
+				<!-- Share button -->
+				{#if collection.visibility === 'link_access'}
+					<button
+						onclick={copyShareLink}
+						class="inline-flex items-center gap-1 rounded-lg border border-sage-200 bg-sage-50 px-2 py-1 text-[10px] font-bold text-sage-700 transition-colors hover:bg-sage-100 sm:px-3 sm:py-1.5 sm:text-xs"
+					>
+						<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+							<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+						</svg>
+						<span class="hidden sm:inline">Copy Link</span>
+					</button>
+				{/if}
+				<button
+					onclick={toggleSharing}
+					class="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold transition-colors sm:px-3 sm:py-1.5 sm:text-xs
+						{collection.visibility === 'link_access'
+							? 'border-sage-200 text-sage-600 hover:bg-sage-50'
+							: 'border-warm-200 text-warm-500 hover:bg-warm-50'}"
+				>
+					<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						{#if collection.visibility === 'link_access'}
+							<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+						{:else}
+							<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+							<line x1="1" y1="1" x2="23" y2="23" />
+						{/if}
+					</svg>
+					{collection.visibility === 'link_access' ? 'Public' : 'Private'}
+				</button>
+				<button
+					onclick={() => { showAddModal = true; }}
+					class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-[10px] font-bold text-white transition-colors hover:bg-brand-700 sm:px-3 sm:py-1.5 sm:text-xs"
+				>
+					<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+					</svg>
+					<span class="hidden sm:inline">Add Places</span>
+				</button>
+			</div>
+		</div>
+	</div>
+
+	<!-- Sort + view toggle -->
+	<div class="mb-3 flex items-center justify-between sm:mb-4">
+		<p class="text-[11px] font-semibold text-warm-500 sm:text-sm">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</p>
+		<div class="flex items-center gap-1.5 sm:gap-2">
+			<!-- Search within collection -->
+			<div class="relative">
+				<svg class="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+				</svg>
+				<input
+					type="text"
+					bind:value={search}
+					placeholder="Search..."
+					class="w-28 rounded-md border border-warm-200 bg-white py-1 pl-7 pr-2 text-[10px] font-medium text-warm-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:w-40 sm:text-xs"
+				/>
+			</div>
+			<select
+				bind:value={sortBy}
+				class="rounded-md border border-warm-200 bg-white px-1.5 py-1 text-[10px] font-semibold text-warm-600 focus:border-brand-400 focus:outline-none sm:text-[11px]"
+			>
+				<option value="newest">Recent</option>
+				<option value="az">A–Z</option>
+				<option value="rating">Rating</option>
+			</select>
+			<div class="flex items-center gap-0.5 rounded-md border border-warm-200 bg-white p-0.5">
+				<button
+					onclick={() => { viewMode = 'grid'; }}
+					class="rounded p-1.5 transition-colors {viewMode === 'grid' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
+					aria-label="Grid view"
+				>
+					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+					</svg>
+				</button>
+				<button
+					onclick={() => { viewMode = 'list'; }}
+					class="rounded p-1.5 transition-colors {viewMode === 'list' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
+					aria-label="List view"
+				>
+					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
+						<line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+					</svg>
+				</button>
+			</div>
+		</div>
+	</div>
+
+	<!-- Places -->
+	{#if sortedPlaces.length === 0}
+		<div class="py-16 text-center">
+			<svg class="mx-auto h-12 w-12 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+				<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+			</svg>
+			<p class="mt-3 text-sm text-warm-500">
+				{places.length === 0 ? 'This collection is empty' : 'No places match your search'}
+			</p>
+			{#if places.length === 0}
+				<button
+					onclick={() => { showAddModal = true; }}
+					class="mt-2 text-sm font-semibold text-brand-600 hover:text-brand-700"
+				>
+					Add some places
+				</button>
+			{/if}
+		</div>
+	{:else if viewMode === 'grid'}
+		<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4">
+			{#each sortedPlaces as place (place.id)}
+				<PlaceCard
+					{place}
+					placeTags={placeTagsMap[place.id] ?? []}
+					{allTags}
+					{supabase}
+					userId={session?.user?.id ?? ''}
+					enrichingId={null}
+					onEnrich={() => {}}
+					onDelete={() => handleRemovePlace(place.id)}
+					onTagClick={toggleTag}
+					onTagsChanged={refreshTags}
+					onNoteChanged={updateNote}
+					selected={selectedPlaceId === place.id}
+					onSelect={handleCardSelect}
+				/>
+			{/each}
+		</div>
+	{:else}
+		<div class="overflow-hidden rounded-2xl border border-warm-200 bg-white divide-y divide-warm-100">
+			{#each sortedPlaces as place (place.id)}
+				<PlaceListItem
+					{place}
+					placeTags={placeTagsMap[place.id] ?? []}
+					{allTags}
+					{supabase}
+					userId={session?.user?.id ?? ''}
+					onTagClick={toggleTag}
+					onTagsChanged={refreshTags}
+					onNoteChanged={updateNote}
+					onDelete={() => handleRemovePlace(place.id)}
+					selected={selectedPlaceId === place.id}
+					onSelect={handleCardSelect}
+				/>
+			{/each}
+		</div>
+	{/if}
+</div>
+
+<!-- Add places modal -->
+{#if showAddModal}
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="fixed inset-0 z-50 flex items-end justify-center sm:items-center" onclick={() => { showAddModal = false; addSearch = ''; addTagFilter = {}; }}>
+		<div class="absolute inset-0 bg-warm-900/40 backdrop-blur-sm"></div>
+		<div
+			class="relative z-10 flex max-h-[85dvh] w-full flex-col rounded-t-2xl border border-warm-200 bg-white shadow-xl sm:max-w-lg sm:rounded-2xl"
+			onclick={(e) => e.stopPropagation()}
+		>
+			<div class="flex items-center justify-between border-b border-warm-100 px-4 py-3 sm:px-5">
+				<h2 class="text-sm font-bold text-warm-800 sm:text-base">Add places to {collection.name}</h2>
+				<button onclick={() => { showAddModal = false; addSearch = ''; addTagFilter = {}; }} class="rounded-lg p-1.5 text-warm-400 hover:bg-warm-100 hover:text-warm-600" aria-label="Close">
+					<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+					</svg>
+				</button>
+			</div>
+
+			<!-- Search bar -->
+			<div class="border-b border-warm-100 px-4 py-2">
+				<div class="relative">
+					<svg class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+					</svg>
+					<input
+						type="text"
+						bind:value={addSearch}
+						placeholder="Search your places..."
+						class="w-full rounded-lg border border-warm-200 bg-warm-50 py-1.5 pl-8 pr-3 text-sm font-medium text-warm-700 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20"
+						autofocus
+					/>
+				</div>
+
+				<!-- Tag filter pills -->
+				{#if userTags.length > 0}
+					<div class="mt-2 flex flex-wrap items-center gap-1.5">
+						<span class="text-[10px] font-semibold text-warm-400">Tags:</span>
+						{#each userTags as tag (tag.id)}
+							<button
+								onclick={() => toggleAddTagFilter(tag.id)}
+								class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold transition-all
+									{addTagFilter[tag.id]
+										? 'text-white shadow-sm ring-1 ring-offset-1'
+										: 'text-white opacity-60 hover:opacity-90'}"
+								style="background-color: {tag.color ?? '#6b7280'}; {addTagFilter[tag.id] ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
+							>
+								{tag.name}
+								{#if addTagFilter[tag.id]}
+									<svg class="h-2 w-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+										<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+									</svg>
+								{/if}
+							</button>
+						{/each}
+						{#if addSelectedTagIds.length > 0}
+							<button
+								onclick={() => { addTagFilter = {}; }}
+								class="text-[10px] font-medium text-warm-400 hover:text-warm-600"
+							>Clear</button>
+						{/if}
+					</div>
+				{/if}
+			</div>
+
+			<div class="flex-1 overflow-y-auto px-2 py-2 sm:px-3">
+				{#each nonMemberPlaces as p (p.id)}
+					{@const pTags = (placeTagsMap[p.id] ?? []).filter((t) => t.source === 'user')}
+					<button
+						onclick={() => handleAddPlace(p.id)}
+						class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-warm-50"
+					>
+						<svg class="h-4 w-4 shrink-0 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+						</svg>
+						<div class="min-w-0 flex-1">
+							<p class="truncate text-sm font-semibold text-warm-800">{p.title}</p>
+							<div class="flex items-center gap-1.5">
+								<span class="shrink-0 truncate text-[11px] text-warm-400">{p.area ? `${p.area} · ` : ''}{p.category ?? ''}</span>
+								{#if pTags.length > 0}
+									<span class="text-warm-300">·</span>
+									{#each pTags.slice(0, 2) as tag (tag.id)}
+										<span
+											class="shrink-0 rounded-full px-1.5 py-px text-[9px] font-semibold text-white"
+											style="background-color: {tag.color ?? '#6b7280'}"
+										>{tag.name}</span>
+									{/each}
+									{#if pTags.length > 2}
+										<span class="text-[9px] font-bold text-warm-400">+{pTags.length - 2}</span>
+									{/if}
+								{/if}
+							</div>
+						</div>
+						{#if p.rating}
+							<span class="shrink-0 text-xs font-bold text-warm-500"><span class="text-brand-500">★</span> {p.rating.toFixed(1)}</span>
+						{/if}
+					</button>
+				{:else}
+					<p class="py-8 text-center text-sm text-warm-400">
+						{addSearch ? 'No matching places' : 'All your places are already in this collection'}
+					</p>
+				{/each}
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Toasts -->
+{#if toasts.length > 0}
+	<div class="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2 sm:bottom-8">
+		{#each toasts as toast (toast.id)}
+			<div
+				class="flex items-center gap-2 rounded-xl px-4 py-2.5 shadow-lg backdrop-blur-sm animate-in
+					{toast.type === 'success' ? 'border border-sage-200/60 bg-sage-50/95 text-sage-800' : ''}
+					{toast.type === 'error' ? 'border border-red-200/60 bg-red-50/95 text-red-700' : ''}
+					{toast.type === 'info' ? 'border border-blue-200/60 bg-blue-50/95 text-blue-800' : ''}"
+			>
+				<span class="text-xs font-medium sm:text-sm">{toast.message}</span>
+			</div>
+		{/each}
+	</div>
+{/if}

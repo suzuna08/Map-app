@@ -105,6 +105,13 @@
 				>
 					My Places
 				</a>
+				<a
+					href="/collections"
+					class="rounded-lg px-2 py-1 text-xs font-bold text-warm-600 transition-colors hover:bg-warm-100 hover:text-warm-800 sm:px-3 sm:py-1.5 sm:text-sm"
+				>
+					<span class="hidden sm:inline">My Collections</span>
+					<span class="sm:hidden">Collections</span>
+				</a>
 				<button
 					onclick={() => { showAddModal = true; }}
 					class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700 sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-sm"
