@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { fetchPlaceDetails } from '$lib/google-places';
 import type { Place } from '$lib/types/database';
 import { upsertSystemTags } from '$lib/tag-utils';
+import { computeIntelTags, type IntelTagResult } from '$lib/intel-tagging';
 
 export const POST: RequestHandler = async ({ locals }) => {
 	const session = locals.session;
@@ -27,12 +28,13 @@ export const POST: RequestHandler = async ({ locals }) => {
 
 	let enrichedCount = 0;
 	const errors: string[] = [];
+	const intelResults: Array<{ place_id: string; title: string; intel: IntelTagResult }> = [];
 
 	for (const place of places) {
 		try {
 			const details = await fetchPlaceDetails(place.url!, place.title);
 			if (details) {
-				const { display_name: _, ...dbFields } = details;
+				const { display_name: _, types: _types, ...dbFields } = details;
 				await locals.supabase
 					.from('places')
 					.update({
@@ -42,6 +44,10 @@ export const POST: RequestHandler = async ({ locals }) => {
 					.eq('id', place.id);
 
 				await upsertSystemTags(locals.supabase, user.id, place.id, details.category, details.area);
+
+				const intel = computeIntelTags(details.primary_type, details.types);
+				intelResults.push({ place_id: place.id, title: place.title, intel });
+
 				enrichedCount++;
 			}
 		} catch (e) {
@@ -55,6 +61,14 @@ export const POST: RequestHandler = async ({ locals }) => {
 		enriched: enrichedCount,
 		total: places.length,
 		errors,
+		intel_results: intelResults.map((r) => ({
+			place_id: r.place_id,
+			title: r.title,
+			primary_category: r.intel.primary_category,
+			operational_status: r.intel.operational_status,
+			market_niche: r.intel.market_niche,
+			suggested_tags: r.intel.suggested_tags,
+		})),
 		message: `Enriched ${enrichedCount}/${places.length} places`
 	});
 };

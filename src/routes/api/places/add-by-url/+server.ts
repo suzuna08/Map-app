@@ -11,6 +11,7 @@ import {
 } from '$lib/google-places';
 import type { Place } from '$lib/types/database';
 import { upsertSystemTags } from '$lib/tag-utils';
+import { computeIntelTags, buildMarketDiscussionOutput } from '$lib/intel-tagging';
 
 const NO_CACHE_HEADERS = {
 	'Cache-Control': 'no-store, no-cache, must-revalidate',
@@ -210,7 +211,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	// --- Insert ---
-	const { display_name, ...dbFields } = details;
+	const { display_name, types: _types, ...dbFields } = details;
 
 	// Build a canonical Google Maps URL from the place ID when the input
 	// was a share.google link or other URL that doesn't work as a permalink.
@@ -246,8 +247,22 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		console.log('[add-by-url] NEW, context tags applied:', contextTagsApplied);
 	}
 
+	const intelResult = computeIntelTags(details.primary_type, details.types);
+
 	return json(
-		{ place, duplicate: false, contextTagsApplied, contextTagsRequested: contextTagIds.length },
+		{
+			place,
+			duplicate: false,
+			contextTagsApplied,
+			contextTagsRequested: contextTagIds.length,
+			intel: {
+				primary_category: intelResult.primary_category,
+				operational_status: intelResult.operational_status,
+				market_niche: intelResult.market_niche,
+				discussion_pillar: intelResult.discussion_pillar,
+				suggested_tags: intelResult.suggested_tags,
+			}
+		},
 		{ status: 201, headers: NO_CACHE_HEADERS }
 	);
 };

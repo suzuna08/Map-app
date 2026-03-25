@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { fetchPlaceDetails } from '$lib/google-places';
 import type { Place } from '$lib/types/database';
 import { upsertSystemTags } from '$lib/tag-utils';
+import { computeIntelTags } from '$lib/intel-tagging';
 
 export const POST: RequestHandler = async ({ params, locals }) => {
 	const session = locals.session;
@@ -40,7 +41,7 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 		throw error(502, 'Could not fetch place details from Google');
 	}
 
-	const { display_name: _, ...dbFields } = details;
+	const { display_name: _, types: _types, ...dbFields } = details;
 	const { error: updateError } = await locals.supabase
 		.from('places')
 		.update({
@@ -55,6 +56,18 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 
 	await upsertSystemTags(locals.supabase, user.id, placeId as string, details.category, details.area);
 
+	const intelResult = computeIntelTags(details.primary_type, details.types);
+
 	const enrichedPlace = { ...place, ...details, enriched_at: new Date().toISOString() };
-	return json({ place: enrichedPlace, cached: false });
+	return json({
+		place: enrichedPlace,
+		cached: false,
+		intel: {
+			primary_category: intelResult.primary_category,
+			operational_status: intelResult.operational_status,
+			market_niche: intelResult.market_niche,
+			discussion_pillar: intelResult.discussion_pillar,
+			suggested_tags: intelResult.suggested_tags,
+		}
+	});
 };

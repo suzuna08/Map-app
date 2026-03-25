@@ -71,6 +71,31 @@ a,
 	filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.3));
 }
 
+/* ---- Geolocate control ---- */
+
+.maplibregl-ctrl-geolocate {
+	background: white !important;
+	border-radius: 8px !important;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
+}
+
+.maplibregl-ctrl-geolocate .maplibregl-ctrl-icon {
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' viewBox='0 0 24 24' stroke='%235a5042' stroke-width='2'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Cpath d='M12 2v2m0 16v2M2 12h2m16 0h2'/%3E%3C/svg%3E") !important;
+}
+
+.maplibregl-ctrl-geolocate.maplibregl-ctrl-geolocate-active .maplibregl-ctrl-icon {
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' viewBox='0 0 24 24' stroke='%23a8935f' stroke-width='2'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Cpath d='M12 2v2m0 16v2M2 12h2m16 0h2'/%3E%3C/svg%3E") !important;
+}
+
+.maplibregl-user-location-dot {
+	background-color: var(--color-brand-500) !important;
+	box-shadow: 0 0 0 3px rgba(168, 147, 95, 0.3) !important;
+}
+
+.maplibregl-user-location-dot::before {
+	background-color: var(--color-brand-400) !important;
+}
+
 /* ---- Map popups ---- */
 
 .map-popup-warm .maplibregl-popup-content {

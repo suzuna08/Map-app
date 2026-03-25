@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Place, Tag } from '$lib/types/database';
+	import type { Place, Tag, Collection, BrowseScope } from '$lib/types/database';
 	import TagSidebar from '$lib/components/TagSidebar.svelte';
 	import PlaceCard from '$lib/components/PlaceCard.svelte';
 	import PlaceListItem from '$lib/components/PlaceListItem.svelte';
@@ -12,15 +12,40 @@
 	import { saveTagOrder } from '$lib/tag-order';
 	import { getToasts, showToast, dismissToast } from '$lib/stores/toasts.svelte';
 	import { loadPlacesData, refreshTagsData, buildPlaceTagsMap, removeTagsFromPlace, applyTagsToPlace } from '$lib/stores/places.svelte';
+	import { loadCollections, addPlaceToCollection, removePlaceFromCollection, isPlaceInCollection, optimisticAdd, optimisticRemove } from '$lib/stores/collections.svelte';
+	import type { CollectionMemberMap } from '$lib/stores/collections.svelte';
 
 	let { data } = $props();
 	let supabase = $derived(data.supabase);
 	let session = $derived(data.session);
 
-	let places = $state<Place[]>([]);
-	let allTags = $state<Tag[]>([]);
-	let placeTagsMap = $state<Record<string, Tag[]>>({});
-	let loading = $state(true);
+	function initFromServer() {
+		const d = data as any;
+		if (d.serverPlaces?.length !== undefined) {
+			const tags = (d.serverTags ?? []) as Tag[];
+			const ptMap = buildPlaceTagsMap(tags, (d.serverPlaceTags ?? []) as { place_id: string; tag_id: string }[]);
+			const colls = (d.serverCollections ?? []) as Collection[];
+			const cpm: CollectionMemberMap = {};
+			for (const row of ((d.serverListPlaces ?? []) as { list_id: string; place_id: string }[])) {
+				(cpm[row.list_id] ??= []).push(row.place_id);
+			}
+			return {
+				places: (d.serverPlaces ?? []) as Place[],
+				tags,
+				ptMap,
+				colls,
+				cpm,
+				loaded: true
+			};
+		}
+		return { places: [] as Place[], tags: [] as Tag[], ptMap: {} as Record<string, Tag[]>, colls: [] as Collection[], cpm: {} as CollectionMemberMap, loaded: false };
+	}
+
+	const serverData = initFromServer();
+	let places = $state<Place[]>(serverData.places);
+	let allTags = $state<Tag[]>(serverData.tags);
+	let placeTagsMap = $state<Record<string, Tag[]>>(serverData.ptMap);
+	let loading = $state(!serverData.loaded);
 	let search = $state('');
 	let selectedTagMap = $state<Record<string, boolean>>({});
 	let selectedSource = $state('all');
@@ -37,6 +62,12 @@
 	let contextMenuPos = $state({ x: 0, y: 0 });
 
 	let selectedPlaceId = $state<string | null>(null);
+
+	let collections = $state<Collection[]>(serverData.colls);
+	let collectionPlacesMap = $state<CollectionMemberMap>(serverData.cpm);
+	let browseScope = $state<BrowseScope>({ type: 'all' });
+	let collectionPickerPlaceId = $state<string | null>(null);
+	let showAddToCollection = $state(false);
 
 	let urlAdding = $state(false);
 	let toasts = $derived(getToasts());
@@ -173,17 +204,31 @@
 		}
 	}
 
-	$effect(() => {
-		if (session) loadData();
-	});
-
 	async function loadData() {
 		loading = true;
-		const result = await loadPlacesData(supabase);
-		places = result.places;
-		allTags = result.tags;
-		placeTagsMap = buildPlaceTagsMap(allTags, result.placeTags);
+		try {
+			const [placeResult, colResult] = await Promise.all([
+				loadPlacesData(supabase),
+				loadCollections(supabase).catch((err) => {
+					console.warn('[loadData] collections failed:', err);
+					return { collections: [] as Collection[], collectionPlacesMap: {} as CollectionMemberMap };
+				})
+			]);
+			places = placeResult.places;
+			allTags = placeResult.tags;
+			placeTagsMap = buildPlaceTagsMap(allTags, placeResult.placeTags);
+			collections = colResult.collections;
+			collectionPlacesMap = colResult.collectionPlacesMap;
+		} catch (err) {
+			console.error('[loadData] failed:', err);
+		}
 		loading = false;
+	}
+
+	async function refreshCollections() {
+		const result = await loadCollections(supabase);
+		collections = result.collections;
+		collectionPlacesMap = result.collectionPlacesMap;
 	}
 
 	async function refreshTags() {
@@ -245,8 +290,25 @@
 	);
 	let hasCustomContext = $derived(selectedCustomIds.length > 0);
 
+	let scopedPlaces = $derived.by(() => {
+		const scope = browseScope;
+		if (scope.type === 'collection') {
+			const members = collectionPlacesMap[scope.collectionId];
+			return members ? places.filter((p) => members.includes(p.id)) : [];
+		}
+		return places;
+	});
+
+	let activeCollectionName = $derived.by(() => {
+		const scope = browseScope;
+		if (scope.type === 'collection') {
+			return collections.find((c) => c.id === scope.collectionId)?.name ?? 'Collection';
+		}
+		return null;
+	});
+
 	let filteredPlaces = $derived(
-		places.filter((p) => {
+		scopedPlaces.filter((p) => {
 			const pTags = placeTagsMap[p.id] ?? [];
 			const pTagIds = pTags.map((t) => t.id);
 			const searchLower = search.toLowerCase();
@@ -387,10 +449,39 @@
 		selectedPlaceId = placeId;
 	}
 
+	function openCollectionPicker(placeId: string) {
+		collectionPickerPlaceId = collectionPickerPlaceId === placeId ? null : placeId;
+	}
+
+	async function togglePlaceInCollection(placeId: string, collectionId: string) {
+		const inCol = isPlaceInCollection(collectionPlacesMap, collectionId, placeId);
+		if (inCol) {
+			collectionPlacesMap = optimisticRemove(collectionPlacesMap, collectionId, placeId);
+			await removePlaceFromCollection(supabase, collectionId, placeId);
+			showToast('info', '', 'Removed from collection');
+		} else {
+			collectionPlacesMap = optimisticAdd(collectionPlacesMap, collectionId, placeId);
+			await addPlaceToCollection(supabase, collectionId, placeId);
+			showToast('success', '', 'Added to collection');
+		}
+	}
+
+	function closeCollectionPicker() {
+		collectionPickerPlaceId = null;
+	}
+
 	// Clear selection when filtered places change and the selected place is no longer visible
 	$effect(() => {
 		if (selectedPlaceId && !filteredPlaces.some(p => p.id === selectedPlaceId)) {
 			selectedPlaceId = null;
+		}
+	});
+
+	// Reset scope if active collection is deleted
+	$effect(() => {
+		const scope = browseScope;
+		if (scope.type === 'collection' && !collections.some(c => c.id === scope.collectionId)) {
+			browseScope = { type: 'all' };
 		}
 	});
 </script>
@@ -412,6 +503,11 @@
 		onTagsChanged={refreshTags}
 		mobileOpen={sidebarOpen}
 		onMobileClose={() => { sidebarOpen = false; }}
+		{collections}
+		{collectionPlacesMap}
+		{browseScope}
+		onScopeChange={(scope) => { browseScope = scope; }}
+		onCollectionsChanged={refreshCollections}
 	/>
 
 	<!-- Split layout: content + map -->
@@ -791,6 +887,28 @@
 				/>
 			{/if}
 
+			<!-- Collection scope banner -->
+			{#if browseScope.type === 'collection' && activeCollectionName}
+				<div class="mb-1.5 flex items-center gap-2 rounded-lg border border-brand-200/60 bg-brand-50/60 px-2.5 py-1.5 sm:mb-3 sm:rounded-xl sm:px-3 sm:py-2">
+					<svg class="h-3.5 w-3.5 shrink-0 text-brand-500 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+					</svg>
+					<span class="flex-1 truncate text-xs font-bold text-brand-700 sm:text-sm">{activeCollectionName}</span>
+					<button
+						onclick={() => { showAddToCollection = true; }}
+						class="shrink-0 rounded-md bg-brand-500 px-2 py-0.5 text-[10px] font-bold text-white transition-colors hover:bg-brand-600 sm:text-xs"
+					>
+						+ Add places
+					</button>
+					<button
+						onclick={() => { browseScope = { type: 'all' }; }}
+						class="shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold text-brand-500 transition-colors hover:bg-brand-100 sm:text-xs"
+					>
+						Show all
+					</button>
+				</div>
+			{/if}
+
 			<!-- Results count + sort + view toggle -->
 			<div class="mb-1.5 flex items-center justify-between sm:mb-4">
 				<div class="flex items-center gap-2">
@@ -892,6 +1010,12 @@
 						onTagContextMenu={handleTagContextMenu}
 						selected={selectedPlaceId === place.id}
 						onSelect={handleCardSelect}
+						{collections}
+						{collectionPlacesMap}
+						collectionPickerOpen={collectionPickerPlaceId === place.id}
+						onCollectionPickerToggle={openCollectionPicker}
+						onCollectionPickerClose={closeCollectionPicker}
+						onToggleCollection={togglePlaceInCollection}
 					/>
 				{/each}
 			</div>
@@ -911,6 +1035,9 @@
 						onDelete={deletePlace}
 						selected={selectedPlaceId === place.id}
 						onSelect={handleCardSelect}
+						{collections}
+						{collectionPlacesMap}
+						onToggleCollection={togglePlaceInCollection}
 					/>
 				{/each}
 			</div>
@@ -924,6 +1051,51 @@
 			onClose={() => { showAddPlace = false; }}
 			onPlaceAdded={() => { loadData(); }}
 		/>
+	{/if}
+
+	<!-- Add existing places to collection modal -->
+	{#if showAddToCollection && browseScope.type === 'collection'}
+		{@const scopeId = browseScope.collectionId}
+		{@const members = collectionPlacesMap[scopeId] ?? []}
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="fixed inset-0 z-50 flex items-end justify-center sm:items-center" onclick={() => { showAddToCollection = false; }}>
+			<div class="absolute inset-0 bg-warm-900/40 backdrop-blur-sm"></div>
+			<div
+				class="relative z-10 flex max-h-[85dvh] w-full flex-col rounded-t-2xl border border-warm-200 bg-white shadow-xl sm:max-w-lg sm:rounded-2xl"
+				onclick={(e) => e.stopPropagation()}
+			>
+				<div class="flex items-center justify-between border-b border-warm-100 px-4 py-3 sm:px-5">
+					<h2 class="text-sm font-bold text-warm-800 sm:text-base">Add places to {activeCollectionName}</h2>
+					<button onclick={() => { showAddToCollection = false; }} class="rounded-lg p-1.5 text-warm-400 hover:bg-warm-100 hover:text-warm-600" aria-label="Close">
+						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+						</svg>
+					</button>
+				</div>
+				<div class="flex-1 overflow-y-auto px-2 py-2 sm:px-3">
+					{#each places.filter(p => !members.includes(p.id)) as p (p.id)}
+						<button
+							onclick={async () => { await togglePlaceInCollection(p.id, scopeId); }}
+							class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-warm-50"
+						>
+							<svg class="h-4 w-4 shrink-0 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+							</svg>
+							<div class="min-w-0 flex-1">
+								<p class="truncate text-sm font-semibold text-warm-800">{p.title}</p>
+								<p class="truncate text-[11px] text-warm-400">{p.area ? `${p.area} · ` : ''}{p.category ?? ''}</p>
+							</div>
+							{#if p.rating}
+								<span class="shrink-0 text-xs font-bold text-warm-500"><span class="text-brand-500">★</span> {p.rating.toFixed(1)}</span>
+							{/if}
+						</button>
+					{:else}
+						<p class="py-8 text-center text-sm text-warm-400">All places are already in this collection.</p>
+					{/each}
+				</div>
+			</div>
+		</div>
 	{/if}
 
 	{#if contextMenuTag}

@@ -20,7 +20,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 							...options,
 							path: '/',
 							maxAge: options?.maxAge ?? SESSION_MAX_AGE_SECONDS,
-							httpOnly: true,
+							httpOnly: false,
 							secure: event.url.protocol === 'https:',
 							sameSite: 'lax'
 						});

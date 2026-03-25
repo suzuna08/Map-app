@@ -238,6 +238,136 @@ export interface Database {
 					}
 				];
 			};
+			google_place_type_catalog: {
+				Row: {
+					id: string;
+					type_key: string;
+					can_be_primary: boolean;
+					table_group: string;
+					status: string;
+					created_at: string;
+					updated_at: string;
+				};
+				Insert: {
+					id?: string;
+					type_key: string;
+					can_be_primary?: boolean;
+					table_group?: string;
+					status?: string;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Update: {
+					id?: string;
+					type_key?: string;
+					can_be_primary?: boolean;
+					table_group?: string;
+					status?: string;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Relationships: [];
+			};
+			intel_tag_mappings: {
+				Row: {
+					id: string;
+					google_type_key: string;
+					primary_category: string;
+					operational_status: string;
+					market_niche: string;
+					discussion_pillar: string | null;
+					suggested_tags: string[];
+					market_context: string;
+					created_at: string;
+					updated_at: string;
+				};
+				Insert: {
+					id?: string;
+					google_type_key: string;
+					primary_category: string;
+					operational_status?: string;
+					market_niche?: string;
+					discussion_pillar?: string | null;
+					suggested_tags?: string[];
+					market_context?: string;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Update: {
+					id?: string;
+					google_type_key?: string;
+					primary_category?: string;
+					operational_status?: string;
+					market_niche?: string;
+					discussion_pillar?: string | null;
+					suggested_tags?: string[];
+					market_context?: string;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: 'intel_tag_mappings_google_type_key_fkey';
+						columns: ['google_type_key'];
+						isOneToOne: true;
+						referencedRelation: 'google_place_type_catalog';
+						referencedColumns: ['type_key'];
+					}
+				];
+			};
+			place_intel_tags: {
+				Row: {
+					id: string;
+					place_id: string;
+					user_id: string;
+					primary_category: string;
+					operational_status: string;
+					market_niche: string;
+					discussion_pillar: string | null;
+					suggested_tags: string[];
+					source_types: string[];
+					source_primary_type: string | null;
+					approved: boolean;
+					computed_at: string;
+				};
+				Insert: {
+					id?: string;
+					place_id: string;
+					user_id: string;
+					primary_category: string;
+					operational_status: string;
+					market_niche: string;
+					discussion_pillar?: string | null;
+					suggested_tags?: string[];
+					source_types?: string[];
+					source_primary_type?: string | null;
+					approved?: boolean;
+					computed_at?: string;
+				};
+				Update: {
+					id?: string;
+					place_id?: string;
+					user_id?: string;
+					primary_category?: string;
+					operational_status?: string;
+					market_niche?: string;
+					discussion_pillar?: string | null;
+					suggested_tags?: string[];
+					source_types?: string[];
+					source_primary_type?: string | null;
+					approved?: boolean;
+					computed_at?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: 'place_intel_tags_place_id_fkey';
+						columns: ['place_id'];
+						isOneToOne: true;
+						referencedRelation: 'places';
+						referencedColumns: ['id'];
+					}
+				];
+			};
 		};
 		Views: Record<string, never>;
 		Functions: Record<string, never>;
@@ -253,6 +383,19 @@ export type Tag = Database['public']['Tables']['tags_table']['Row'];
 export type TagInsert = Database['public']['Tables']['tags_table']['Insert'];
 export type PlaceTag = Database['public']['Tables']['place_tags']['Row'];
 
+export type Collection = Database['public']['Tables']['lists']['Row'];
+export type CollectionInsert = Database['public']['Tables']['lists']['Insert'];
+
+export type BrowseScope =
+	| { type: 'all' }
+	| { type: 'collection'; collectionId: string };
+
 export interface PlaceWithTags extends Place {
 	placeTags?: Tag[];
 }
+
+export type GooglePlaceTypeCatalogRow = Database['public']['Tables']['google_place_type_catalog']['Row'];
+export type IntelTagMappingRow = Database['public']['Tables']['intel_tag_mappings']['Row'];
+export type PlaceIntelTagRow = Database['public']['Tables']['place_intel_tags']['Row'];
+export type PlaceIntelTagInsert = Database['public']['Tables']['place_intel_tags']['Insert'];
+

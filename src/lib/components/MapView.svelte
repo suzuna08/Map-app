@@ -57,6 +57,14 @@
 
 			map.addControl(new ml.NavigationControl({ showCompass: false }), 'top-right');
 			map.addControl(
+				new ml.GeolocateControl({
+					positionOptions: { enableHighAccuracy: true },
+					trackUserLocation: true,
+					showUserHeading: true,
+				}),
+				'top-right'
+			);
+			map.addControl(
 				new ml.AttributionControl({ compact: true }),
 				mapMode === 'default' ? 'bottom-right' : 'top-left'
 			);

@@ -229,6 +229,7 @@ export interface PlaceDetails {
 	google_place_id: string;
 	category: string;
 	primary_type: string | null;
+	types: string[];
 	rating: number | null;
 	rating_count: number | null;
 	price_level: string | null;
@@ -362,6 +363,7 @@ function parsePlaceResult(place: any): PlaceDetails {
 		google_place_id: place.id,
 		category: mapCategory(types),
 		primary_type: place.primaryType || types[0] || null,
+		types,
 		rating: place.rating || null,
 		rating_count: place.userRatingCount || null,
 		price_level: place.priceLevel ? PRICE_MAP[place.priceLevel] || null : null,
