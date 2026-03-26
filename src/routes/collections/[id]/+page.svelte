@@ -3,6 +3,7 @@
 	import PlaceCard from '$lib/components/PlaceCard.svelte';
 	import PlaceListItem from '$lib/components/PlaceListItem.svelte';
 	import { buildPlaceTagsMap, refreshTagsData } from '$lib/stores/places.svelte';
+	import { textColorForBg } from '$lib/tag-colors';
 	import {
 		updateCollection,
 		addPlacesToCollection,
@@ -40,8 +41,14 @@
 	let editingColor = $state(false);
 	let colorPickerEl = $state<HTMLDivElement | null>(null);
 	const COLORS = [
-		'#a8935f', '#bda87a', '#7c8a6a', '#617054', '#978a74',
-		'#5a5042', '#98a485', '#b8c1a8', '#d0c09c', '#776841'
+		'#A5834F', '#8C8B82', '#7489A6', '#936756', '#5B7D8A',
+		'#6A6196'
+	];
+
+	const EMOJI_OPTIONS = [
+		'🍜','🍣','🍰','🍺','☕','🛒','🏪','🎭','🏛️','⛩️',
+		'🌸','🗾','🚃','🏔️','🌊','🎌','📍','⭐','💎','🔖',
+		'🎨','📸','🧳','🏖️','🎵','🧘','🛍️','💡','🏠','❤️',
 	];
 
 	$effect(() => {
@@ -63,6 +70,18 @@
 			showToast('success', '', 'Color updated');
 		}
 		editingColor = false;
+	}
+
+	async function saveEmoji(emoji: string | null) {
+		const prev = collection.emoji;
+		collection = { ...collection, emoji };
+		const ok = await updateCollection(supabase, collection.id, { emoji });
+		if (ok) {
+			showToast('success', '', emoji ? `Icon set to ${emoji}` : 'Icon removed');
+		} else {
+			collection = { ...collection, emoji: prev };
+			showToast('error', '', 'Could not save icon — have you run the emoji migration?');
+		}
 	}
 
 	let selectedPlaceId = $state<string | null>(null);
@@ -91,7 +110,7 @@
 		[...filteredPlaces].sort((a, b) => {
 			switch (sortBy) {
 				case 'az': return a.title.localeCompare(b.title);
-				case 'rating': return (b.rating ?? 0) - (a.rating ?? 0);
+				case 'rating': return (b.user_rating ?? 0) - (a.user_rating ?? 0);
 				default: return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
 			}
 		})
@@ -142,7 +161,7 @@
 		if (fullPlace) {
 			const { data: placeData } = await supabase
 				.from('places')
-				.select('id, user_id, title, note, url, source_list, created_at, google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at')
+				.select('id, user_id, title, note, url, source_list, created_at, google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at, user_rating, user_rated_at')
 				.eq('id', placeId)
 				.single();
 			if (placeData) places = [...places, placeData as Place];
@@ -157,7 +176,7 @@
 		placeIds = [...placeIds, ...newIds];
 		const { data: newPlaces } = await supabase
 			.from('places')
-			.select('id, user_id, title, note, url, source_list, created_at, google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at')
+			.select('id, user_id, title, note, url, source_list, created_at, google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at, user_rating, user_rated_at')
 			.in('id', newIds);
 		if (newPlaces) places = [...places, ...(newPlaces as Place[])];
 		showToast('success', '', `Added ${newIds.length} places`);
@@ -211,6 +230,14 @@
 		places = places.map((p) => (p.id === placeId ? { ...p, note } : p));
 	}
 
+	function updateRating(placeId: string, rating: number | null) {
+		places = places.map((p) =>
+			p.id === placeId
+				? { ...p, user_rating: rating, user_rated_at: rating != null ? new Date().toISOString() : null }
+				: p
+		);
+	}
+
 	function toggleTag(_tagId: string) { /* noop on collection detail */ }
 </script>
 
@@ -232,24 +259,51 @@
 			<div class="min-w-0 flex-1">
 				<div class="flex items-center gap-2.5">
 					<div class="relative" bind:this={colorPickerEl}>
-						<button
-							onclick={() => { editingColor = !editingColor; }}
-							class="h-5 w-5 shrink-0 rounded-full transition-all hover:scale-110 hover:ring-2 hover:ring-warm-300 hover:ring-offset-1 sm:h-6 sm:w-6"
-							style="background-color: {collection.color ?? '#a8935f'}"
-							aria-label="Change collection color"
-						></button>
-						{#if editingColor}
-							<div class="absolute left-0 top-full z-20 mt-2 flex flex-wrap gap-1.5 rounded-xl border border-warm-200 bg-white p-2.5 shadow-lg" style="width: max-content; max-width: 175px;">
+					<button
+						onclick={() => { editingColor = !editingColor; }}
+						class="flex shrink-0 items-center justify-center rounded-full transition-all hover:scale-110 {collection.emoji ? 'h-8 w-8 sm:h-9 sm:w-9' : 'h-5 w-5 sm:h-6 sm:w-6 hover:ring-2 hover:ring-warm-300 hover:ring-offset-1'}"
+						style={collection.emoji
+						? `background-color: #faf7f2; box-shadow: inset 0 0 0 2.5px ${collection.color ?? '#A5834F'}`
+						: `background-color: ${collection.color ?? '#A5834F'}`}
+						aria-label="Change collection color"
+					>
+						{#if collection.emoji}
+							<span class="text-base leading-none sm:text-lg">{collection.emoji}</span>
+						{/if}
+					</button>
+					{#if editingColor}
+						<div class="absolute left-0 top-full z-20 mt-2 rounded-xl border border-warm-200 bg-white p-2.5 shadow-lg" style="width: max-content; max-width: 280px;">
+							<div class="flex flex-wrap gap-1.5">
 								{#each COLORS as color}
 									<button
 										onclick={() => saveColor(color)}
-										class="h-5.5 w-5.5 rounded-full transition-all {collection.color === color ? 'ring-2 ring-offset-1 ring-warm-400 scale-110' : 'opacity-60 hover:opacity-100'}"
+										class="h-5.5 w-5.5 rounded-full transition-all {collection.color === color ? 'ring-2 ring-offset-1 ring-warm-400 scale-110' : 'hover:scale-110'}"
 										style="background-color: {color}"
-										aria-label="Select color {color}"
+										aria-label="Select color"
 									></button>
 								{/each}
 							</div>
-						{/if}
+							<div class="mt-2 border-t border-warm-100 pt-2">
+								<span class="mb-1 block text-[10px] font-bold text-warm-400">Icon</span>
+							<div class="flex flex-wrap gap-1">
+								<button
+									type="button"
+									onclick={(e) => { e.stopPropagation(); saveEmoji(null); }}
+									class="flex h-7 w-7 items-center justify-center rounded text-[10px] text-warm-400 transition-all {!collection.emoji ? 'ring-1.5 ring-warm-400 ring-offset-1 bg-warm-100' : 'hover:bg-warm-50'}"
+									aria-label="No icon"
+								>--</button>
+								{#each EMOJI_OPTIONS as em}
+									<button
+										type="button"
+										onclick={(e) => { e.stopPropagation(); saveEmoji(em); }}
+										class="flex h-7 w-7 items-center justify-center rounded text-sm transition-all {collection.emoji === em ? 'ring-1.5 ring-warm-400 ring-offset-1 bg-warm-100 scale-110' : 'hover:bg-warm-50 hover:scale-110'}"
+										aria-label="Select {em}"
+									>{em}</button>
+								{/each}
+							</div>
+							</div>
+						</div>
+					{/if}
 					</div>
 					<div class="min-w-0 flex-1">
 						{#if editingName}
@@ -355,7 +409,7 @@
 			>
 				<option value="newest">Recent</option>
 				<option value="az">A–Z</option>
-				<option value="rating">Rating</option>
+				<option value="rating">My Rating</option>
 			</select>
 			<div class="flex items-center gap-0.5 rounded-md border border-warm-200 bg-white p-0.5">
 				<button
@@ -414,6 +468,7 @@
 					onTagClick={toggleTag}
 					onTagsChanged={refreshTags}
 					onNoteChanged={updateNote}
+					onRatingChanged={updateRating}
 					selected={selectedPlaceId === place.id}
 					onSelect={handleCardSelect}
 				/>
@@ -431,6 +486,7 @@
 					onTagClick={toggleTag}
 					onTagsChanged={refreshTags}
 					onNoteChanged={updateNote}
+					onRatingChanged={updateRating}
 					onDelete={() => handleRemovePlace(place.id)}
 					selected={selectedPlaceId === place.id}
 					onSelect={handleCardSelect}
@@ -481,11 +537,11 @@
 						{#each userTags as tag (tag.id)}
 							<button
 								onclick={() => toggleAddTagFilter(tag.id)}
-								class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold transition-all
-									{addTagFilter[tag.id]
-										? 'text-white shadow-sm ring-1 ring-offset-1'
-										: 'text-white opacity-60 hover:opacity-90'}"
-								style="background-color: {tag.color ?? '#6b7280'}; {addTagFilter[tag.id] ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
+							class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold transition-all
+								{addTagFilter[tag.id]
+									? 'shadow-sm ring-1 ring-offset-1'
+									: 'opacity-60 hover:opacity-90'}"
+							style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}; {addTagFilter[tag.id] ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
 							>
 								{tag.name}
 								{#if addTagFilter[tag.id]}
@@ -522,9 +578,9 @@
 								{#if pTags.length > 0}
 									<span class="text-warm-300">·</span>
 									{#each pTags.slice(0, 2) as tag (tag.id)}
-										<span
-											class="shrink-0 rounded-full px-1.5 py-px text-[9px] font-semibold text-white"
-											style="background-color: {tag.color ?? '#6b7280'}"
+									<span
+										class="shrink-0 rounded-full px-1.5 py-px text-[9px] font-semibold"
+										style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
 										>{tag.name}</span>
 									{/each}
 									{#if pTags.length > 2}
@@ -533,9 +589,9 @@
 								{/if}
 							</div>
 						</div>
-						{#if p.rating}
-							<span class="shrink-0 text-xs font-bold text-warm-500"><span class="text-brand-500">★</span> {p.rating.toFixed(1)}</span>
-						{/if}
+					{#if p.user_rating}
+						<span class="shrink-0 text-xs font-bold text-warm-500"><span class="text-brand-500">★</span> {p.user_rating.toFixed(1)}</span>
+					{/if}
 					</button>
 				{:else}
 					<p class="py-8 text-center text-sm text-warm-400">

@@ -17,21 +17,64 @@
 	let creating = $state(false);
 
 	const COLORS = [
-		'#a8935f', '#bda87a', '#7c8a6a', '#617054', '#978a74',
-		'#5a5042', '#98a485', '#b8c1a8', '#d0c09c', '#776841'
+		'#A5834F', '#8C8B82', '#7489A6', '#936756', '#5B7D8A',
+		'#6A6196'
 	];
 	let selectedColor = $state(COLORS[0]);
 
+	const EMOJI_OPTIONS = [
+		'🍜','🍣','🍰','🍺','☕','🛒','🏪','🎭','🏛️','⛩️',
+		'🌸','🗾','🚃','🏔️','🌊','🎌','📍','⭐','💎','🔖',
+		'🎨','📸','🧳','🏖️','🎵','🧘','🛍️','💡','🏠','❤️',
+	];
+	let selectedEmoji = $state<string | null>(null);
+
 	const OLD_TO_NEW: Record<string, string> = {
-		'#6366f1': '#a8935f',
-		'#8b5cf6': '#7c8a6a',
-		'#ec4899': '#bda87a',
-		'#f43f5e': '#d0c09c',
-		'#f97316': '#978a74',
-		'#eab308': '#776841',
-		'#22c55e': '#98a485',
-		'#14b8a6': '#617054',
-		'#3b82f6': '#b8c1a8',
+		'#6366f1': '#6A6196',
+		'#8b5cf6': '#6A6196',
+		'#ec4899': '#936756',
+		'#f43f5e': '#936756',
+		'#f97316': '#A5834F',
+		'#eab308': '#A5834F',
+		'#22c55e': '#8C8B82',
+		'#14b8a6': '#5B7D8A',
+		'#3b82f6': '#7489A6',
+		'#7c8a6a': '#8C8B82',
+		'#617054': '#8C8B82',
+		'#98a485': '#8C8B82',
+		'#b8c1a8': '#8C8B82',
+		'#637d8e': '#5B7D8A',
+		'#4d6575': '#5B7D8A',
+		'#7e95a6': '#7489A6',
+		'#a3b3c0': '#7489A6',
+		'#a8935f': '#A5834F',
+		'#bda87a': '#A5834F',
+		'#978a74': '#8C8B82',
+		'#5a5042': '#936756',
+		'#d0c09c': '#A5834F',
+		'#776841': '#A5834F',
+		'#8888b0': '#6A6196',
+		'#8a6a38': '#A5834F',
+		'#8a5848': '#936756',
+		'#6b5244': '#936756',
+		'#605080': '#6A6196',
+		'#4a3830': '#936756',
+		'#354050': '#5B7D8A',
+		'#4d8090': '#5B7D8A',
+		'#3a6868': '#5B7D8A',
+		'#654830': '#A5834F',
+		'#504068': '#6A6196',
+		'#4a7880': '#5B7D8A',
+		'#c0a060': '#A5834F',
+		'#a8a0b8': '#6A6196',
+		'#b09060': '#A5834F',
+		'#a88040': '#A5834F',
+		'#8a8880': '#8C8B82',
+		'#6888a8': '#7489A6',
+		'#9a6050': '#936756',
+		'#6858a0': '#6A6196',
+		'#5a4a40': '#936756',
+		'#2e4050': '#5B7D8A',
 	};
 
 	let migrated = false;
@@ -64,12 +107,13 @@
 		const trimmed = newName.trim();
 		if (!trimmed || creating) return;
 		creating = true;
-		const col = await createCollection(supabase, session?.user?.id ?? '', trimmed, { color: selectedColor });
+		const col = await createCollection(supabase, session?.user?.id ?? '', trimmed, { color: selectedColor, emoji: selectedEmoji ?? undefined });
 		if (col) {
 			showToast('success', '', `Created "${trimmed}"`);
 			newName = '';
 			showCreate = false;
 			selectedColor = COLORS[0];
+			selectedEmoji = null;
 			await refresh();
 		} else {
 			showToast('error', '', 'Could not create collection');
@@ -109,6 +153,15 @@
 			collections = collections.map((c) => c.id === col.id ? { ...c, color } : c);
 		}
 		editingColorId = null;
+	}
+
+	async function handleChangeEmoji(col: Collection, emoji: string | null) {
+		collections = collections.map((c) => c.id === col.id ? { ...c, emoji } : c);
+		const ok = await updateCollection(supabase, col.id, { emoji });
+		if (!ok) {
+			collections = collections.map((c) => c.id === col.id ? { ...c, emoji: col.emoji } : c);
+			showToast('error', '', 'Could not save icon — have you run the emoji migration?');
+		}
 	}
 
 	function formatDate(iso: string): string {
@@ -158,10 +211,29 @@
 						{#each COLORS as color}
 							<button
 								onclick={() => { selectedColor = color; }}
-								class="h-5.5 w-5.5 rounded-full transition-all sm:h-6 sm:w-6 {selectedColor === color ? 'ring-2 ring-offset-1 ring-warm-400 scale-110' : 'opacity-60 hover:opacity-100'}"
+								class="h-5.5 w-5.5 rounded-full transition-all sm:h-6 sm:w-6 {selectedColor === color ? 'ring-2 ring-offset-1 ring-warm-400 scale-110' : 'hover:scale-110'}"
 								style="background-color: {color}"
-								aria-label="Select color {color}"
+								aria-label="Select color"
 							></button>
+						{/each}
+					</div>
+				</div>
+					<div>
+					<label class="mb-1 block text-[11px] font-bold text-warm-500">Icon</label>
+					<div class="flex flex-wrap items-center gap-1" style="max-width: 260px;">
+						<button
+							type="button"
+							onclick={() => { selectedEmoji = null; }}
+							class="flex h-7 w-7 items-center justify-center rounded-md text-[10px] font-medium text-warm-400 transition-all {selectedEmoji === null ? 'ring-2 ring-warm-400 ring-offset-1 bg-warm-100' : 'hover:bg-warm-100'}"
+							aria-label="No icon"
+						>--</button>
+						{#each EMOJI_OPTIONS as em}
+							<button
+								type="button"
+								onclick={() => { selectedEmoji = em; }}
+								class="flex h-7 w-7 items-center justify-center rounded-md text-sm transition-all {selectedEmoji === em ? 'ring-2 ring-warm-400 ring-offset-1 bg-warm-100 scale-110' : 'hover:bg-warm-50 hover:scale-110'}"
+								aria-label="Select {em}"
+							>{em}</button>
 						{/each}
 					</div>
 				</div>
@@ -228,20 +300,41 @@
 								{#if editingColorId === col.id}
 									<!-- svelte-ignore a11y_click_events_have_key_events -->
 									<!-- svelte-ignore a11y_no_static_element_interactions -->
-									<div
-										class="absolute right-0 top-full z-30 mt-1.5 flex flex-wrap gap-1.5 rounded-xl border border-warm-200 bg-white p-2.5 shadow-lg"
-										style="width: max-content; max-width: 175px;"
-										onclick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-									>
+								<div
+									class="absolute right-0 top-full z-30 mt-1.5 rounded-xl border border-warm-200 bg-white p-2.5 shadow-lg"
+									style="width: max-content; max-width: 280px;"
+									onclick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+								>
+									<div class="mb-2 flex flex-wrap gap-1.5">
 										{#each COLORS as color}
 											<button
 												onclick={(e) => { e.preventDefault(); e.stopPropagation(); handleChangeColor(col, color); }}
-												class="h-5.5 w-5.5 rounded-full transition-all {col.color === color ? 'ring-2 ring-offset-1 ring-warm-400 scale-110' : 'opacity-60 hover:opacity-100'}"
+												class="h-5.5 w-5.5 rounded-full transition-all {col.color === color ? 'ring-2 ring-offset-1 ring-warm-400 scale-110' : 'hover:scale-110'}"
 												style="background-color: {color}"
-												aria-label="Select color {color}"
+												aria-label="Select color"
 											></button>
 										{/each}
 									</div>
+									<div class="border-t border-warm-100 pt-2">
+										<span class="mb-1 block text-[10px] font-bold text-warm-400">Icon</span>
+										<div class="flex flex-wrap gap-1">
+											<button
+												type="button"
+												onclick={(e) => { e.preventDefault(); e.stopPropagation(); handleChangeEmoji(col, null); }}
+												class="flex h-7 w-7 items-center justify-center rounded text-[10px] text-warm-400 transition-all {!col.emoji ? 'ring-1.5 ring-warm-400 ring-offset-1 bg-warm-100' : 'hover:bg-warm-50'}"
+												aria-label="No icon"
+											>--</button>
+											{#each EMOJI_OPTIONS as em}
+												<button
+													type="button"
+													onclick={(e) => { e.preventDefault(); e.stopPropagation(); handleChangeEmoji(col, em); }}
+													class="flex h-7 w-7 items-center justify-center rounded text-sm transition-all {col.emoji === em ? 'ring-1.5 ring-warm-400 ring-offset-1 bg-warm-100 scale-110' : 'hover:bg-warm-50 hover:scale-110'}"
+													aria-label="Select {em}"
+												>{em}</button>
+											{/each}
+										</div>
+									</div>
+								</div>
 								{/if}
 							</div>
 							<button
@@ -258,9 +351,15 @@
 
 					<div class="flex items-center gap-2.5">
 						<div
-							class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full sm:h-[18px] sm:w-[18px]"
-							style="background-color: {col.color ?? '#a8935f'}"
-						></div>
+							class="flex shrink-0 items-center justify-center rounded-full {col.emoji ? 'h-6 w-6 sm:h-7 sm:w-7' : 'h-4 w-4 sm:h-[18px] sm:w-[18px]'}"
+							style={col.emoji
+								? `background-color: #faf7f2; box-shadow: inset 0 0 0 2px ${col.color ?? '#A5834F'}`
+								: `background-color: ${col.color ?? '#A5834F'}`}
+						>
+							{#if col.emoji}
+								<span class="text-sm leading-none sm:text-base">{col.emoji}</span>
+							{/if}
+						</div>
 						<h3 class="min-w-0 truncate text-sm font-extrabold leading-snug text-warm-800 sm:text-base">{col.name}</h3>
 					</div>
 

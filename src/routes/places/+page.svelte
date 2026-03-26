@@ -11,6 +11,7 @@
 	import AddToCollectionModal from '$lib/components/AddToCollectionModal.svelte';
 	import { sortable } from '$lib/actions/sortable';
 	import { saveTagOrder } from '$lib/tag-order';
+	import { textColorForBg } from '$lib/tag-colors';
 	import { getToasts, showToast, dismissToast } from '$lib/stores/toasts.svelte';
 	import { loadPlacesData, refreshTagsData, buildPlaceTagsMap, removeTagsFromPlace, applyTagsToPlace } from '$lib/stores/places.svelte';
 	import { loadCollections, addPlaceToCollection, addPlacesToCollection, removePlaceFromCollection, isPlaceInCollection, optimisticAdd, optimisticRemove, createCollection } from '$lib/stores/collections.svelte';
@@ -497,8 +498,8 @@
 					return a.title.localeCompare(b.title);
 				case 'za':
 					return b.title.localeCompare(a.title);
-				case 'rating':
-					return (b.rating ?? 0) - (a.rating ?? 0);
+			case 'rating':
+				return (b.user_rating ?? 0) - (a.user_rating ?? 0);
 				case 'most-tags':
 					return (placeTagsMap[b.id]?.length ?? 0) - (placeTagsMap[a.id]?.length ?? 0);
 				case 'tag-group': {
@@ -554,6 +555,14 @@
 
 	function updateNote(placeId: string, note: string) {
 		places = places.map((p) => (p.id === placeId ? { ...p, note } : p));
+	}
+
+	function updateRating(placeId: string, rating: number | null) {
+		places = places.map((p) =>
+			p.id === placeId
+				? { ...p, user_rating: rating, user_rated_at: rating != null ? new Date().toISOString() : null }
+				: p
+		);
 	}
 
 	async function deletePlace(id: string) {
@@ -790,8 +799,8 @@
 						{#if tag}
 							<button
 								onclick={() => toggleTag(tagId)}
-								class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-white sm:px-2.5 sm:text-xs"
-								style="background-color: {tag.color ?? '#6b7280'}"
+							class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium sm:px-2.5 sm:text-xs"
+							style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
 							>
 								{tag.name}
 								<svg class="h-2 w-2 sm:h-2.5 sm:w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
@@ -839,7 +848,7 @@
 			{/if}
 
 			{#if enrichResult}
-				<div class="mb-1.5 rounded-lg bg-green-50 p-2 text-xs text-green-700 sm:mb-4 sm:rounded-xl sm:p-3 sm:text-sm">
+				<div class="mb-1.5 rounded-lg bg-sage-50 p-2 text-xs text-sage-700 sm:mb-4 sm:rounded-xl sm:p-3 sm:text-sm">
 					Fetched details for {enrichResult.enriched} of {enrichResult.total} places.
 				</div>
 			{/if}
@@ -906,8 +915,8 @@
 							<button
 								data-tag-id={tag.id}
 								onclick={() => toggleTag(tag.id)}
-								class="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold transition-all {selectedTagMap[tag.id] ? 'text-white shadow-sm ring-2 ring-offset-1' : 'text-white opacity-80'}"
-								style="background-color: {tag.color ?? '#6b7280'}; {selectedTagMap[tag.id] ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
+							class="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold transition-all {selectedTagMap[tag.id] ? 'shadow-sm ring-2 ring-offset-1' : 'opacity-80'}"
+							style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}; {selectedTagMap[tag.id] ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
 							>
 								{tag.name}
 								{#if selectedTagMap[tag.id]}
@@ -1010,10 +1019,10 @@
 							<button
 								data-tag-id={tag.id}
 								onclick={() => toggleTag(tag.id)}
-								class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold transition-all {selectedTagMap[tag.id]
-									? 'text-white shadow-sm ring-2 ring-offset-1'
-									: 'text-white opacity-80 hover:opacity-100'}"
-								style="background-color: {tag.color ?? '#6b7280'}; {selectedTagMap[tag.id] ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
+							class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold transition-all {selectedTagMap[tag.id]
+								? 'shadow-sm ring-2 ring-offset-1'
+								: 'opacity-80 hover:opacity-100'}"
+							style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}; {selectedTagMap[tag.id] ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
 							>
 								{tag.name}
 								{#if selectedTagMap[tag.id]}
@@ -1086,7 +1095,7 @@
 						<option value="oldest">Oldest added</option>
 						<option value="az">Name (A–Z)</option>
 						<option value="za">Name (Z–A)</option>
-						<option value="rating">Rating</option>
+						<option value="rating">My Rating</option>
 						<option value="most-tags">Most tagged</option>
 						<option value="tag-group">Tag group</option>
 					</select>
@@ -1159,6 +1168,7 @@
 						onTagClick={toggleTag}
 						onTagsChanged={refreshTags}
 						onNoteChanged={updateNote}
+						onRatingChanged={updateRating}
 						onTagContextMenu={handleTagContextMenu}
 						selected={selectedPlaceId === place.id}
 						onSelect={handleCardSelect}
@@ -1184,6 +1194,7 @@
 						onTagContextMenu={handleTagContextMenu}
 						onTagsChanged={refreshTags}
 						onNoteChanged={updateNote}
+						onRatingChanged={updateRating}
 						onDelete={deletePlace}
 						selected={selectedPlaceId === place.id}
 						onSelect={handleCardSelect}
@@ -1232,9 +1243,9 @@
 								<p class="truncate text-sm font-semibold text-warm-800">{p.title}</p>
 								<p class="truncate text-[11px] text-warm-400">{p.area ? `${p.area} · ` : ''}{p.category ?? ''}</p>
 							</div>
-							{#if p.rating}
-								<span class="shrink-0 text-xs font-bold text-warm-500"><span class="text-brand-500">★</span> {p.rating.toFixed(1)}</span>
-							{/if}
+					{#if p.user_rating}
+							<span class="shrink-0 text-xs font-bold text-warm-500"><span class="text-brand-500">★</span> {p.user_rating.toFixed(1)}</span>
+						{/if}
 						</button>
 					{:else}
 						<p class="py-8 text-center text-sm text-warm-400">All places are already in this collection.</p>

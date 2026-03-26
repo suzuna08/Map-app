@@ -42,8 +42,8 @@
 	let creating = $state(false);
 
 	const TAG_COLORS = [
-		'#c4898a', '#7b8fa8', '#b07c6a', '#9a7f9e', '#6a9b96',
-		'#b89760', '#7882a0', '#c08878', '#8a9462', '#a88290'
+		'#A5834F', '#8C8B82', '#7489A6', '#936756', '#5B7D8A',
+		'#6A6196'
 	];
 
 	let activeTagIds = $derived(new Set(Object.values(placeTagsMap).flat().map((t) => t.id)));

@@ -51,10 +51,16 @@
 <div class="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-8">
 	<!-- Header -->
 	<div class="mb-4 text-center sm:mb-6">
-		<div
-			class="mx-auto mb-3 flex h-8 w-8 items-center justify-center rounded-full sm:h-10 sm:w-10"
-			style="background-color: {collection.color ?? '#a8935f'}; opacity: 0.7"
-		></div>
+	<div
+		class="mx-auto mb-3 flex items-center justify-center rounded-full {collection.emoji ? 'h-11 w-11 sm:h-14 sm:w-14' : 'h-8 w-8 sm:h-10 sm:w-10'}"
+		style={collection.emoji
+			? `background-color: #faf7f2; box-shadow: inset 0 0 0 3px ${collection.color ?? '#A5834F'}`
+			: `background-color: ${collection.color ?? '#A5834F'}; opacity: 0.7`}
+	>
+		{#if collection.emoji}
+			<span class="text-xl leading-none sm:text-2xl">{collection.emoji}</span>
+		{/if}
+	</div>
 		<h1 class="text-xl font-extrabold text-warm-800 sm:text-2xl">{collection.name}</h1>
 		{#if collection.description}
 			<p class="mt-1 text-xs text-warm-400 sm:text-sm">{collection.description}</p>
@@ -157,9 +163,9 @@
 								<span class="rounded-full bg-sage-200 px-2 py-0.5 text-[10px] font-bold text-sage-700 sm:text-[11px]">{place.area}</span>
 							{/if}
 						</div>
-						{#if place.rating}
-							<span class="text-xs font-extrabold text-warm-700">{formatRating(place.rating)}<span class="text-brand-500">★</span></span>
-						{/if}
+					{#if place.user_rating}
+						<span class="text-xs font-extrabold text-warm-700">{formatRating(place.user_rating)}<span class="text-brand-500">★</span></span>
+					{/if}
 					</div>
 
 					<h3 class="mb-1 line-clamp-1 text-sm font-extrabold text-warm-800 sm:text-base">{place.title}</h3>
@@ -223,9 +229,9 @@
 							{/if}
 						</p>
 					</div>
-					{#if place.rating}
-						<span class="shrink-0 text-xs font-bold"><span class="text-brand-500">★</span> {formatRating(place.rating)}</span>
-					{/if}
+				{#if place.user_rating}
+					<span class="shrink-0 text-xs font-bold"><span class="text-brand-500">★</span> {formatRating(place.user_rating)}</span>
+				{/if}
 					<div class="flex shrink-0 items-center gap-1">
 						{#if place.url}
 							<a href={place.url} target="_blank" class="rounded p-1 text-warm-300 hover:text-warm-600" aria-label="Maps">

@@ -196,7 +196,7 @@
 	function popupHtml(place: Place): string {
 		const title = esc(place.title);
 		const cat = place.category ? `<div class="map-popup-meta">${esc(place.category)}</div>` : '';
-		const rating = place.rating ? `<div class="map-popup-rating">★ ${place.rating.toFixed(1)}</div>` : '';
+		const rating = place.user_rating ? `<div class="map-popup-rating">My rating: ${place.user_rating.toFixed(1)} ★</div>` : '';
 		return `<div class="map-popup-content"><div class="map-popup-title">${title}</div>${cat}${rating}</div>`;
 	}
 

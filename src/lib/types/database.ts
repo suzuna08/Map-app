@@ -23,11 +23,13 @@ export interface Database {
 					description: string | null;
 					lat: number | null;
 					lng: number | null;
-					phone: string | null;
-					website: string | null;
-					enriched_at: string | null;
-				};
-				Insert: {
+				phone: string | null;
+				website: string | null;
+				enriched_at: string | null;
+				user_rating: number | null;
+				user_rated_at: string | null;
+			};
+			Insert: {
 					id?: string;
 					user_id: string;
 					title: string;
@@ -50,9 +52,11 @@ export interface Database {
 					lng?: number | null;
 					phone?: string | null;
 					website?: string | null;
-					enriched_at?: string | null;
-				};
-				Update: {
+				enriched_at?: string | null;
+				user_rating?: number | null;
+				user_rated_at?: string | null;
+			};
+			Update: {
 					id?: string;
 					user_id?: string;
 					title?: string;
@@ -75,9 +79,11 @@ export interface Database {
 					lng?: number | null;
 					phone?: string | null;
 					website?: string | null;
-					enriched_at?: string | null;
-				};
-				Relationships: [];
+				enriched_at?: string | null;
+				user_rating?: number | null;
+				user_rated_at?: string | null;
+			};
+			Relationships: [];
 			};
 		lists: {
 			Row: {
@@ -85,30 +91,33 @@ export interface Database {
 				user_id: string;
 				name: string;
 				description: string | null;
-				color: string | null;
-				visibility: string;
+			color: string | null;
+			emoji: string | null;
+			visibility: string;
 				share_slug: string | null;
 				created_at: string;
 				updated_at: string;
 			};
 			Insert: {
-				id?: string;
-				user_id: string;
-				name: string;
-				description?: string | null;
-				color?: string | null;
-				visibility?: string;
+			id?: string;
+			user_id: string;
+			name: string;
+			description?: string | null;
+			color?: string | null;
+			emoji?: string | null;
+			visibility?: string;
 				share_slug?: string | null;
 				created_at?: string;
 				updated_at?: string;
 			};
-			Update: {
-				id?: string;
-				user_id?: string;
-				name?: string;
-				description?: string | null;
-				color?: string | null;
-				visibility?: string;
+		Update: {
+			id?: string;
+			user_id?: string;
+			name?: string;
+			description?: string | null;
+			color?: string | null;
+			emoji?: string | null;
+			visibility?: string;
 				share_slug?: string | null;
 				created_at?: string;
 				updated_at?: string;

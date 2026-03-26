@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import type { Tag } from '$lib/types/database';
-	import { colorForTag } from '$lib/tag-colors';
+	import { colorForTag, textColorForBg } from '$lib/tag-colors';
 	import { getNextOrderIndex, saveTagOrder } from '$lib/tag-order';
 	import { sortable } from '$lib/actions/sortable';
 
@@ -199,8 +199,8 @@
 	{#each visibleTags as tag (tag.id)}
 		<span
 			data-tag-id={tag.id}
-			class="inline-flex items-center gap-0.5 rounded-full text-[10px] font-bold text-white sm:text-[11px]"
-			style="background-color: {tag.color ?? '#6b7280'}"
+			class="inline-flex items-center gap-0.5 rounded-full text-[10px] font-bold sm:text-[11px]"
+			style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
 		>
 			<button
 				onclick={() => onTagClick?.(tag.id)}

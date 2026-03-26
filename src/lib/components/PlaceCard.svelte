@@ -4,6 +4,7 @@
 	import type { CollectionMemberMap } from '$lib/stores/collections.svelte';
 	import TagInput from './TagInput.svelte';
 	import AddToCollectionModal from './AddToCollectionModal.svelte';
+	import RatingDisplay from './RatingDisplay.svelte';
 
 	interface Props {
 		place: Place;
@@ -17,6 +18,7 @@
 		onTagClick: (tagId: string) => void;
 		onTagsChanged: () => void;
 		onNoteChanged?: (placeId: string, note: string) => void;
+		onRatingChanged?: (placeId: string, rating: number | null) => void;
 		onTagContextMenu?: (tag: Tag, x: number, y: number) => void;
 		selected?: boolean;
 		onSelect?: (placeId: string) => void;
@@ -40,6 +42,7 @@
 		onTagClick,
 		onTagsChanged,
 		onNoteChanged,
+		onRatingChanged,
 		onTagContextMenu,
 		selected = false,
 		onSelect,
@@ -105,11 +108,6 @@
 	let saving = $state(false);
 	let saved = $state(false);
 	let saveTimer: ReturnType<typeof setTimeout> | null = null;
-
-	function formatRating(rating: number | null): string {
-		if (!rating) return '';
-		return rating.toFixed(1);
-	}
 
 	function handleMobileTap(e: MouseEvent) {
 		const target = e.target as HTMLElement;
@@ -218,9 +216,13 @@
 							<span class="rounded-full bg-sage-200 px-1.5 py-px text-[9px] font-bold text-sage-700">{place.area}</span>
 						{/if}
 					</div>
-					{#if place.rating}
-						<span class="text-[11px] font-extrabold text-warm-700">{formatRating(place.rating)}<span class="text-brand-500">★</span></span>
-					{/if}
+					<RatingDisplay
+						placeId={place.id}
+						userRating={place.user_rating}
+						{supabase}
+						onRatingChanged={(id, r) => onRatingChanged?.(id, r)}
+						compact
+					/>
 				</div>
 
 				<h3 class="mt-1 line-clamp-1 text-[13px] font-extrabold leading-tight text-warm-800">{place.title}</h3>
@@ -324,7 +326,7 @@
 						{#if saving}
 							<span class="text-[9px] text-warm-400">Saving...</span>
 						{:else if saved}
-							<span class="text-[9px] text-green-600">Saved</span>
+							<span class="text-[9px] text-sage-600">Saved</span>
 						{/if}
 						<button
 							onclick={flipToFront}
@@ -376,15 +378,12 @@
 							<span class="text-xs font-bold text-brand-600">{place.price_level}</span>
 						{/if}
 					</div>
-					{#if place.rating}
-						<div class="flex shrink-0 items-center gap-1">
-							<span class="text-sm font-extrabold text-warm-800">{formatRating(place.rating)}</span>
-							<span class="text-xs text-brand-500">★</span>
-							{#if place.rating_count}
-								<span class="text-[11px] text-warm-400">({place.rating_count.toLocaleString()})</span>
-							{/if}
-						</div>
-					{/if}
+					<RatingDisplay
+						placeId={place.id}
+						userRating={place.user_rating}
+						{supabase}
+						onRatingChanged={(id, r) => onRatingChanged?.(id, r)}
+					/>
 				</div>
 
 				<h3 class="mb-1 line-clamp-1 text-base font-extrabold leading-snug text-warm-800">{place.title}</h3>
@@ -515,7 +514,7 @@
 						{#if saving}
 							<span class="text-[11px] text-warm-400">Saving...</span>
 						{:else if saved}
-							<span class="text-[11px] text-green-600">Saved</span>
+							<span class="text-[11px] text-sage-600">Saved</span>
 						{/if}
 						<button
 							onclick={flipToFront}

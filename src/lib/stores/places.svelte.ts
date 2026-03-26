@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Place, Tag } from '$lib/types/database';
 
-const PLACES_COLUMNS = 'id, user_id, title, note, url, source_list, created_at, google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at';
+const PLACES_COLUMNS = 'id, user_id, title, note, url, source_list, created_at, google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at, user_rating, user_rated_at';
 const TAGS_COLUMNS = 'id, user_id, name, color, source, created_at, order_index';
 
 export async function loadPlacesData(supabase: SupabaseClient<Database>) {

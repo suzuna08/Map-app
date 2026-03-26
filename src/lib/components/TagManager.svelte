@@ -147,7 +147,7 @@
 ></button>
 
 <!-- Modal -->
-<div class="fixed inset-x-4 top-[10%] z-50 mx-auto max-h-[80dvh] max-w-md overflow-hidden rounded-2xl border border-warm-200 bg-warm-50 shadow-2xl sm:inset-x-auto sm:top-[15%] sm:max-h-[70vh] sm:w-full">
+<div class="fixed inset-x-4 top-[10%] z-50 mx-auto max-h-[80dvh] max-w-md overflow-hidden rounded-2xl border border-warm-200 bg-warm-50 shadow-2xl sm:right-auto sm:left-1/2 sm:top-[15%] sm:max-h-[70vh] sm:w-full sm:-translate-x-1/2 lg:left-[calc(16rem+(100vw-16rem)*0.29)]">
 	<!-- Header -->
 	<div class="flex items-center justify-between px-5 py-4">
 		<h2 class="text-base font-bold text-warm-800">Manage Tags</h2>
@@ -196,7 +196,7 @@
 				{#each TAG_PALETTE as color}
 					<button
 						onclick={() => { newTagColorOverride = color; }}
-						class="h-5 w-5 rounded-full transition-transform {newTagColor === color ? 'ring-2 ring-offset-1 ring-gray-400 scale-110' : 'hover:scale-110'}"
+						class="h-5.5 w-5.5 rounded-full transition-transform {newTagColor === color ? 'ring-2 ring-offset-1 ring-warm-400 scale-110' : 'hover:scale-110'}"
 						style="background-color: {color}"
 						aria-label="Select color"
 					></button>
@@ -291,7 +291,7 @@
 						{#each TAG_PALETTE as color}
 							<button
 								onclick={() => changeColor(tag.id, color)}
-								class="h-6 w-6 rounded-full transition-transform {(tag.color ?? '#9a8a70') === color ? 'ring-2 ring-offset-1 ring-gray-400 scale-110' : 'hover:scale-110'}"
+								class="h-5.5 w-5.5 rounded-full transition-transform {(tag.color ?? '#9a8a70') === color ? 'ring-2 ring-offset-1 ring-warm-400 scale-110' : 'hover:scale-110'}"
 								style="background-color: {color}"
 								aria-label="Select color"
 							></button>

@@ -179,7 +179,7 @@
 				{#each TAG_PALETTE as color}
 					<button
 						onclick={() => changeColor(color)}
-						class="h-7 w-7 rounded-full transition-transform {(tag.color ?? '#6b7280') === color ? 'ring-2 ring-offset-1 ring-gray-400 scale-110' : 'hover:scale-110'}"
+						class="h-5.5 w-5.5 rounded-full transition-transform {(tag.color ?? '#6b7280') === color ? 'ring-2 ring-offset-1 ring-warm-400 scale-110' : 'hover:scale-110'}"
 						style="background-color: {color}"
 						aria-label="Select color"
 					></button>

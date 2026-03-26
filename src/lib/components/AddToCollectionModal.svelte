@@ -65,10 +65,16 @@
 									<polyline points="20 6 9 17 4 12" />
 								</svg>
 							{:else}
-								<div
-									class="h-4 w-4 rounded-full opacity-60"
-									style="background-color: {col.color ?? '#a8935f'}"
-								></div>
+							<div
+								class="flex items-center justify-center rounded-full {col.emoji ? 'h-5 w-5' : 'h-4 w-4 opacity-60'}"
+								style={col.emoji
+									? `background-color: #faf7f2; box-shadow: inset 0 0 0 1.5px ${col.color ?? '#A5834F'}`
+									: `background-color: ${col.color ?? '#A5834F'}`}
+							>
+								{#if col.emoji}
+									<span class="text-xs leading-none">{col.emoji}</span>
+								{/if}
+							</div>
 							{/if}
 						</div>
 						<div class="min-w-0 flex-1">

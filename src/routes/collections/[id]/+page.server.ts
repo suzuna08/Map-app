@@ -7,7 +7,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	const { data: collection, error: colErr } = await supabase
 		.from('lists')
-		.select('id, user_id, name, description, color, visibility, share_slug, created_at, updated_at')
+		.select('id, user_id, name, description, color, emoji, visibility, share_slug, created_at, updated_at')
 		.eq('id', collectionId)
 		.single();
 
@@ -26,7 +26,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	if (placeIds.length > 0) {
 		const { data } = await supabase
 			.from('places')
-			.select('id, user_id, title, note, url, source_list, created_at, google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at')
+			.select('id, user_id, title, note, url, source_list, created_at, google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at, user_rating, user_rated_at')
 			.in('id', placeIds);
 		places = data ?? [];
 	}
@@ -36,7 +36,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		supabase.from('place_tags').select('place_id, tag_id'),
 		supabase
 			.from('places')
-			.select('id, title, area, category, rating')
+			.select('id, title, area, category, user_rating')
 			.order('created_at', { ascending: false })
 	]);
 

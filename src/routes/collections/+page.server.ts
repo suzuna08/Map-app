@@ -6,7 +6,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const [listsRes, listPlacesRes] = await Promise.all([
 		supabase
 			.from('lists')
-			.select('id, user_id, name, description, color, visibility, share_slug, created_at, updated_at')
+			.select('id, user_id, name, description, color, emoji, visibility, share_slug, created_at, updated_at')
 			.order('updated_at', { ascending: false }),
 		supabase.from('list_places').select('list_id, place_id')
 	]);

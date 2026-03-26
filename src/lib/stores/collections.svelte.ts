@@ -3,7 +3,7 @@ import type { Database, Collection } from '$lib/types/database';
 
 export type CollectionMemberMap = Record<string, string[]>;
 
-const LISTS_COLUMNS = 'id, user_id, name, description, color, visibility, share_slug, created_at, updated_at';
+const LISTS_COLUMNS = 'id, user_id, name, description, color, emoji, visibility, share_slug, created_at, updated_at';
 
 export async function loadCollections(supabase: SupabaseClient<Database>): Promise<{
 	collections: Collection[];
@@ -31,7 +31,7 @@ export async function createCollection(
 	supabase: SupabaseClient<Database>,
 	userId: string,
 	name: string,
-	opts?: { description?: string; color?: string; placeIds?: string[] }
+	opts?: { description?: string; color?: string; emoji?: string; placeIds?: string[] }
 ): Promise<Collection | null> {
 	const { data, error } = await supabase
 		.from('lists')
@@ -39,7 +39,8 @@ export async function createCollection(
 			user_id: userId,
 			name,
 			description: opts?.description ?? null,
-			color: opts?.color ?? '#a8935f'
+			color: opts?.color ?? '#A5834F',
+			emoji: opts?.emoji ?? null
 		})
 		.select(LISTS_COLUMNS)
 		.single();
@@ -66,12 +67,13 @@ export async function createCollection(
 export async function updateCollection(
 	supabase: SupabaseClient<Database>,
 	collectionId: string,
-	updates: { name?: string; description?: string; color?: string; visibility?: string; share_slug?: string }
+	updates: { name?: string; description?: string; color?: string; emoji?: string | null; visibility?: string; share_slug?: string }
 ): Promise<boolean> {
 	const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
 	if (updates.name !== undefined) payload.name = updates.name;
 	if (updates.description !== undefined) payload.description = updates.description;
 	if (updates.color !== undefined) payload.color = updates.color;
+	if (updates.emoji !== undefined) payload.emoji = updates.emoji;
 	if (updates.visibility !== undefined) payload.visibility = updates.visibility;
 	if (updates.share_slug !== undefined) payload.share_slug = updates.share_slug;
 

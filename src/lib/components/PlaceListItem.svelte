@@ -2,8 +2,10 @@
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import type { Place, Tag, Collection } from '$lib/types/database';
 	import type { CollectionMemberMap } from '$lib/stores/collections.svelte';
+	import { textColorForBg } from '$lib/tag-colors';
 	import TagInput from './TagInput.svelte';
 	import AddToCollectionModal from './AddToCollectionModal.svelte';
+	import RatingDisplay from './RatingDisplay.svelte';
 
 	interface Props {
 		place: Place;
@@ -15,6 +17,7 @@
 		onTagContextMenu?: (tag: Tag, x: number, y: number) => void;
 		onTagsChanged: () => void;
 		onNoteChanged?: (placeId: string, note: string) => void;
+		onRatingChanged?: (placeId: string, rating: number | null) => void;
 		onDelete?: (placeId: string) => void;
 		selected?: boolean;
 		onSelect?: (placeId: string) => void;
@@ -23,7 +26,7 @@
 		onToggleCollection?: (placeId: string, collectionId: string) => void;
 	}
 
-	let { place, placeTags, allTags, supabase, userId, onTagClick, onTagContextMenu, onTagsChanged, onNoteChanged, onDelete, selected = false, onSelect, collections = [], collectionPlacesMap = {}, onToggleCollection }: Props = $props();
+	let { place, placeTags, allTags, supabase, userId, onTagClick, onTagContextMenu, onTagsChanged, onNoteChanged, onRatingChanged, onDelete, selected = false, onSelect, collections = [], collectionPlacesMap = {}, onToggleCollection }: Props = $props();
 
 	let showCollectionPicker = $state(false);
 
@@ -132,10 +135,6 @@
 		onDelete?.(place.id);
 	}
 
-	function formatRating(r: number | null): string {
-		return r ? r.toFixed(1) : '';
-	}
-
 	function handleMobileRowTap(e: MouseEvent) {
 		const target = e.target as HTMLElement;
 		if (target.closest('a, button, input, textarea')) return;
@@ -232,10 +231,14 @@
 						<span class="shrink-0 text-[9px] font-medium text-brand-400 animate-pulse">Tap to expand</span>
 					{/if}
 
-					<div class="w-10 shrink-0 text-right text-[11px] font-bold">
-						{#if place.rating}
-							<span class="text-brand-500">★</span><span class="text-warm-700">{formatRating(place.rating)}</span>
-						{/if}
+					<div class="w-14 shrink-0 text-right">
+						<RatingDisplay
+							placeId={place.id}
+							userRating={place.user_rating}
+							{supabase}
+							onRatingChanged={(id, r) => onRatingChanged?.(id, r)}
+							compact
+						/>
 					</div>
 
 					{#if place.url}
@@ -282,8 +285,8 @@
 								<button
 									onclick={() => onTagClick(tag.id)}
 									oncontextmenu={(e) => { e.preventDefault(); e.stopPropagation(); onTagContextMenu?.(tag, e.clientX, e.clientY); }}
-									class="max-w-[72px] shrink-0 truncate rounded-full px-1.5 py-px text-[10px] font-semibold text-white hover:opacity-80"
-									style="background-color: {tag.color ?? '#8a7e72'}"
+								class="max-w-[72px] shrink-0 truncate rounded-full px-1.5 py-px text-[10px] font-semibold hover:opacity-80"
+								style="background-color: {tag.color ?? '#8a7e72'}; color: {textColorForBg(tag.color ?? '#8a7e72')}"
 								>{tag.name}</button>
 							{/each}
 							{#if mobileHiddenCount > 0}
@@ -324,10 +327,14 @@
 			{/if}
 		</div>
 
-		<div class="w-11 shrink-0 text-right text-xs font-bold text-warm-500">
-			{#if place.rating}
-				<span class="text-brand-500">★</span><span class="text-warm-700">{formatRating(place.rating)}</span>
-			{/if}
+		<div class="w-16 shrink-0 text-right">
+			<RatingDisplay
+				placeId={place.id}
+				userRating={place.user_rating}
+				{supabase}
+				onRatingChanged={(id, r) => onRatingChanged?.(id, r)}
+				compact
+			/>
 		</div>
 
 		<div class="flex w-28 shrink-0 items-center gap-1">
@@ -335,8 +342,8 @@
 				<button
 					onclick={() => onTagClick(firstTag.id)}
 					oncontextmenu={(e) => { e.preventDefault(); e.stopPropagation(); onTagContextMenu?.(firstTag, e.clientX, e.clientY); }}
-					class="max-w-[88px] truncate rounded-full px-2 py-0.5 text-[10px] font-semibold text-white hover:opacity-80"
-					style="background-color: {firstTag.color ?? '#8a7e72'}"
+				class="max-w-[88px] truncate rounded-full px-2 py-0.5 text-[10px] font-semibold hover:opacity-80"
+				style="background-color: {firstTag.color ?? '#8a7e72'}; color: {textColorForBg(firstTag.color ?? '#8a7e72')}"
 				>{firstTag.name}</button>
 				{#if extraCount > 0}
 					<span class="text-[10px] font-bold text-warm-400">+{extraCount}</span>
@@ -403,7 +410,7 @@
 						{#if saving}
 							<span class="text-[9px] text-warm-400">Saving...</span>
 						{:else if saved}
-							<span class="text-[9px] text-green-600">Saved</span>
+							<span class="text-[9px] text-sage-600">Saved</span>
 						{/if}
 					</div>
 					<textarea

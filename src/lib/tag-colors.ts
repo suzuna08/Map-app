@@ -1,17 +1,19 @@
 const TAG_PALETTE = [
-	'#c4898a', // rose
-	'#b89760', // amber
-	'#8a9462', // olive
-	'#6a9b96', // teal
-	'#7b8fa8', // slate blue
-	'#9a7f9e', // purple
-	'#c08878', // salmon
-	'#b07c6a', // brown
-	'#7882a0', // steel
-	'#a88290'  // mauve
+	'#A5834F', // muted gold / ochre
+	'#8C8B82', // stone sage / warm grey
+	'#7489A6', // slate blue / dusty denim
+	'#936756', // terracotta / clay
+	'#5B7D8A', // muted teal / deep sea
+	'#6A6196', // dusty purple / slate lavender
 ];
 
+const LIGHT_BG_SET = new Set<string>();
+
 export { TAG_PALETTE };
+
+export function textColorForBg(bg: string): string {
+	return LIGHT_BG_SET.has(bg.toLowerCase()) ? '#3a3028' : '#ffffff';
+}
 
 function hashString(str: string): number {
 	let hash = 5381;
