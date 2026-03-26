@@ -15,6 +15,7 @@ Detailed documentation of the architecture, design decisions, trade-offs, and bu
 - [Contextual Capture (Auto-Tagging)](#contextual-capture-auto-tagging)
 - [Tagging System](#tagging-system)
 - [Filtering & Sorting](#filtering--sorting)
+- [Personal Rating System](#personal-rating-system)
 - [Saved Views](#saved-views)
 - [Collections](#collections)
 - [Intel Tagging System](#intel-tagging-system)
@@ -88,7 +89,7 @@ Auth is handled through `@supabase/ssr` with a server hook (`hooks.server.ts`) a
 
 ### Tables
 
-**`places`** -- The core table. Originally just the CSV fields (title, note, url, tags, comment, source_list), later extended with enrichment columns (google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at).
+**`places`** -- The core table. Originally just the CSV fields (title, note, url, tags, comment, source_list), later extended with enrichment columns (google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at). Personal rating columns (`user_rating`, `user_rated_at`) allow the user to rate places on a 0.5–5.0 scale; the Google-sourced `rating`/`rating_count` columns are retained in the DB but no longer shown in the UI.
 
 **`tags`** -- A separate tags table with three source types:
 - `category` -- auto-created from Google Places type data (e.g., "Restaurants", "Cafes")
@@ -132,6 +133,8 @@ A fifth migration file, `add_collections_columns.sql`, adds `visibility` and `sh
 A sixth migration file, `add_list_places_position.sql`, adds a `position` integer column to `list_places` for manual ordering within collections.
 
 A seventh migration file, `add_intel_tag_system.sql`, creates three tables for the intel tagging system: `google_place_type_catalog` (type registry), `intel_tag_mappings` (classification rules), and `place_intel_tags` (per-place computed cache). Catalog and mappings are read-only for authenticated users; place intel tags have full CRUD policies scoped to the owning user.
+
+An eighth migration file, `add_user_rating.sql`, adds `user_rating` (numeric(2,1)) and `user_rated_at` (timestamptz) columns to `places` with a CHECK constraint enforcing 0.5–5.0 half-star values.
 
 ### Type Name vs. Table Name
 
@@ -354,9 +357,70 @@ Search is case-insensitive and checks across four fields: title, description, ad
 Seven sort options, all client-side:
 - Newest/oldest by `created_at`
 - A-Z/Z-A by `title` with `localeCompare`
-- Rating (descending, nulls last)
+- My Rating (descending by `user_rating`, nulls last)
 - Most tagged (by count of tags in `placeTagsMap`)
 - Tag group (alphabetically by first user tag name, untagged places sorted last via `\uffff`)
+
+---
+
+## Personal Rating System
+
+### What It Is
+
+A personal half-star rating system that replaces the read-only Google rating display. Users can rate any place on a 0.5–5.0 scale by tapping a compact inline display and dragging across a 5-star scrubber popover. The Google-sourced `rating` and `rating_count` columns remain in the database but are no longer rendered anywhere in the UI.
+
+### Data Model
+
+Two new nullable columns on `places` (migration: `supabase/add_user_rating.sql`):
+
+- **`user_rating`** (`numeric(2,1)`) — Stores values from 0.5 to 5.0 in 0.5 steps. A CHECK constraint enforces the range and step size: `user_rating >= 0.5 AND user_rating <= 5.0 AND user_rating * 2 = FLOOR(user_rating * 2)`.
+- **`user_rated_at`** (`timestamptz`) — Timestamp of when the rating was last set or changed. Set to `now()` on save, cleared to `NULL` on clear.
+
+### Component Architecture
+
+The rating UI is split into three pieces:
+
+**`RatingDisplay.svelte`** — The compact trigger shown on every PlaceCard and PlaceListItem. Renders `4.5 ★` (rated) or `Not rated` (unrated) as a clickable button. On click, it captures the button's bounding rect via `getBoundingClientRect()` and opens the `RatingEditor` popover positioned relative to that rect. Handles optimistic state updates and Supabase persistence — on save, it immediately calls `onRatingChanged` to update the parent's local state, then fires the async `supabase.update()`. If the DB write fails, it rolls back to the previous value.
+
+**`RatingEditor.svelte`** — The popover star scrubber. Renders a full-width invisible backdrop (z-index 9998) and a positioned white card (z-index 9999) with 5 interactive star SVGs, a numeric value label, and a "Clear" button. Supports three interaction modes: tap a star half, click a star position, or drag across the star row.
+
+**DOM teleport (portal)** — Because `RatingEditor` is rendered inside PlaceCard's 3D-transform hierarchy (`perspective`, `transform-style: preserve-3d`, `backface-visibility: hidden`), CSS `position: fixed` elements would be contained by the transformed ancestor instead of the viewport. To escape this, the editor wraps its backdrop and popover in a single `<div>` that is moved to `document.body` via `onMount(() => document.body.appendChild(wrapperEl))`. The wrapper starts with `display: none` and becomes visible after teleportation to prevent a flash. Svelte's reactivity continues to work because it tracks the component tree, not DOM position. Cleanup removes the element on unmount.
+
+### Star Scrubber Interaction
+
+The scrubber uses pointer events for unified mouse and touch handling:
+
+1. **`pointerdown`** — Sets `dragging = true`, computes an initial preview rating from `clientX`, and calls `setPointerCapture()` on the target element to ensure all subsequent pointer events are routed to the scrubber even if the finger/cursor moves outside it.
+
+2. **`pointermove`** — While dragging, converts `clientX` to a position within the star row (5 stars × 28px + 4 gaps × 2px = 148px total). The position is normalized to a 0–5 ratio, then snapped to 0.5 steps: `Math.max(0.5, Math.round(raw * 2) / 2)`. The snapped value updates the `preview` state, which reactively repaints the star fills (full gold / half gold + half gray / full gray) via a `starFill()` function.
+
+3. **`pointerup`** — Ends dragging, computes the final snapped rating from the release position, clears `preview`, and calls `onSave(rating)`. The popover closes immediately.
+
+4. **Tap fallback** — Each star SVG also has an `onclick` handler. It computes whether the click landed on the left or right half of the star (via `clientX - starLeft < STAR_W / 2`), yielding a half-step (e.g., 2.5) or full-step (e.g., 3.0).
+
+5. **Clear** — A "Clear" button (visible only when a rating exists) calls `onClear()`, which sets `user_rating` and `user_rated_at` to `NULL`.
+
+### Half-Star SVG Rendering
+
+Each star SVG uses clip paths for the half-star state:
+
+- **Full**: Single `<path>` filled with `#f59e0b` (amber)
+- **Half**: Two overlapping `<path>` elements clipped by `<clipPath>` rects — left half filled amber, right half filled `#e5e0d8` (warm gray)
+- **Empty**: Single `<path>` filled with `#e5e0d8`
+
+Clip path IDs are scoped per star index (`star-left-0`, `star-right-0`, etc.) to avoid SVG ID collisions when multiple editors are theoretically on screen.
+
+### Integration Points
+
+- **PlaceCard** and **PlaceListItem**: Both components accept an `onRatingChanged?: (placeId: string, rating: number | null) => void` prop. The `RatingDisplay` is placed in the same visual position as the former Google rating — top-right of the header row on cards, inline in the data row on list items.
+- **MapView popup**: Shows `My rating: 4.5 ★` as display-only text. No editor inside the popup to keep it lightweight.
+- **Sorting**: The `rating` sort option now sorts by `user_rating` (descending, nulls last) and the dropdown label reads "My Rating".
+- **Collection pages**: Both `/collections/[id]` and `/c/[slug]` use `user_rating` for display and sorting. The public share page shows the owner's personal rating read-only.
+- **Server queries**: All `+page.server.ts` files and the `PLACES_COLUMNS` constant in `places.svelte.ts` include `user_rating` and `user_rated_at` in their SELECT lists.
+
+### Click Isolation
+
+The rating button uses `e.stopPropagation()` and `e.preventDefault()` in its `onclick` handler. This prevents the click from bubbling to PlaceCard's `handleDesktopFlip` / `handleMobileTap` handlers, which would otherwise flip the card or toggle selection. The card's flip handler also has an existing guard: `if (target.closest('a, button, input, textarea, [role="button"]')) return;` — since `RatingDisplay` is a `<button>`, this guard also catches it as a secondary defense.
 
 ---
 
@@ -464,11 +528,11 @@ A migration file (`supabase/add_collections_columns.sql`) adds these columns and
 - Editable name and description (click to edit inline)
 - Grid/list toggle with PlaceCard and PlaceListItem reuse
 - Search within collection
-- Sort by recent, A–Z, or rating
+- Sort by recent, A–Z, or my rating
 - "+ Add Places" modal with search over all user places not in the collection
 - Share toggle (private ↔ link_access) with copy-link button
 
-**`/c/[slug]`** — Public read-only share page. Accessed without authentication. Shows a clean layout with the collection name, description, place count, and all places in grid or list view. Each place shows category, area, rating, and links to Google Maps/website. No editing capabilities.
+**`/c/[slug]`** — Public read-only share page. Accessed without authentication. Shows a clean layout with the collection name, description, place count, and all places in grid or list view. Each place shows category, area, user rating, and links to Google Maps/website. No editing capabilities.
 
 ### Store Architecture
 
@@ -518,7 +582,7 @@ The root layout nav bar includes a "My Collections" link (shortened to "Collecti
 - **No drag-and-drop for adding to collections**: While the existing codebase has drag-and-drop for tag reordering, adding places to collections uses only explicit button/modal interactions. This ensures mobile compatibility and avoids conflicts with swipe-to-delete gestures.
 - **Slug-based sharing vs. collection ID sharing**: Using a random slug prevents enumeration attacks and makes share URLs non-guessable. The slug is generated client-side, which has a negligible collision risk for 10-character alphanumeric strings.
 - **No collaborators**: Sharing is read-only. The owner is the only editor. This simplifies RLS policies and avoids the complexity of shared editing state.
-- **Public place data exposure**: When a collection is shared, all place data (title, address, rating, etc.) becomes publicly readable via the RLS policies. This is intentional for the sharing use case, but users should be aware that making a collection public exposes its place details.
+- **Public place data exposure**: When a collection is shared, all place data (title, address, user rating, etc.) becomes publicly readable via the RLS policies. This is intentional for the sharing use case, but users should be aware that making a collection public exposes its place details.
 
 ---
 
@@ -633,7 +697,7 @@ The `transform-origin: bottom center` ensures scaling anchors the pin at its poi
 
 ### Popups
 
-Each marker has a MapLibre Popup styled with the `.map-popup-warm` class to match the app's design -- Nunito font, rounded corners, warm-200 border. Popups show the place title, category, and rating. They appear on hover (desktop) and stay open for the selected marker.
+Each marker has a MapLibre Popup styled with the `.map-popup-warm` class to match the app's design -- Nunito font, rounded corners, warm-200 border. Popups show the place title, category, and personal rating (display-only). They appear on hover (desktop) and stay open for the selected marker.
 
 ### Bidirectional Selection Sync
 
@@ -653,7 +717,7 @@ Selection synchronization connects the map and the place list/cards:
 
 ### PlaceCard -- 3D Flip Animation
 
-Each card has a front (place info) and back (notes editor), connected by a CSS 3D flip. The implementation uses:
+Each card has a front (place info) and back (notes editor), connected by a CSS 3D flip. The front face includes an inline `RatingDisplay` that opens a popover star editor on click (see [Personal Rating System](#personal-rating-system)). The implementation uses:
 - `perspective: 800px` (mobile) / `1000px` (desktop) on the container
 - `transform-style: preserve-3d` on the inner div
 - `backface-visibility: hidden` on both faces
@@ -690,6 +754,10 @@ In PlaceCard, the swipe layer wraps the entire flip card and interacts cleanly w
 ### TagInput -- Portal Dropdown
 
 The suggestion dropdown uses a Svelte action (`use:portal`) that moves the element to `document.body`. Position is calculated from the input's `getBoundingClientRect()` and set via inline `style`. The dropdown is rebuilt on every input change to track the input's position.
+
+### RatingDisplay + RatingEditor -- Inline Star Popover
+
+The rating UI is a two-component system. `RatingDisplay` renders the compact trigger (`4.5 ★` or `Not rated`) and handles optimistic persistence. `RatingEditor` is the popover star scrubber with half-star precision via pointer events. The editor teleports its DOM to `document.body` on mount to escape PlaceCard's 3D-transform stacking context (same root cause as the TagInput portal, see [Bug #14](#14-rating-popover-invisible-inside-3d-transformed-card)). Full details in [Personal Rating System](#personal-rating-system).
 
 ### TagSidebar
 
@@ -780,7 +848,7 @@ Additional global styles handle safe area insets, tap highlight removal, overscr
 The app has distinct mobile and desktop layouts rather than just reflowing:
 
 - **Map layout**: Mobile uses a `MobileMapShell` component with a collapsible map (128px collapsed / 42vh expanded) above a scrollable content panel. Desktop uses a sticky right panel (42% width) alongside a scrollable left content area. The two layouts render different component trees controlled by a JS `isMobile` flag (threshold: 1024px).
-- **PlaceCard**: Mobile uses a compact layout with smaller text, fewer visible details, and swipe-to-delete. Desktop shows price level, rating count, more metadata, and hover-reveal delete. The card grid uses 1-2 columns (reduced from 3 to accommodate the map panel).
+- **PlaceCard**: Mobile uses a compact layout with smaller text, fewer visible details, and swipe-to-delete. Desktop shows price level, more metadata, and hover-reveal delete. Both show an inline personal rating display (`4.5 ★` / `Not rated`) that opens a star scrubber popover on click. The card grid uses 1-2 columns (reduced from 3 to accommodate the map panel).
 - **PlaceListItem**: Mobile has swipe-to-delete; desktop has hover-reveal action buttons.
 - **Tag filtering**: Mobile uses a tabbed horizontal scroll (Category | Area | Custom); desktop shows all three rows inline.
 - **Sidebar**: On mobile, it's a slide-in overlay with backdrop blur. On desktop (lg+), it's fixed at 256px width.
@@ -911,6 +979,22 @@ Public vars (prefixed `PUBLIC_`) are safe to expose to the browser. The Google A
 
 **Downside**: Initial load time grows linearly with place count. Three parallel queries (places, tags, place_tags) all return full datasets. This will need pagination or virtual scrolling for large collections.
 
+### 12. Personal Rating vs. Google Rating Display
+
+**Chose**: Replace the Google-sourced rating display entirely with a user-editable personal rating, rather than showing both side by side.
+
+**Why**: The app is a personal organizer, not a discovery tool. A user's own rating of a place they've visited is more meaningful than a crowd-sourced average. Showing both ratings would clutter the card's compact layout and create confusion about which rating matters. The Google data (`rating`, `rating_count`) is preserved in the database for potential future use.
+
+**Downside**: Users lose the Google crowd signal at a glance. If a user hasn't rated a place yet, the card shows "Not rated" instead of the potentially useful Google average. A future enhancement could show the Google rating as a subtle secondary indicator or as a default until the user provides their own.
+
+### 13. DOM Teleport for Rating Popover vs. Page-Level Rendering
+
+**Chose**: The `RatingEditor` teleports itself to `document.body` via `onMount` rather than being rendered at the page level and controlled via shared state.
+
+**Why**: Keeps the rating logic self-contained within `RatingDisplay` → `RatingEditor`. No need for page-level state to track which place's rating is being edited, no prop-drilling for open/close, and each card independently manages its own rating editor lifecycle. This matches the existing `TagInput` portal pattern.
+
+**Downside**: DOM teleport bypasses Svelte's normal component tree for layout purposes. The teleported elements inherit `document.body`'s styles rather than any parent's scoped styles (mitigated by using Tailwind utility classes which are global). The wrapper element briefly exists in the original DOM position before teleportation, requiring the `display: none` → `mounted` flag workaround.
+
 ---
 
 ## Bugs & Fixes
@@ -994,6 +1078,12 @@ Public vars (prefixed `PUBLIC_`) are safe to expose to the browser. The Google A
 **Problem**: When a user leaves the app in a background tab for an extended period, the session JWT can expire silently. On returning to the tab, API calls fail with 401 errors but the UI still shows the authenticated state.
 
 **Fix**: Added a `visibilitychange` listener in the root layout that fires when the tab returns to the foreground. It checks whether the current session is near expiry (within a 5-minute margin) and proactively calls `supabase.auth.refreshSession()`. If no session exists at all, it calls `invalidate('supabase:auth')` to trigger a full state update. Combined with the scheduled `scheduleTokenRefresh()` timer, this ensures sessions are refreshed before they expire under normal conditions, and recovered quickly when returning from a long background period.
+
+### 14. Rating Popover Invisible Inside 3D-Transformed Card
+
+**Problem**: The `RatingEditor` popover (backdrop + star scrubber) was rendered with `position: fixed` inside PlaceCard's 3D-transform context (`perspective`, `transform-style: preserve-3d`, `backface-visibility: hidden`). CSS specifies that when an ancestor has a `transform`, it creates a new containing block for fixed-position elements. This caused the popover to be positioned relative to the card's local coordinate space instead of the viewport, making it invisible or clipped behind the card face.
+
+**Fix**: The `RatingEditor` wraps all its content in a single `<div>` that is teleported to `document.body` via `onMount(() => document.body.appendChild(wrapperEl))`. This escapes all ancestor stacking contexts and transforms. The wrapper starts hidden (`display: none`) and becomes visible once the `mounted` flag is set after teleportation, preventing a visual flash during the first render frame. Svelte's reactivity continues to work because it tracks the component tree, not DOM position. The element is removed from the body on `onDestroy` via the `onMount` cleanup return.
 
 ---
 

@@ -11,12 +11,13 @@ MapOrganizer is a web app that helps you manage and organize places you've saved
 - **CSV Import** -- Bulk-import saved places from a Google Takeout CSV export with drag-and-drop
 - **Inline URL Import** -- Paste a Google Maps link (including `share.google` links) directly into the search bar on the Places page and press Enter to add a place instantly, with toast notifications for success/duplicate/error feedback. The same flow is also available in the navbar's "+ Add Place" modal
 - **Place Enrichment** -- Fetch ratings, addresses, phone numbers, coordinates, and more from the Google Places API (single or batch). Uses a three-strategy lookup: Place ID, text search with location bias, and coordinate fallback
+- **Personal Ratings** -- Rate any place on a 0.5–5.0 half-star scale. Click the compact rating display on any card to open a drag-to-rate star editor. Saves instantly with optimistic UI updates
 - **Interactive Map** -- All enriched places are plotted on a MapLibre GL map (powered by MapTiler). Click a marker to scroll to the card; click a card to fly to its pin. Shows a pastel base map style with custom pin markers and popups
 - **Flexible Tagging** -- Organize places with three tag types: category (auto-generated from Google place types), area (auto-generated from address), and custom (user-created with color coding)
 - **Drag-to-Reorder Tags** -- Reorder tags via drag-and-drop (click-drag on desktop, long-press-drag on mobile). Order is persisted per user
 - **Tag Management** -- Rename, recolor, and delete custom tags. Right-click any tag for a context menu. Tags get deterministic colors from a curated palette, overridable by the user
 - **Search & Filter** -- Find places by name, tags, area, description, or source list. Category and area filters use OR logic; custom tag filters use AND logic
-- **Sorting** -- Sort by newest, oldest, A-Z, Z-A, rating, most tagged, or tag group
+- **Sorting** -- Sort by newest, oldest, A-Z, Z-A, my rating, most tagged, or tag group
 - **Grid & List Views** -- Switch between card grid and compact list layouts. Cards flip (3D animation) to reveal a notes editor on the back
 - **Notes** -- Attach personal notes to any place with debounced auto-save (800ms)
 - **Deduplication** -- Three-layer duplicate detection by Google Place ID, normalized URL, and title + address
@@ -75,8 +76,10 @@ src/
 │       ├── AddToCollectionModal.svelte # Add place to collection picker
 │       ├── MapView.svelte          # MapLibre GL map with markers
 │       ├── MobileMapShell.svelte   # Collapsible mobile map wrapper
-│       ├── PlaceCard.svelte        # Grid card (flip, swipe, notes, collections)
-│       ├── PlaceListItem.svelte    # List row (expand, swipe, collections)
+│       ├── PlaceCard.svelte        # Grid card (flip, swipe, notes, rating, collections)
+│       ├── PlaceListItem.svelte    # List row (expand, swipe, rating, collections)
+│       ├── RatingDisplay.svelte    # Compact rating trigger (4.5 ★ / Not rated)
+│       ├── RatingEditor.svelte     # Popover star scrubber (half-star drag)
 │       ├── SavedViewsBar.svelte    # Saved Views preset pill bar
 │       ├── TagContextMenu.svelte   # Right-click tag menu
 │       ├── TagInput.svelte         # Inline tag add/remove
@@ -163,9 +166,10 @@ supabase/add_saved_views.sql
 supabase/add_collections_columns.sql
 supabase/add_list_places_position.sql
 supabase/add_intel_tag_system.sql
+supabase/add_user_rating.sql
 ```
 
-The first migration creates the `places`, `lists`, and `list_places` tables along with row-level security policies and indexes. The second adds the `order_index` column to `tags` for drag-to-reorder persistence. The third creates the `profiles` table with auto-sync triggers from Supabase Auth. The fourth creates the `saved_views` table for user-defined filter/sort/layout presets. The fifth extends `lists` with `visibility` and `share_slug` columns for collections sharing, plus public-access RLS policies. The sixth adds a `position` column to `list_places` for manual ordering within collections. The seventh creates the `google_place_type_catalog`, `intel_tag_mappings`, and `place_intel_tags` tables for the intel tagging system.
+The first migration creates the `places`, `lists`, and `list_places` tables along with row-level security policies and indexes. The second adds the `order_index` column to `tags` for drag-to-reorder persistence. The third creates the `profiles` table with auto-sync triggers from Supabase Auth. The fourth creates the `saved_views` table for user-defined filter/sort/layout presets. The fifth extends `lists` with `visibility` and `share_slug` columns for collections sharing, plus public-access RLS policies. The sixth adds a `position` column to `list_places` for manual ordering within collections. The seventh creates the `google_place_type_catalog`, `intel_tag_mappings`, and `place_intel_tags` tables for the intel tagging system. The eighth adds `user_rating` and `user_rated_at` columns to `places` with a CHECK constraint enforcing 0.5–5.0 half-star values.
 
 You will also need to create the `tags` and `place_tags` tables (used by the tagging system but not yet in the migration file). The expected schema is defined in `src/lib/types/database.ts`.
 
@@ -182,10 +186,11 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 1. **Sign up** with email/password on the login page
 2. **Import places** via the navbar's "+ Add Place" button (paste a Google Maps URL or go to CSV upload), or paste a Google Maps URL directly into the search bar on the Places page and press Enter
 3. **Enrich** imported places by clicking "Fetch Details" to pull ratings, addresses, coordinates, and category data from Google
-4. **Tag** places with custom tags directly on each card or via the Tag Manager
-5. **Filter** by clicking category, area, or custom tags in the sidebar or inline filter bar
-6. **Browse** on the map -- click pins to see details, click cards to fly to their location
-7. **Reorder tags** by dragging them in the filter bar (long-press on mobile)
+4. **Rate** places by clicking the rating display on any card to open the star editor — drag or tap to set a 0.5–5.0 rating
+5. **Tag** places with custom tags directly on each card or via the Tag Manager
+6. **Filter** by clicking category, area, or custom tags in the sidebar or inline filter bar
+7. **Browse** on the map -- click pins to see details, click cards to fly to their location
+8. **Reorder tags** by dragging them in the filter bar (long-press on mobile)
 
 ## Scripts
 
