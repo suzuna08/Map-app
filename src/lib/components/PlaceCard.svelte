@@ -258,7 +258,7 @@
 					{/if}
 				</div>
 
-				<!-- Mobile action row: Maps | Website | Notes -->
+				<!-- Mobile action row: Maps | Notes -->
 				<div class="mt-1.5 flex items-center gap-1 border-t border-warm-100 pt-1.5">
 					{#if selected && !flipped}
 						<span class="text-[9px] font-medium text-brand-400 animate-pulse">Tap to flip</span>
@@ -274,19 +274,6 @@
 								<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
 							</svg>
 							Maps
-						</a>
-					{/if}
-					{#if place.website}
-						<a
-							href={place.website}
-							target="_blank"
-							class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-bold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
-							aria-label="Website"
-						>
-							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-							</svg>
-							Website
 						</a>
 					{/if}
 					<button
@@ -440,25 +427,10 @@
 							Maps
 						</a>
 					{/if}
-					{#if place.website}
-						<a
-							href={place.website}
-							target="_blank"
-							class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
-							aria-label="Visit website"
-						>
-							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<circle cx="12" cy="12" r="10" />
-								<line x1="2" y1="12" x2="22" y2="12" />
-								<path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-							</svg>
-							Website
-						</a>
-					{/if}
-					<button
-						onclick={flipToBack}
-						class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
-						aria-label="Notes"
+				<button
+					onclick={flipToBack}
+					class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+					aria-label="Notes"
 					>
 						<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />

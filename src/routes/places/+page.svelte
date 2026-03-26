@@ -729,7 +729,7 @@
 							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
 						</svg>
 					{:else if detectedUrl}
-						<span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] font-medium text-brand-500 sm:right-3.5 sm:text-[13px]">Press Enter to add</span>
+						<span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-brand-500 sm:right-3.5 sm:text-[13px]">Press Enter to add</span>
 					{/if}
 				</div>
 				</div>
@@ -793,13 +793,13 @@
 			<!-- Reserved filter summary area (always present to prevent layout shift) -->
 			<div class="mb-1 flex min-h-[28px] flex-wrap items-center gap-1.5 sm:mb-3 sm:min-h-[32px] sm:gap-2">
 				{#if hasActiveFilters || selectedSource !== 'all'}
-					<span class="text-[11px] text-warm-400 sm:text-[13px]">Filtered by:</span>
-					{#each selectedTagIds as tagId (tagId)}
-						{@const tag = allTags.find((t) => t.id === tagId)}
-						{#if tag}
-							<button
-								onclick={() => toggleTag(tagId)}
-							class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium sm:px-2.5 sm:text-[13px]"
+				<span class="text-xs font-bold text-warm-400 sm:text-[13px]">Filtered by:</span>
+				{#each selectedTagIds as tagId (tagId)}
+					{@const tag = allTags.find((t) => t.id === tagId)}
+					{#if tag}
+						<button
+							onclick={() => toggleTag(tagId)}
+						class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium sm:px-2.5 sm:text-[13px]"
 							style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
 							>
 								{tag.name}
@@ -813,7 +813,7 @@
 					{#if selectedSource !== 'all'}
 						<button
 							onclick={() => { selectedSource = 'all'; }}
-							class="inline-flex items-center gap-1 rounded-full bg-warm-200 px-2 py-0.5 text-[11px] font-medium text-warm-700 sm:px-2.5 sm:text-[13px]"
+							class="inline-flex items-center gap-1 rounded-full bg-warm-200 px-2 py-0.5 text-xs font-medium text-warm-700 sm:px-2.5 sm:text-[13px]"
 						>
 							{selectedSource}
 							<svg class="h-2 w-2 sm:h-2.5 sm:w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
@@ -824,7 +824,7 @@
 					{/if}
 					<button
 						onclick={() => { selectedTagMap = {}; selectedSource = 'all'; }}
-						class="text-[11px] text-warm-400 hover:text-warm-600 sm:text-[13px]"
+						class="text-xs text-warm-400 hover:text-warm-600 sm:text-[13px]"
 					>
 						Clear
 					</button>
@@ -859,25 +859,25 @@
 				<div class="mb-1.5 flex items-center rounded-lg border border-warm-200 bg-white p-0.5">
 					<button
 						onclick={() => { mobileTagTab = 'category'; }}
-						class="flex-1 rounded-md px-1 py-1.5 text-center text-sm font-bold transition-colors {mobileTagTab === 'category'
-							? 'bg-warm-200 text-warm-800'
-							: 'text-warm-400'}"
-					>
-						Category <span class="font-normal opacity-50">{categoryTags.length}</span>
-					</button>
-					<button
-						onclick={() => { mobileTagTab = 'area'; }}
-						class="flex-1 rounded-md px-1 py-1.5 text-center text-sm font-bold transition-colors {mobileTagTab === 'area'
-							? 'bg-sage-200 text-sage-800'
-							: 'text-warm-400'}"
-					>
-						Area <span class="font-normal opacity-50">{areaTags.length}</span>
-					</button>
-					<button
-						onclick={() => { mobileTagTab = 'custom'; }}
-						class="flex-1 rounded-md px-1 py-1.5 text-center text-sm font-bold transition-colors {mobileTagTab === 'custom'
-							? 'bg-brand-100 text-brand-800'
-							: 'text-warm-400'}"
+					class="flex-1 rounded-md px-1 py-1.5 text-center text-xs font-bold transition-colors {mobileTagTab === 'category'
+						? 'bg-warm-200 text-warm-800'
+						: 'text-warm-400'}"
+				>
+					Category <span class="font-normal opacity-50">{categoryTags.length}</span>
+				</button>
+				<button
+					onclick={() => { mobileTagTab = 'area'; }}
+					class="flex-1 rounded-md px-1 py-1.5 text-center text-xs font-bold transition-colors {mobileTagTab === 'area'
+						? 'bg-sage-200 text-sage-800'
+						: 'text-warm-400'}"
+				>
+					Area <span class="font-normal opacity-50">{areaTags.length}</span>
+				</button>
+				<button
+					onclick={() => { mobileTagTab = 'custom'; }}
+					class="flex-1 rounded-md px-1 py-1.5 text-center text-xs font-bold transition-colors {mobileTagTab === 'custom'
+						? 'bg-brand-100 text-brand-800'
+						: 'text-warm-400'}"
 					>
 						Custom <span class="font-normal opacity-50">{userTags.length}</span>
 					</button>
@@ -896,18 +896,18 @@
 			>
 					{#if mobileTagTab === 'category'}
 						{#each categoryTags as tag (tag.id)}
-							<button data-tag-id={tag.id} onclick={() => toggleTag(tag.id)} class="shrink-0 rounded-full border px-2.5 py-1 text-sm font-bold transition-all {selectedTagMap[tag.id] ? 'border-brand-400 bg-brand-50 text-warm-800' : 'border-warm-200 text-warm-500'}">{tag.name}</button>
-						{/each}
-						{#if categoryTags.length === 0}
-							<span class="text-sm text-warm-400">No category tags</span>
+						<button data-tag-id={tag.id} onclick={() => toggleTag(tag.id)} class="shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold transition-all {selectedTagMap[tag.id] ? 'border-brand-400 bg-brand-50 text-warm-800' : 'border-warm-200 text-warm-500'}">{tag.name}</button>
+					{/each}
+					{#if categoryTags.length === 0}
+						<span class="text-xs text-warm-400">No category tags</span>
 						{/if}
 
 					{:else if mobileTagTab === 'area'}
 						{#each areaTags as tag (tag.id)}
-							<button data-tag-id={tag.id} onclick={() => toggleTag(tag.id)} class="shrink-0 rounded-full border px-2.5 py-1 text-sm font-bold transition-all {selectedTagMap[tag.id] ? 'border-sage-400 bg-sage-50 text-sage-800' : 'border-warm-200 text-warm-500'}">{tag.name}</button>
-						{/each}
-						{#if areaTags.length === 0}
-							<span class="text-sm text-warm-400">No area tags</span>
+						<button data-tag-id={tag.id} onclick={() => toggleTag(tag.id)} class="shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold transition-all {selectedTagMap[tag.id] ? 'border-sage-400 bg-sage-50 text-sage-800' : 'border-warm-200 text-warm-500'}">{tag.name}</button>
+					{/each}
+					{#if areaTags.length === 0}
+						<span class="text-xs text-warm-400">No area tags</span>
 						{/if}
 
 					{:else if mobileTagTab === 'custom'}
@@ -915,7 +915,7 @@
 							<button
 								data-tag-id={tag.id}
 								onclick={() => toggleTag(tag.id)}
-							class="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-sm font-bold transition-all {selectedTagMap[tag.id] ? 'shadow-sm ring-2 ring-offset-1' : 'opacity-80'}"
+							class="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold transition-all {selectedTagMap[tag.id] ? 'shadow-sm ring-2 ring-offset-1' : 'opacity-80'}"
 							style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}; {selectedTagMap[tag.id] ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
 							>
 								{tag.name}
@@ -964,9 +964,9 @@
 								<button
 									data-tag-id={tag.id}
 									onclick={() => toggleTag(tag.id)}
-									class="rounded-full border px-2.5 py-0.5 text-xs font-bold transition-all {selectedTagMap[tag.id]
-										? 'border-brand-400 bg-brand-50 text-warm-800'
-										: 'border-warm-200 text-warm-500 hover:border-warm-300 hover:text-warm-700'}"
+								class="rounded-full border px-2.5 py-0.5 text-[13px] font-bold transition-all {selectedTagMap[tag.id]
+									? 'border-brand-400 bg-brand-50 text-warm-800'
+									: 'border-warm-200 text-warm-500 hover:border-warm-300 hover:text-warm-700'}"
 								>
 									{tag.name}
 								</button>
@@ -992,9 +992,9 @@
 								<button
 									data-tag-id={tag.id}
 									onclick={() => toggleTag(tag.id)}
-									class="rounded-full border px-2.5 py-0.5 text-xs font-bold transition-all {selectedTagMap[tag.id]
-										? 'border-sage-400 bg-sage-50 text-sage-800'
-										: 'border-warm-200 text-warm-500 hover:border-warm-300 hover:text-warm-700'}"
+								class="rounded-full border px-2.5 py-0.5 text-[13px] font-bold transition-all {selectedTagMap[tag.id]
+									? 'border-sage-400 bg-sage-50 text-sage-800'
+									: 'border-warm-200 text-warm-500 hover:border-warm-300 hover:text-warm-700'}"
 								>
 									{tag.name}
 								</button>
@@ -1019,7 +1019,7 @@
 							<button
 								data-tag-id={tag.id}
 								onclick={() => toggleTag(tag.id)}
-							class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold transition-all {selectedTagMap[tag.id]
+							class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[13px] font-bold transition-all {selectedTagMap[tag.id]
 								? 'shadow-sm ring-2 ring-offset-1'
 								: 'opacity-80 hover:opacity-100'}"
 							style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}; {selectedTagMap[tag.id] ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
@@ -1035,7 +1035,7 @@
 						{/each}
 						<button
 							onclick={() => { showTagManager = true; }}
-							class="inline-flex items-center gap-1 rounded-full border border-dashed border-warm-300 px-2 py-0.5 text-xs text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
+							class="inline-flex items-center gap-1 rounded-full border border-dashed border-warm-300 px-2 py-0.5 text-[13px] text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
 							aria-label="Manage tags"
 						>
 							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1085,7 +1085,7 @@
 
 			<!-- Results count + sort + view toggle -->
 			<div class="mb-1.5 flex items-center justify-between sm:mb-4">
-				<p class="text-sm font-semibold text-warm-500 sm:text-[15px]">{filteredPlaces.length} places</p>
+				<p class="text-xs font-semibold text-warm-500 sm:text-[13px]">{filteredPlaces.length} places</p>
 				<div class="flex items-center gap-1.5 sm:gap-2">
 					<select
 						bind:value={sortBy}

@@ -10,15 +10,11 @@
 html {
 	-webkit-text-size-adjust: 100%;
 	-webkit-tap-highlight-color: transparent;
-	line-height: 1.6;
-	letter-spacing: 0.005em;
 }
 
 body {
 	overscroll-behavior-y: none;
 	-webkit-overflow-scrolling: touch;
-	-webkit-font-smoothing: antialiased;
-	-moz-osx-font-smoothing: grayscale;
 }
 
 button,
