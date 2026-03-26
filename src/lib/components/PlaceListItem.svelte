@@ -225,7 +225,7 @@
 						<polyline points="9 18 15 12 9 6" />
 					</svg>
 
-					<h3 class="min-w-0 flex-1 text-[13px] font-bold text-warm-800 {expanded ? '' : 'truncate'}">{place.title}</h3>
+					<h3 class="min-w-0 flex-1 text-[15px] font-extrabold text-warm-800 {expanded ? '' : 'truncate'}">{place.title}</h3>
 
 					{#if selected && !expanded}
 						<span class="shrink-0 text-[9px] font-medium text-brand-400 animate-pulse">Tap to expand</span>
@@ -257,7 +257,7 @@
 
 				<!-- Secondary row: Area • Category | Tag summary -->
 				<div class="mt-0.5 flex items-center gap-2 pl-[1.375rem]">
-					<span class="shrink-0 text-[11px] text-warm-400">
+					<span class="shrink-0 text-xs text-warm-400">
 						{#if place.area && place.category}
 							{place.area} · {place.category}
 						{:else if place.area}
@@ -313,9 +313,9 @@
 			<polyline points="9 18 15 12 9 6" />
 		</svg>
 
-		<h3 class="min-w-0 flex-[2] truncate text-[13px] font-bold text-warm-800">{place.title}</h3>
+		<h3 class="min-w-0 flex-[2] truncate text-[15px] font-extrabold text-warm-800">{place.title}</h3>
 
-		<div class="flex w-44 shrink-0 items-center gap-1 text-[11px] lg:w-52">
+		<div class="flex w-44 shrink-0 items-center gap-1 text-xs lg:w-52">
 			{#if place.area}
 				<span class="truncate font-medium text-sage-500">{place.area}</span>
 			{/if}
@@ -406,7 +406,7 @@
 				<!-- Notes -->
 				<div class="flex-1">
 					<div class="mb-0.5 flex items-center gap-2">
-						<p class="text-[10px] font-bold uppercase tracking-wide text-warm-400">Notes</p>
+						<p class="text-[11px] font-bold uppercase tracking-wide text-warm-400">Notes</p>
 						{#if saving}
 							<span class="text-[9px] text-warm-400">Saving...</span>
 						{:else if saved}
@@ -419,13 +419,13 @@
 						onclick={(e) => e.stopPropagation()}
 						placeholder="Add a note..."
 						rows="2"
-						class="w-full resize-none rounded-lg border border-warm-200 bg-white px-2.5 py-1.5 text-xs leading-relaxed text-warm-700 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/30"
+						class="w-full resize-none rounded-lg border border-warm-200 bg-white px-2.5 py-1.5 text-[13px] leading-relaxed text-warm-700 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/30"
 					></textarea>
 				</div>
 
 				<!-- Tags -->
 				<div class="flex-1">
-					<p class="mb-1 text-[10px] font-bold uppercase tracking-wide text-warm-400">Tags</p>
+					<p class="mb-1 text-[11px] font-bold uppercase tracking-wide text-warm-400">Tags</p>
 					<TagInput
 						{supabase}
 						placeId={place.id}

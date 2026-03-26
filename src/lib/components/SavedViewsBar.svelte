@@ -181,14 +181,14 @@
 					bind:value={editingName}
 					onkeydown={handleRenameKeydown}
 					onblur={handleRename}
-					class="shrink-0 rounded-lg border border-brand-400 bg-white px-2.5 py-1 text-xs font-semibold text-warm-800 outline-none ring-2 ring-brand-400/20 sm:px-3 sm:text-[11px]"
+					class="shrink-0 rounded-lg border border-brand-400 bg-white px-2.5 py-1 text-[13px] font-semibold text-warm-800 outline-none ring-2 ring-brand-400/20 sm:px-3"
 					style="width: {Math.max(editingName.length * 7.5 + 24, 72)}px"
 				/>
 			{:else}
 				<div class="group relative shrink-0" data-sv-menu>
 					<button
 						onclick={() => onApply(view)}
-						class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-all sm:px-3 sm:text-[11px]
+						class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-sm font-bold transition-all sm:px-3
 							{activeSavedViewId === view.id
 								? 'border-brand-400 bg-brand-50 text-brand-700 shadow-sm ring-1 ring-brand-400/30'
 								: 'border-warm-200 bg-white text-warm-600 hover:border-warm-300 hover:bg-warm-50'}"
@@ -224,20 +224,20 @@
 					onkeydown={handleCreateKeydown}
 					onblur={handleCreateBlur}
 					placeholder="View name…"
-					class="w-28 rounded-lg border border-brand-300 bg-white px-2.5 py-1 text-xs font-medium text-warm-800 placeholder:text-warm-400 outline-none ring-2 ring-brand-400/20 focus:border-brand-400 sm:w-32 sm:text-[11px]"
+					class="w-28 rounded-lg border border-brand-300 bg-white px-2.5 py-1 text-[13px] font-medium text-warm-800 placeholder:text-warm-400 outline-none ring-2 ring-brand-400/20 focus:border-brand-400 sm:w-32"
 				/>
 				<button
 					onmousedown={(e) => e.preventDefault()}
 					onclick={handleCreate}
 					disabled={!newViewName.trim()}
-					class="rounded-md bg-brand-500 px-2 py-1 text-[10px] font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40 sm:text-[11px]"
+					class="rounded-md bg-brand-500 px-2 py-1 text-[11px] font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40 sm:text-xs"
 				>
 					Save
 				</button>
 				<button
 					onmousedown={(e) => e.preventDefault()}
 					onclick={cancelCreate}
-					class="rounded-md px-1.5 py-1 text-[10px] font-medium text-warm-400 transition-colors hover:text-warm-600 sm:text-[11px]"
+					class="rounded-md px-1.5 py-1 text-[11px] font-medium text-warm-400 transition-colors hover:text-warm-600 sm:text-xs"
 				>
 					Cancel
 				</button>
@@ -245,7 +245,7 @@
 		{:else}
 			<button
 				onclick={openCreate}
-				class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-dashed border-warm-300 px-2 py-1 text-[10px] font-semibold text-warm-400 transition-colors hover:border-brand-400 hover:bg-brand-50/60 hover:text-brand-600 sm:px-2.5 sm:text-[11px]"
+				class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-dashed border-warm-300 px-2 py-1 text-xs font-bold text-warm-400 transition-colors hover:border-brand-400 hover:bg-brand-50/60 hover:text-brand-600 sm:px-2.5 sm:text-sm"
 				title={hasFilters ? 'Save current filters as a view' : 'Save a view'}
 			>
 				<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -269,7 +269,7 @@
 		>
 			<button
 				onclick={() => startRename(view)}
-				class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] font-medium text-warm-600 hover:bg-warm-50 hover:text-warm-800"
+				class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-warm-600 hover:bg-warm-50 hover:text-warm-800"
 			>
 				<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -280,7 +280,7 @@
 			{#if onCreateCollection}
 				<button
 					onclick={(e) => { e.stopPropagation(); const v = view; menuOpenId = null; onCreateCollection!(v); }}
-					class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] font-medium text-warm-600 hover:bg-warm-50 hover:text-warm-800"
+					class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-warm-600 hover:bg-warm-50 hover:text-warm-800"
 				>
 					<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
@@ -291,7 +291,7 @@
 			{#if onAddToCollection}
 				<button
 					onclick={(e) => { e.stopPropagation(); const v = view; menuOpenId = null; onAddToCollection!(v); }}
-					class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] font-medium text-warm-600 hover:bg-warm-50 hover:text-warm-800"
+					class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-warm-600 hover:bg-warm-50 hover:text-warm-800"
 				>
 					<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -302,7 +302,7 @@
 			<div class="my-1 border-t border-warm-100"></div>
 			<button
 				onclick={() => handleDelete(view)}
-				class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] font-medium text-red-500 hover:bg-red-50 hover:text-red-700"
+				class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-red-500 hover:bg-red-50 hover:text-red-700"
 			>
 				<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />

@@ -247,7 +247,7 @@
 
 <div class="mx-auto max-w-4xl px-3 py-4 sm:px-6 sm:py-8">
 	<!-- Breadcrumb -->
-	<div class="mb-3 flex items-center gap-1.5 text-xs text-warm-400 sm:mb-4 sm:text-sm">
+	<div class="mb-3 flex items-center gap-1.5 text-[13px] text-warm-400 sm:mb-4 sm:text-[15px]">
 		<a href="/collections" class="transition-colors hover:text-warm-600">Collections</a>
 		<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6" /></svg>
 		<span class="font-semibold text-warm-600">{collection.name}</span>
@@ -317,7 +317,7 @@
 							/>
 						{:else}
 							<h1
-								class="cursor-pointer truncate text-lg font-extrabold text-warm-800 transition-colors hover:text-brand-600 sm:text-2xl"
+								class="cursor-pointer truncate text-xl font-extrabold text-warm-800 transition-colors hover:text-brand-600 sm:text-2xl"
 								onclick={() => { editingName = true; editName = collection.name; }}
 							>
 								{collection.name}
@@ -330,12 +330,12 @@
 								onkeydown={(e) => { if (e.key === 'Enter') saveDescription(); if (e.key === 'Escape') editingDesc = false; }}
 								onblur={saveDescription}
 								placeholder="Add a description..."
-								class="mt-1 w-full rounded-lg border border-warm-200 bg-warm-50 px-2 py-1 text-xs text-warm-500 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:text-sm"
+								class="mt-1 w-full rounded-lg border border-warm-200 bg-warm-50 px-2 py-1 text-[13px] text-warm-500 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:text-[15px]"
 								autofocus
 							/>
 						{:else}
 							<p
-								class="mt-0.5 cursor-pointer text-xs text-warm-400 transition-colors hover:text-warm-500 sm:text-sm"
+								class="mt-0.5 cursor-pointer text-[13px] text-warm-400 transition-colors hover:text-warm-500 sm:text-[15px]"
 								onclick={() => { editingDesc = true; editDesc = collection.description ?? ''; }}
 							>
 								{collection.description || 'Add a description...'}
@@ -390,7 +390,7 @@
 
 	<!-- Controls -->
 	<div class="mb-3 flex items-center justify-between sm:mb-4">
-		<p class="text-[11px] font-semibold text-warm-500 sm:text-sm">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</p>
+		<p class="text-xs font-semibold text-warm-500 sm:text-[15px]">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</p>
 		<div class="flex items-center gap-1.5 sm:gap-2">
 			<div class="relative">
 				<svg class="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -400,12 +400,12 @@
 					type="text"
 					bind:value={search}
 					placeholder="Search..."
-					class="w-28 rounded-lg border border-warm-200 bg-warm-50 py-1 pl-7 pr-2 text-[10px] font-medium text-warm-600 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:w-40 sm:text-xs"
+					class="w-28 rounded-lg border border-warm-200 bg-warm-50 py-1 pl-7 pr-2 text-[11px] font-medium text-warm-600 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:w-40 sm:text-[13px]"
 				/>
 			</div>
 			<select
 				bind:value={sortBy}
-				class="rounded-md border border-warm-200 bg-white px-1.5 py-1 text-[10px] font-semibold text-warm-600 focus:border-brand-400 focus:outline-none sm:text-[11px]"
+				class="rounded-md border border-warm-200 bg-white px-1.5 py-1 text-[11px] font-semibold text-warm-600 focus:border-brand-400 focus:outline-none sm:text-[13px]"
 			>
 				<option value="newest">Recent</option>
 				<option value="az">A–Z</option>
@@ -441,13 +441,13 @@
 			<svg class="mx-auto h-12 w-12 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
 				<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
 			</svg>
-			<p class="mt-3 text-sm text-warm-500">
+			<p class="mt-3 text-[15px] text-warm-500">
 				{places.length === 0 ? 'This collection is empty' : 'No places match your search'}
 			</p>
 			{#if places.length === 0}
 				<button
 					onclick={() => { showAddModal = true; }}
-					class="mt-2 text-sm font-semibold text-brand-600 hover:text-brand-700"
+					class="mt-2 text-[15px] font-semibold text-brand-600 hover:text-brand-700"
 				>
 					Add some places
 				</button>

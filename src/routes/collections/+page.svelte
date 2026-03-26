@@ -176,12 +176,12 @@
 <div class="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-8">
 	<div class="mb-5 flex items-center justify-between sm:mb-8">
 		<div>
-			<h1 class="text-lg font-extrabold text-warm-800 sm:text-2xl">Collections</h1>
-			<p class="mt-0.5 text-xs text-warm-400 sm:text-sm">Curated groups of your saved places</p>
+			<h1 class="text-xl font-extrabold text-warm-800 sm:text-2xl">Collections</h1>
+			<p class="mt-0.5 text-[13px] text-warm-400 sm:text-[15px]">Curated groups of your saved places</p>
 		</div>
 		<button
 			onclick={() => { showCreate = true; }}
-			class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700 sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-sm"
+			class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2.5 py-1.5 text-sm font-extrabold text-white transition-colors hover:bg-brand-700 sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-sm"
 		>
 			<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 				<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -194,7 +194,7 @@
 		<div class="mb-5 rounded-2xl border border-warm-200 bg-white p-4 sm:mb-8 sm:p-5">
 			<div class="flex flex-col gap-3 sm:flex-row sm:items-end">
 				<div class="flex-1">
-					<label for="col-name" class="mb-1 block text-[11px] font-bold text-warm-500">Name</label>
+					<label for="col-name" class="mb-1 block text-xs font-bold text-warm-500">Name</label>
 					<input
 						id="col-name"
 						type="text"
@@ -206,7 +206,7 @@
 					/>
 				</div>
 				<div>
-					<label class="mb-1 block text-[11px] font-bold text-warm-500">Accent</label>
+					<label class="mb-1 block text-xs font-bold text-warm-500">Accent</label>
 					<div class="flex items-center gap-1.5">
 						{#each COLORS as color}
 							<button
@@ -219,7 +219,7 @@
 					</div>
 				</div>
 					<div>
-					<label class="mb-1 block text-[11px] font-bold text-warm-500">Icon</label>
+					<label class="mb-1 block text-xs font-bold text-warm-500">Icon</label>
 					<div class="flex flex-wrap items-center gap-1" style="max-width: 260px;">
 						<button
 							type="button"
@@ -261,10 +261,10 @@
 			<svg class="mx-auto h-10 w-10 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
 				<path d="M19 11H5m14 0a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2m14 0V9a2 2 0 0 0-2-2M5 11V9a2 2 0 0 1 2-2m0 0V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2M7 7h10" />
 			</svg>
-			<p class="mt-3 text-sm font-medium text-warm-500">No collections yet</p>
+			<p class="mt-3 text-[15px] font-medium text-warm-500">No collections yet</p>
 			<button
 				onclick={() => { showCreate = true; }}
-				class="mt-1.5 text-sm font-semibold text-brand-600 hover:text-brand-700"
+				class="mt-1.5 text-[15px] font-semibold text-brand-600 hover:text-brand-700"
 			>
 				Create your first collection
 			</button>
@@ -280,9 +280,9 @@
 					<div class="mb-2 flex items-center justify-between">
 						<div class="flex items-center gap-1.5">
 							{#if col.visibility === 'link_access'}
-								<span class="rounded-full bg-sage-200 px-2 py-0.5 text-[10px] font-bold text-sage-700">Shared</span>
+								<span class="rounded-full bg-sage-200 px-2 py-0.5 text-[11px] font-bold text-sage-700">Shared</span>
 							{/if}
-							<span class="text-[10px] font-medium text-warm-300">{formatDate(col.updated_at)}</span>
+							<span class="text-[11px] font-medium text-warm-300">{formatDate(col.updated_at)}</span>
 						</div>
 
 						<div class="flex items-center gap-0.5">
@@ -360,15 +360,15 @@
 								<span class="text-sm leading-none sm:text-base">{col.emoji}</span>
 							{/if}
 						</div>
-						<h3 class="min-w-0 truncate text-sm font-extrabold leading-snug text-warm-800 sm:text-base">{col.name}</h3>
+						<h3 class="min-w-0 truncate text-base font-extrabold leading-snug text-warm-800 sm:text-lg">{col.name}</h3>
 					</div>
 
 					{#if col.description}
-						<p class="mt-1.5 line-clamp-2 text-xs font-medium text-warm-400">{col.description}</p>
+						<p class="mt-1.5 line-clamp-2 text-[13px] font-medium text-warm-400">{col.description}</p>
 					{/if}
 
 					<div class="mt-auto flex items-center gap-2 pt-3">
-						<span class="rounded-full bg-warm-100 px-2 py-0.5 text-[10px] font-bold text-warm-500">{count} {count === 1 ? 'place' : 'places'}</span>
+						<span class="rounded-full bg-warm-100 px-2 py-0.5 text-[11px] font-bold text-warm-500">{count} {count === 1 ? 'place' : 'places'}</span>
 					</div>
 				</a>
 			{/each}

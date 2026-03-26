@@ -118,7 +118,7 @@
 					for (const id of selectedTagIds) onTagToggle(id);
 				}
 			}}
-			class="mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-bold transition-colors {!hasActiveFilters && selectedSource === 'all'
+			class="mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2 text-[15px] font-bold transition-colors {!hasActiveFilters && selectedSource === 'all'
 				? 'bg-warm-200 text-warm-800'
 				: 'text-warm-600 hover:bg-warm-100'}"
 		>
@@ -129,21 +129,21 @@
 				</svg>
 				All Places
 			</div>
-			<span class="text-xs text-warm-400">{totalPlaces}</span>
+			<span class="text-[13px] text-warm-400">{totalPlaces}</span>
 		</button>
 
 		<!-- Category tags -->
 		{#if categoryTags.length > 0}
 			<div class="mt-5">
 				<div class="mb-2 px-3">
-					<span class="text-xs font-bold uppercase tracking-wider text-warm-400">Category</span>
+					<span class="text-[13px] font-bold uppercase tracking-wider text-warm-400">Category</span>
 				</div>
 				<div class="space-y-0.5">
 				{#each categoryTags as tag (tag.id)}
 					{@const count = tagCount(tag.id)}
 					<button
 						onclick={() => onTagToggle(tag.id)}
-						class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-sm transition-colors {selectedTagMap[tag.id]
+						class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-[15px] transition-colors {selectedTagMap[tag.id]
 							? 'bg-warm-200 text-warm-800'
 							: 'text-warm-600 hover:bg-warm-100'}"
 					>
@@ -151,7 +151,7 @@
 							<span class="h-2 w-2 shrink-0 rounded-sm bg-warm-400"></span>
 							<span class="truncate">{tag.name}</span>
 						</div>
-						<span class="text-xs text-warm-400">{count}</span>
+						<span class="text-[13px] text-warm-400">{count}</span>
 					</button>
 				{/each}
 				</div>
@@ -162,14 +162,14 @@
 		{#if areaTags.length > 0}
 			<div class="mt-5">
 				<div class="mb-2 px-3">
-					<span class="text-xs font-bold uppercase tracking-wider text-warm-400">Area</span>
+					<span class="text-[13px] font-bold uppercase tracking-wider text-warm-400">Area</span>
 				</div>
 				<div class="space-y-0.5">
 				{#each areaTags as tag (tag.id)}
 					{@const count = tagCount(tag.id)}
 					<button
 						onclick={() => onTagToggle(tag.id)}
-						class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-sm transition-colors {selectedTagMap[tag.id]
+						class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-[15px] transition-colors {selectedTagMap[tag.id]
 							? 'bg-sage-200 text-sage-800'
 							: 'text-warm-600 hover:bg-warm-100'}"
 					>
@@ -177,7 +177,7 @@
 							<span class="h-2 w-2 shrink-0 rounded-sm bg-sage-400"></span>
 							<span class="truncate">{tag.name}</span>
 						</div>
-						<span class="text-xs text-warm-400">{count}</span>
+						<span class="text-[13px] text-warm-400">{count}</span>
 					</button>
 				{/each}
 				</div>
@@ -187,7 +187,7 @@
 		<!-- User tags -->
 		<div class="mt-5">
 			<div class="mb-2 flex items-center justify-between px-3">
-				<span class="text-xs font-bold uppercase tracking-wider text-warm-400">My Tags</span>
+				<span class="text-[13px] font-bold uppercase tracking-wider text-warm-400">My Tags</span>
 				<button
 					onclick={() => { showNewTag = !showNewTag; }}
 					class="rounded p-0.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600"
@@ -207,13 +207,13 @@
 					bind:value={newTagName}
 					onkeydown={handleKeydown}
 					placeholder="Tag name..."
-					class="min-w-0 flex-1 rounded-md border border-warm-200 bg-white px-2.5 py-1.5 text-sm focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
+					class="min-w-0 flex-1 rounded-md border border-warm-200 bg-white px-2.5 py-1.5 text-[15px] focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
 					autofocus
 				/>
 				<button
 					type="submit"
 					disabled={!newTagName.trim() || creating}
-					class="shrink-0 rounded-md bg-brand-500 px-2 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
+					class="shrink-0 rounded-md bg-brand-500 px-2 py-1.5 text-[13px] font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
 				>
 					{creating ? '...' : 'Add'}
 				</button>
@@ -225,7 +225,7 @@
 				{@const count = tagCount(tag.id)}
 				<button
 					onclick={() => onTagToggle(tag.id)}
-					class="group flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-sm transition-colors {selectedTagMap[tag.id]
+					class="group flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-[15px] transition-colors {selectedTagMap[tag.id]
 						? 'bg-warm-200 text-warm-800'
 						: 'text-warm-600 hover:bg-warm-100'}"
 				>
@@ -237,7 +237,7 @@
 						<span class="truncate">{tag.name}</span>
 					</div>
 					<div class="flex items-center gap-1.5">
-						<span class="text-xs text-warm-400">{count}</span>
+						<span class="text-[13px] text-warm-400">{count}</span>
 						<span
 							role="button"
 							tabindex="-1"
@@ -256,7 +256,7 @@
 			{/each}
 
 				{#if userTags.length === 0 && !showNewTag}
-					<p class="px-3 py-2 text-xs text-warm-400">No tags yet. Create one to organize your places.</p>
+					<p class="px-3 py-2 text-[13px] text-warm-400">No tags yet. Create one to organize your places.</p>
 				{/if}
 			</div>
 		</div>
@@ -265,13 +265,13 @@
 		{#if sourceLists.length > 0}
 			<div class="mt-6">
 				<div class="mb-2 px-3">
-					<span class="text-xs font-bold uppercase tracking-wider text-warm-400">Sources</span>
+					<span class="text-[13px] font-bold uppercase tracking-wider text-warm-400">Sources</span>
 				</div>
 				<div class="space-y-0.5">
 					{#each sourceLists as source}
 						<button
 							onclick={() => onSourceSelect(selectedSource === source ? 'all' : source)}
-							class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-sm transition-colors {selectedSource === source
+							class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-[15px] transition-colors {selectedSource === source
 								? 'bg-warm-200 text-warm-800'
 								: 'text-warm-600 hover:bg-warm-100'}"
 						>
@@ -282,7 +282,7 @@
 								</svg>
 								<span class="truncate">{source}</span>
 							</div>
-							<span class="text-xs text-warm-400">{sourceCountMap[source] ?? 0}</span>
+							<span class="text-[13px] text-warm-400">{sourceCountMap[source] ?? 0}</span>
 						</button>
 					{/each}
 				</div>

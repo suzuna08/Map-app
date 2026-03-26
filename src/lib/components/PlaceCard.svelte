@@ -210,10 +210,10 @@
 				<div class="flex items-center justify-between">
 					<div class="flex items-center gap-1">
 						{#if place.category}
-							<span class="rounded-full bg-warm-200 px-1.5 py-px text-[9px] font-bold text-warm-600">{place.category}</span>
+							<span class="rounded-full bg-warm-200 px-1.5 py-px text-[10px] font-bold text-warm-600">{place.category}</span>
 						{/if}
 						{#if place.area}
-							<span class="rounded-full bg-sage-200 px-1.5 py-px text-[9px] font-bold text-sage-700">{place.area}</span>
+							<span class="rounded-full bg-sage-200 px-1.5 py-px text-[10px] font-bold text-sage-700">{place.area}</span>
 						{/if}
 					</div>
 					<RatingDisplay
@@ -225,13 +225,13 @@
 					/>
 				</div>
 
-				<h3 class="mt-1 line-clamp-1 text-[13px] font-extrabold leading-tight text-warm-800">{place.title}</h3>
+				<h3 class="mt-1 line-clamp-1 text-[15px] font-extrabold leading-snug text-warm-800">{place.title}</h3>
 
 				{#if place.address}
-					<p class="mt-0.5 truncate text-[10px] text-warm-400">{place.address}</p>
+					<p class="mt-0.5 truncate text-xs text-warm-400">{place.address}</p>
 				{/if}
 
-				<p class="mt-0.5 line-clamp-2 h-[2.4em] text-[10px] leading-[1.2em] {contentIsNote ? 'italic text-brand-500' : contentPreview ? 'text-warm-500' : 'italic text-warm-300'}">
+				<p class="mt-0.5 line-clamp-2 h-[2.6em] text-xs leading-[1.35em] {contentIsNote ? 'italic text-brand-500' : contentPreview ? 'text-warm-500' : 'italic text-warm-300'}">
 					{contentPreview ?? 'Add a note about this place...'}
 				</p>
 
@@ -267,7 +267,7 @@
 						<a
 							href={place.url}
 							target="_blank"
-							class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+							class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-bold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
 							aria-label="Open in Google Maps"
 						>
 							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -280,7 +280,7 @@
 						<a
 							href={place.website}
 							target="_blank"
-							class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+							class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-bold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
 							aria-label="Website"
 						>
 							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -291,7 +291,7 @@
 					{/if}
 					<button
 						onclick={flipToBack}
-						class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+						class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-bold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
 						aria-label="Notes"
 					>
 						<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -302,7 +302,7 @@
 					{#if onCollectionPickerToggle}
 						<button
 							onclick={(e) => { e.stopPropagation(); onCollectionPickerToggle?.(place.id); }}
-							class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+							class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-bold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
 							aria-label="Add to collection"
 						>
 							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -321,7 +321,7 @@
 		<div class="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
 			<article class="flex h-full flex-col rounded-xl border border-warm-200 bg-white p-2.5">
 				<div class="mb-1.5 flex items-center justify-between">
-					<h3 class="line-clamp-1 flex-1 text-[13px] font-extrabold text-warm-800">{place.title}</h3>
+					<h3 class="line-clamp-1 flex-1 text-[15px] font-extrabold text-warm-800">{place.title}</h3>
 					<div class="ml-2 flex items-center gap-1.5">
 						{#if saving}
 							<span class="text-[9px] text-warm-400">Saving...</span>
@@ -344,7 +344,7 @@
 					bind:value={noteText}
 					oninput={scheduleAutoSave}
 					placeholder="Write your notes here..."
-					class="flex-1 w-full resize-none rounded-lg border border-warm-200 bg-warm-50 p-2 text-xs leading-relaxed text-warm-700 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20"
+					class="flex-1 w-full resize-none rounded-lg border border-warm-200 bg-warm-50 p-2 text-sm leading-relaxed text-warm-700 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20"
 				></textarea>
 			</article>
 		</div>
@@ -369,10 +369,10 @@
 				<div class="mb-3 flex items-center justify-between">
 					<div class="flex flex-wrap items-center gap-1.5">
 						{#if place.category}
-							<span class="rounded-full bg-warm-200 px-2.5 py-0.5 text-[11px] font-bold text-warm-600">{place.category}</span>
+							<span class="rounded-full bg-warm-200 px-2.5 py-0.5 text-xs font-bold text-warm-600">{place.category}</span>
 						{/if}
 						{#if place.area}
-							<span class="rounded-full bg-sage-200 px-2 py-0.5 text-[11px] font-bold text-sage-700">{place.area}</span>
+							<span class="rounded-full bg-sage-200 px-2 py-0.5 text-xs font-bold text-sage-700">{place.area}</span>
 						{/if}
 						{#if place.price_level}
 							<span class="text-xs font-bold text-brand-600">{place.price_level}</span>
@@ -386,13 +386,13 @@
 					/>
 				</div>
 
-				<h3 class="mb-1 line-clamp-1 text-base font-extrabold leading-snug text-warm-800">{place.title}</h3>
+				<h3 class="mb-1 line-clamp-1 text-lg font-extrabold leading-snug text-warm-800">{place.title}</h3>
 
-				<p class="mb-2.5 line-clamp-2 h-[2.6em] text-[13px] font-medium leading-[1.3em] {contentIsNote ? 'italic text-brand-500' : contentPreview ? 'text-warm-500' : 'italic text-warm-300'}">
+				<p class="mb-2.5 line-clamp-2 h-[2.6em] text-[13px] font-medium leading-[1.4em] {contentIsNote ? 'italic text-brand-500' : contentPreview ? 'text-warm-500' : 'italic text-warm-300'}">
 					{contentPreview ?? 'Add a note about this place...'}
 				</p>
 
-				<p class="mb-3 line-clamp-1 text-xs font-medium leading-relaxed text-warm-400">
+				<p class="mb-3 line-clamp-1 text-[13px] font-medium leading-relaxed text-warm-400">
 					{place.address ?? '\u00A0'}
 				</p>
 
@@ -414,7 +414,7 @@
 						<button
 							onclick={() => onEnrich(place.id)}
 							disabled={enrichingId === place.id}
-							class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-brand-600 hover:bg-brand-50 disabled:opacity-50"
+							class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-brand-600 hover:bg-brand-50 disabled:opacity-50"
 						>
 							{#if enrichingId === place.id}
 								<svg class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -429,7 +429,7 @@
 						<a
 							href={place.url}
 							target="_blank"
-							class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+							class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
 							aria-label="Open in Google Maps"
 						>
 							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -444,7 +444,7 @@
 						<a
 							href={place.website}
 							target="_blank"
-							class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+							class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
 							aria-label="Visit website"
 						>
 							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -457,7 +457,7 @@
 					{/if}
 					<button
 						onclick={flipToBack}
-						class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+						class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
 						aria-label="Notes"
 					>
 						<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -468,7 +468,7 @@
 					{#if onCollectionPickerToggle}
 						<button
 							onclick={(e) => { e.stopPropagation(); onCollectionPickerToggle?.(place.id); }}
-							class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+							class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
 							aria-label="Add to collection"
 						>
 							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -483,11 +483,11 @@
 						{#if confirmDelete}
 							<button
 								onclick={() => { onDelete(place.id); confirmDelete = false; }}
-								class="rounded-md bg-red-100 px-2 py-1 text-[11px] font-medium text-red-600 hover:bg-red-200"
+								class="rounded-md bg-red-100 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-200"
 							>
 								Confirm
 							</button>
-							<button onclick={() => { confirmDelete = false; }} class="ml-1 text-[11px] text-warm-400">Cancel</button>
+							<button onclick={() => { confirmDelete = false; }} class="ml-1 text-xs text-warm-400">Cancel</button>
 						{:else}
 							<button
 								onclick={() => { confirmDelete = true; }}
@@ -509,12 +509,12 @@
 		<div class="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
 			<article class="flex h-full flex-col rounded-2xl border border-warm-200 bg-white p-5">
 				<div class="mb-3 flex items-center justify-between">
-					<h3 class="line-clamp-1 text-base font-extrabold text-warm-800">{place.title}</h3>
+					<h3 class="line-clamp-1 text-lg font-extrabold text-warm-800">{place.title}</h3>
 					<div class="flex shrink-0 items-center gap-2">
 						{#if saving}
-							<span class="text-[11px] text-warm-400">Saving...</span>
+							<span class="text-xs text-warm-400">Saving...</span>
 						{:else if saved}
-							<span class="text-[11px] text-sage-600">Saved</span>
+							<span class="text-xs text-sage-600">Saved</span>
 						{/if}
 						<button
 							onclick={flipToFront}

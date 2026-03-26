@@ -199,7 +199,7 @@
 	{#each visibleTags as tag (tag.id)}
 		<span
 			data-tag-id={tag.id}
-			class="inline-flex items-center gap-0.5 rounded-full text-[10px] font-bold sm:text-[11px]"
+			class="inline-flex items-center gap-0.5 rounded-full text-[11px] font-bold sm:text-xs"
 			style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
 		>
 			<button
@@ -225,14 +225,14 @@
 	{#if !expanded && overflowCount > 0}
 		<button
 			onclick={(e) => { e.stopPropagation(); expanded = true; }}
-			class="rounded-full bg-warm-100 px-2 py-0.5 text-[10px] font-bold text-warm-500 transition-colors hover:bg-warm-200 hover:text-warm-700 sm:text-[11px]"
+			class="rounded-full bg-warm-100 px-2 py-0.5 text-[11px] font-bold text-warm-500 transition-colors hover:bg-warm-200 hover:text-warm-700 sm:text-xs"
 		>
 			+{overflowCount} more
 		</button>
 	{:else if expanded && displayUserTags.length > maxVisible}
 		<button
 			onclick={(e) => { e.stopPropagation(); expanded = false; }}
-			class="rounded-full bg-warm-100 px-2 py-0.5 text-[10px] font-bold text-warm-500 transition-colors hover:bg-warm-200 hover:text-warm-700 sm:text-[11px]"
+			class="rounded-full bg-warm-100 px-2 py-0.5 text-[11px] font-bold text-warm-500 transition-colors hover:bg-warm-200 hover:text-warm-700 sm:text-xs"
 		>
 			less
 		</button>
@@ -248,7 +248,7 @@
 				oninput={() => { updateDropdownPos(); }}
 				onkeydown={handleKeydown}
 				placeholder="tag name..."
-				class="w-24 rounded-full border border-warm-200 bg-warm-50 px-2 py-0.5 text-xs text-warm-700 placeholder-warm-400 focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-400 sm:w-28 sm:px-2.5 sm:py-1"
+				class="w-24 rounded-full border border-warm-200 bg-warm-50 px-2 py-0.5 text-[13px] text-warm-700 placeholder-warm-400 focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-400 sm:w-28 sm:px-2.5 sm:py-1"
 			/>
 		</div>
 	{:else}
@@ -274,7 +274,7 @@
 		{#each suggestions.slice(0, 5) as tag (tag.id)}
 			<button
 				onmousedown={(e) => { e.preventDefault(); addExistingTag(tag); }}
-				class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-warm-50"
+				class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] hover:bg-warm-50"
 			>
 				<span
 					class="h-2.5 w-2.5 shrink-0 rounded-full"
@@ -286,7 +286,7 @@
 		{#if showCreateOption}
 			<button
 				onmousedown={(e) => { e.preventDefault(); createAndAddTag(inputValue); }}
-				class="flex w-full items-center gap-2 border-t border-warm-100 px-3 py-1.5 text-left text-xs text-brand-600 hover:bg-brand-50"
+				class="flex w-full items-center gap-2 border-t border-warm-100 px-3 py-1.5 text-left text-[13px] text-brand-600 hover:bg-brand-50"
 			>
 				<span
 					class="h-2.5 w-2.5 shrink-0 rounded-full"
