@@ -122,7 +122,10 @@
 	function handleDesktopFlip(e: MouseEvent) {
 		const target = e.target as HTMLElement;
 		if (target.closest('a, button, input, textarea, [role="button"]')) return;
-		onSelect?.(place.id);
+		if (!selected) {
+			onSelect?.(place.id);
+			return;
+		}
 		flipped = !flipped;
 	}
 
@@ -394,8 +397,11 @@
 					/>
 				</div>
 
-				<div class="mt-auto flex items-center gap-1 border-t border-warm-200 pt-2.5">
-					{#if !place.enriched_at && place.url}
+			<div class="mt-auto flex items-center gap-1 border-t border-warm-200 pt-2.5">
+				{#if selected && !flipped}
+					<span class="text-[11px] font-medium text-brand-400 animate-pulse">Click to flip</span>
+				{/if}
+				{#if !place.enriched_at && place.url}
 						<button
 							onclick={() => onEnrich(place.id)}
 							disabled={enrichingId === place.id}
