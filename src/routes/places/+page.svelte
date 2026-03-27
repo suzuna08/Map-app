@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { Place, Tag, Collection, BrowseScope, SavedView, SavedViewFilters } from '$lib/types/database';
-	import TagSidebar from '$lib/components/TagSidebar.svelte';
 	import PlaceCard from '$lib/components/PlaceCard.svelte';
 	import PlaceListItem from '$lib/components/PlaceListItem.svelte';
 	import TagManager from '$lib/components/TagManager.svelte';
@@ -55,12 +54,10 @@
 	let enriching = $state(false);
 	let enrichingId = $state<string | null>(null);
 	let enrichResult = $state<{ enriched: number; total: number } | null>(null);
-	let sidebarOpen = $state(false);
 	let showTagManager = $state(false);
 	
 	let viewMode = $state<'grid' | 'list'>('grid');
 	let sortBy = $state<'newest' | 'oldest' | 'az' | 'za' | 'rating' | 'most-tags' | 'tag-group'>('newest');
-	let mobileTagTab = $state<'category' | 'area' | 'custom'>('category');
 	let contextMenuTag = $state<Tag | null>(null);
 	let contextMenuPos = $state({ x: 0, y: 0 });
 
@@ -123,17 +120,11 @@
 	function wouldPlaceBeVisibleInCurrentView(placeId: string): boolean {
 		const pTags = placeTagsMap[placeId] ?? [];
 		const pTagIds = pTags.map((t) => t.id);
-		const matchesCategory =
-			selectedCategoryIds.length === 0 ||
-			selectedCategoryIds.some((id) => pTagIds.includes(id));
-		const matchesArea =
-			selectedAreaIds.length === 0 ||
-			selectedAreaIds.some((id) => pTagIds.includes(id));
 		const matchesCustom =
 			selectedCustomIds.length === 0 ||
 			selectedCustomIds.every((id) => pTagIds.includes(id));
 		const matchesSource = selectedSource === 'all';
-		return matchesCategory && matchesArea && matchesCustom && matchesSource;
+		return matchesCustom && matchesSource;
 	}
 
 	async function addPlaceFromUrl() {
@@ -221,9 +212,10 @@
 
 	async function loadData() {
 		loading = true;
+		const userId = session?.user?.id;
 		try {
 			const [placeResult, colResult] = await Promise.all([
-				loadPlacesData(supabase),
+				loadPlacesData(supabase, userId),
 				loadCollections(supabase).catch((err) => {
 					console.warn('[loadData] collections failed:', err);
 					return { collections: [] as Collection[], collectionPlacesMap: {} as CollectionMemberMap };
@@ -260,8 +252,6 @@
 
 		const f = (view.filters_json ?? {}) as SavedViewFilters;
 		const tagMap: Record<string, boolean> = {};
-		for (const id of f.categoryTagIds ?? []) tagMap[id] = true;
-		for (const id of f.areaTagIds ?? []) tagMap[id] = true;
 		for (const id of f.customTagIds ?? []) tagMap[id] = true;
 		selectedTagMap = tagMap;
 		selectedSource = f.source ?? 'all';
@@ -276,13 +266,11 @@
 	});
 
 	async function refreshTags() {
-		const result = await refreshTagsData(supabase);
+		const userId = session?.user?.id;
+		const result = await refreshTagsData(supabase, userId);
 		allTags = result.tags;
 		placeTagsMap = buildPlaceTagsMap(allTags, result.placeTags);
 	}
-
-	// Tags actually in use by current places
-	let activeTagIds = $derived(new Set(Object.values(placeTagsMap).flat().map((t) => t.id)));
 
 	function sortByOrder(a: Tag, b: Tag): number {
 		const oa = a.order_index ?? 0;
@@ -291,15 +279,13 @@
 		return a.name.localeCompare(b.name);
 	}
 
-	let categoryTags = $derived(allTags.filter((t) => t.source === 'category' && activeTagIds.has(t.id)).sort(sortByOrder));
-	let areaTags = $derived(allTags.filter((t) => t.source === 'area' && activeTagIds.has(t.id)).sort(sortByOrder));
 	let userTags = $derived(allTags.filter((t) => t.source === 'user').sort(sortByOrder));
 	let selectedTagIds = $derived(Object.keys(selectedTagMap).filter((id) => selectedTagMap[id]));
 	let hasActiveFilters = $derived(selectedTagIds.length > 0);
 
 	// Auto-remove selected filters that no longer exist in the dataset
 	$effect(() => {
-		const validIds = new Set([...categoryTags, ...areaTags, ...userTags].map((t) => t.id));
+		const validIds = new Set(userTags.map((t) => t.id));
 		const stale = selectedTagIds.filter((id) => !validIds.has(id));
 		if (stale.length > 0) {
 			const copy = { ...selectedTagMap };
@@ -309,12 +295,6 @@
 	});
 
 	let sourceLists = $derived([...new Set(places.map((p) => p.source_list).filter((s): s is string => !!s))]);
-	let sourceCountMap = $derived(
-		sourceLists.reduce<Record<string, number>>((acc, s) => {
-			acc[s] = places.filter((p) => p.source_list === s).length;
-			return acc;
-		}, {})
-	);
 
 	// Reset selectedSource when it no longer exists in the dataset
 	$effect(() => {
@@ -325,8 +305,6 @@
 
 	let unenrichedCount = $derived(places.filter((p) => !p.enriched_at && p.url).length);
 
-	let selectedCategoryIds = $derived(selectedTagIds.filter((id) => categoryTags.some((t) => t.id === id)));
-	let selectedAreaIds = $derived(selectedTagIds.filter((id) => areaTags.some((t) => t.id === id)));
 	let selectedCustomIds = $derived(selectedTagIds.filter((id) => userTags.some((t) => t.id === id)));
 
 	// Auto-save the active saved view when user changes filters (debounced)
@@ -338,17 +316,15 @@
 		const view = savedViews.find((v) => v.id === activeSavedViewId);
 		if (!view) { activeSavedViewId = null; return; }
 		const f = (view.filters_json ?? {}) as SavedViewFilters;
-		const catMatch = JSON.stringify([...(f.categoryTagIds ?? [])].sort()) === JSON.stringify([...selectedCategoryIds].sort());
-		const areaMatch = JSON.stringify([...(f.areaTagIds ?? [])].sort()) === JSON.stringify([...selectedAreaIds].sort());
 		const customMatch = JSON.stringify([...(f.customTagIds ?? [])].sort()) === JSON.stringify([...selectedCustomIds].sort());
 		const sourceMatch = (f.source ?? 'all') === selectedSource;
-		if (catMatch && areaMatch && customMatch && sourceMatch) return;
+		if (customMatch && sourceMatch) return;
 
 		if (autoSaveTimer) clearTimeout(autoSaveTimer);
 		const viewId = activeSavedViewId;
 		autoSaveTimer = setTimeout(async () => {
 			autoSaving = true;
-			const filters = buildFiltersSnapshot(selectedCategoryIds, selectedAreaIds, selectedCustomIds, selectedSource);
+			const filters = buildFiltersSnapshot(selectedCustomIds, selectedSource);
 			await updateSavedView(supabase, viewId, {
 				filtersJson: filters,
 				sortBy,
@@ -392,33 +368,23 @@
 				p.title.toLowerCase().includes(searchLower) ||
 				(p.description ?? '').toLowerCase().includes(searchLower) ||
 				(p.address ?? '').toLowerCase().includes(searchLower) ||
+				(p.category ?? '').toLowerCase().includes(searchLower) ||
+				(p.area ?? '').toLowerCase().includes(searchLower) ||
 				pTags.some((t) => t.name.toLowerCase().includes(searchLower));
 
 			const matchesSource = selectedSource === 'all' || p.source_list === selectedSource;
-
-			// Category: OR — place matches if it has ANY of the selected categories
-			const matchesCategory =
-				selectedCategoryIds.length === 0 ||
-				selectedCategoryIds.some((id) => pTagIds.includes(id));
-
-			// Area: OR — place matches if it's in ANY of the selected areas
-			const matchesArea =
-				selectedAreaIds.length === 0 ||
-				selectedAreaIds.some((id) => pTagIds.includes(id));
 
 			// Custom tags: AND — place must have ALL selected custom tags
 			const matchesCustom =
 				selectedCustomIds.length === 0 ||
 				selectedCustomIds.every((id) => pTagIds.includes(id));
 
-			return matchesSearch && matchesSource && matchesCategory && matchesArea && matchesCustom;
+			return matchesSearch && matchesSource && matchesCustom;
 		})
 	);
 
 	function getPlaceIdsForView(view: SavedView): string[] {
 		const f = (view.filters_json ?? {}) as SavedViewFilters;
-		const viewCategoryIds = f.categoryTagIds ?? [];
-		const viewAreaIds = f.areaTagIds ?? [];
 		const viewCustomIds = f.customTagIds ?? [];
 		const viewSource = f.source ?? 'all';
 
@@ -426,10 +392,8 @@
 			.filter((p) => {
 				const pTagIds = (placeTagsMap[p.id] ?? []).map((t) => t.id);
 				const matchesSource = viewSource === 'all' || p.source_list === viewSource;
-				const matchesCategory = viewCategoryIds.length === 0 || viewCategoryIds.some((id: string) => pTagIds.includes(id));
-				const matchesArea = viewAreaIds.length === 0 || viewAreaIds.some((id: string) => pTagIds.includes(id));
 				const matchesCustom = viewCustomIds.length === 0 || viewCustomIds.every((id: string) => pTagIds.includes(id));
-				return matchesSource && matchesCategory && matchesArea && matchesCustom;
+				return matchesSource && matchesCustom;
 			})
 			.map((p) => p.id);
 	}
@@ -522,7 +486,6 @@
 			copy[tagId] = true;
 		}
 		selectedTagMap = copy;
-		sidebarOpen = false;
 	}
 
 	async function enrichSingle(placeId: string) {
@@ -596,8 +559,13 @@
 	function handleMapPlaceSelect(placeId: string) {
 		selectedPlaceId = placeId;
 		requestAnimationFrame(() => {
-			const el = document.querySelector(`[data-place-id="${placeId}"]`);
-			if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+			const els = document.querySelectorAll(`[data-place-id="${placeId}"]`);
+			for (const el of els) {
+				if (el instanceof HTMLElement && el.offsetParent !== null) {
+					el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+					break;
+				}
+			}
 		});
 	}
 
@@ -643,33 +611,10 @@
 </script>
 
 <div class="min-h-[calc(100dvh-3rem)] sm:min-h-[calc(100dvh-3.5rem)]">
-	<!-- Sidebar -->
-	<TagSidebar
-		{supabase}
-		userId={session?.user?.id ?? ''}
-		{allTags}
-		{placeTagsMap}
-		totalPlaces={places.length}
-		{sourceLists}
-		{sourceCountMap}
-		{selectedTagMap}
-		{selectedSource}
-		onTagToggle={toggleTag}
-		onSourceSelect={(s) => { selectedSource = s; sidebarOpen = false; }}
-		onTagsChanged={refreshTags}
-		mobileOpen={sidebarOpen}
-		onMobileClose={() => { sidebarOpen = false; }}
-		{collections}
-		{collectionPlacesMap}
-		{browseScope}
-		onScopeChange={(scope) => { browseScope = scope; }}
-		onCollectionsChanged={refreshCollections}
-	/>
-
 	<!-- Split layout: content + map -->
 	<div class={isMobile
 		? 'flex h-[calc(100dvh-3rem)] flex-col overflow-hidden sm:h-[calc(100dvh-3.5rem)]'
-		: 'flex flex-col lg:ml-64 lg:flex-row'}>
+		: 'flex flex-col lg:flex-row'}>
 
 		{#if isMobile}
 			<MobileMapShell
@@ -693,17 +638,6 @@
 			<!-- Mobile sidebar toggle + search bar -->
 			<div class="sticky {isMobile ? 'top-0' : 'top-12'} z-20 -mx-2.5 mb-1 bg-sage-100 px-2.5 py-1.5 sm:static sm:top-14 sm:mx-0 sm:mb-5 sm:bg-transparent sm:px-0 sm:py-0">
 				<div class="flex items-center gap-1.5 sm:gap-3">
-				<button
-					onclick={() => { sidebarOpen = true; }}
-					class="rounded-md border border-warm-200 p-1.5 text-warm-500 sm:rounded-lg sm:p-2 lg:hidden"
-					aria-label="Open sidebar"
-				>
-					<svg class="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<line x1="3" y1="6" x2="21" y2="6" />
-						<line x1="3" y1="12" x2="21" y2="12" />
-						<line x1="3" y1="18" x2="21" y2="18" />
-					</svg>
-				</button>
 				<div class="relative flex-1">
 					<svg
 						class="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-warm-400 sm:left-3.5 sm:h-4 sm:w-4"
@@ -720,7 +654,7 @@
 						type="text"
 						bind:value={search}
 						onkeydown={handleSearchKeydown}
-						placeholder="Search or paste a Google Maps link..."
+						placeholder="Search by name, tag, or paste a Google Maps link..."
 						class="w-full rounded-lg border border-warm-200 bg-warm-50 py-1.5 pl-8 pr-8 text-[15px] font-medium shadow-sm transition-colors focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:rounded-xl sm:py-2.5 sm:pl-11 sm:pr-10 sm:text-[15px]"
 					/>
 					{#if urlAdding}
@@ -778,8 +712,6 @@
 				userId={session?.user?.id ?? ''}
 				{savedViews}
 				{activeSavedViewId}
-				{selectedCategoryIds}
-				{selectedAreaIds}
 				{selectedCustomIds}
 				{selectedSource}
 				{sortBy}
@@ -855,35 +787,6 @@
 
 			<!-- ======== MOBILE tag filter (< md) ======== -->
 			<div class="mb-1.5 md:hidden">
-				<!-- Tab selector: Category | Area | Custom -->
-				<div class="mb-1.5 flex items-center rounded-lg border border-warm-200 bg-white p-0.5">
-					<button
-						onclick={() => { mobileTagTab = 'category'; }}
-					class="flex-1 rounded-md px-1 py-1.5 text-center text-xs font-bold transition-colors {mobileTagTab === 'category'
-						? 'bg-warm-200 text-warm-800'
-						: 'text-warm-400'}"
-				>
-					Category <span class="font-normal opacity-50">{categoryTags.length}</span>
-				</button>
-				<button
-					onclick={() => { mobileTagTab = 'area'; }}
-					class="flex-1 rounded-md px-1 py-1.5 text-center text-xs font-bold transition-colors {mobileTagTab === 'area'
-						? 'bg-sage-200 text-sage-800'
-						: 'text-warm-400'}"
-				>
-					Area <span class="font-normal opacity-50">{areaTags.length}</span>
-				</button>
-				<button
-					onclick={() => { mobileTagTab = 'custom'; }}
-					class="flex-1 rounded-md px-1 py-1.5 text-center text-xs font-bold transition-colors {mobileTagTab === 'custom'
-						? 'bg-brand-100 text-brand-800'
-						: 'text-warm-400'}"
-					>
-						Custom <span class="font-normal opacity-50">{userTags.length}</span>
-					</button>
-				</div>
-
-			<!-- Tags for the active tab -->
 			<div
 				class="flex items-center gap-2 overflow-x-auto py-0.5 pr-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
 				use:sortable={{
@@ -894,23 +797,6 @@
 					disabled: false
 				}}
 			>
-					{#if mobileTagTab === 'category'}
-						{#each categoryTags as tag (tag.id)}
-						<button data-tag-id={tag.id} onclick={() => toggleTag(tag.id)} class="shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold transition-all {selectedTagMap[tag.id] ? 'border-brand-400 bg-brand-50 text-warm-800' : 'border-warm-200 text-warm-500'}">{tag.name}</button>
-					{/each}
-					{#if categoryTags.length === 0}
-						<span class="text-xs text-warm-400">No category tags</span>
-						{/if}
-
-					{:else if mobileTagTab === 'area'}
-						{#each areaTags as tag (tag.id)}
-						<button data-tag-id={tag.id} onclick={() => toggleTag(tag.id)} class="shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold transition-all {selectedTagMap[tag.id] ? 'border-sage-400 bg-sage-50 text-sage-800' : 'border-warm-200 text-warm-500'}">{tag.name}</button>
-					{/each}
-					{#if areaTags.length === 0}
-						<span class="text-xs text-warm-400">No area tags</span>
-						{/if}
-
-					{:else if mobileTagTab === 'custom'}
 						{#each userTags as tag (tag.id)}
 							<button
 								data-tag-id={tag.id}
@@ -941,68 +827,11 @@
 						{#if userTags.length === 0}
 							<span class="text-xs text-warm-400">No custom tags yet</span>
 						{/if}
-					{/if}
 				</div>
 			</div>
 
 			<!-- ======== DESKTOP tag filter (md+) — inline grouped rows ======== -->
 			<div class="relative z-10 mb-4 hidden space-y-1.5 md:block">
-				{#if categoryTags.length > 0}
-					<div class="flex items-baseline gap-2.5">
-						<span class="w-16 shrink-0 text-[13px] font-bold text-warm-400">Category</span>
-						<div
-							class="flex flex-wrap items-center gap-1.5"
-							use:sortable={{
-								onReorder: handleTagReorder,
-								itemSelector: '[data-tag-id]',
-								idAttribute: 'data-tag-id',
-								longPressMs: 400,
-								disabled: false
-							}}
-						>
-							{#each categoryTags as tag (tag.id)}
-								<button
-									data-tag-id={tag.id}
-									onclick={() => toggleTag(tag.id)}
-								class="rounded-full border px-2.5 py-0.5 text-[13px] font-bold transition-all {selectedTagMap[tag.id]
-									? 'border-brand-400 bg-brand-50 text-warm-800'
-									: 'border-warm-200 text-warm-500 hover:border-warm-300 hover:text-warm-700'}"
-								>
-									{tag.name}
-								</button>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
-				{#if areaTags.length > 0}
-					<div class="flex items-baseline gap-2.5">
-						<span class="w-16 shrink-0 text-[13px] font-bold text-warm-400">Area</span>
-						<div
-							class="flex flex-wrap items-center gap-1.5"
-							use:sortable={{
-								onReorder: handleTagReorder,
-								itemSelector: '[data-tag-id]',
-								idAttribute: 'data-tag-id',
-								longPressMs: 400,
-								disabled: false
-							}}
-						>
-							{#each areaTags as tag (tag.id)}
-								<button
-									data-tag-id={tag.id}
-									onclick={() => toggleTag(tag.id)}
-								class="rounded-full border px-2.5 py-0.5 text-[13px] font-bold transition-all {selectedTagMap[tag.id]
-									? 'border-sage-400 bg-sage-50 text-sage-800'
-									: 'border-warm-200 text-warm-500 hover:border-warm-300 hover:text-warm-700'}"
-								>
-									{tag.name}
-								</button>
-							{/each}
-						</div>
-					</div>
-				{/if}
-
 				<div class="flex items-baseline gap-2.5">
 					<span class="w-16 shrink-0 text-[13px] font-bold text-warm-400">Custom</span>
 					<div

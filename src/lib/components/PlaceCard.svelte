@@ -103,8 +103,7 @@
 
 	let flipped = $state(false);
 	let noteText = $state(place.note ?? '');
-	let contentPreview = $derived(noteText.trim() || place.description || null);
-	let contentIsNote = $derived(!!noteText.trim());
+	let contentPreview = $derived(noteText.trim() || null);
 	let saving = $state(false);
 	let saved = $state(false);
 	let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -206,7 +205,7 @@
 			>
 				<!-- MOBILE FRONT -->
 				<div class="[backface-visibility:hidden]">
-					<article class="cursor-pointer rounded-xl border bg-white p-2.5 transition-all hover:shadow-sm {selected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}">
+					<article class="flex h-[180px] cursor-pointer flex-col rounded-xl border bg-white p-2.5 transition-all hover:shadow-sm {selected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}">
 				<div class="flex items-center justify-between">
 					<div class="flex items-center gap-1">
 						{#if place.category}
@@ -227,16 +226,16 @@
 
 				<h3 class="mt-1 line-clamp-1 text-[15px] font-extrabold leading-snug text-warm-800">{place.title}</h3>
 
-				{#if place.address}
-					<p class="mt-0.5 truncate text-xs text-warm-400">{place.address}</p>
-				{/if}
-
-				<p class="mt-0.5 line-clamp-2 h-[2.6em] text-xs leading-[1.35em] {contentIsNote ? 'italic text-brand-500' : contentPreview ? 'text-warm-500' : 'italic text-warm-300'}">
-					{contentPreview ?? 'Add a note about this place...'}
-				</p>
+				<div class="min-h-0 flex-1">
+					{#if contentPreview}
+						<p class="mt-0.5 line-clamp-2 text-xs italic leading-[1.35em] text-brand-500">
+							{contentPreview}
+						</p>
+					{/if}
+				</div>
 
 				<!-- Custom tags row -->
-				<div class="mt-1.5">
+				<div class="mb-1.5">
 					<TagInput
 						{supabase}
 						placeId={place.id}
@@ -306,7 +305,7 @@
 
 		<!-- MOBILE BACK (Notes) -->
 		<div class="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-			<article class="flex h-full flex-col rounded-xl border border-warm-200 bg-white p-2.5">
+			<article class="flex h-[180px] flex-col rounded-xl border border-warm-200 bg-white p-2.5">
 				<div class="mb-1.5 flex items-center justify-between">
 					<h3 class="line-clamp-1 flex-1 text-[15px] font-extrabold text-warm-800">{place.title}</h3>
 					<div class="ml-2 flex items-center gap-1.5">
@@ -352,7 +351,7 @@
 	>
 		<!-- DESKTOP FRONT -->
 		<div class="[backface-visibility:hidden]">
-			<article class="group flex cursor-pointer flex-col rounded-2xl border bg-white p-5 transition-all hover:shadow-md hover:shadow-warm-200/50 {selected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}">
+			<article class="group flex h-[260px] cursor-pointer flex-col rounded-2xl border bg-white p-5 transition-all hover:shadow-md hover:shadow-warm-200/50 {selected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}">
 				<div class="mb-3 flex items-center justify-between">
 					<div class="flex flex-wrap items-center gap-1.5">
 						{#if place.category}
@@ -360,9 +359,6 @@
 						{/if}
 						{#if place.area}
 							<span class="rounded-full bg-sage-200 px-2 py-0.5 text-xs font-bold text-sage-700">{place.area}</span>
-						{/if}
-						{#if place.price_level}
-							<span class="text-xs font-bold text-brand-600">{place.price_level}</span>
 						{/if}
 					</div>
 					<RatingDisplay
@@ -375,13 +371,15 @@
 
 				<h3 class="mb-1 line-clamp-1 text-lg font-extrabold leading-snug text-warm-800">{place.title}</h3>
 
-				<p class="mb-2.5 line-clamp-2 h-[2.6em] text-[13px] font-medium leading-[1.4em] {contentIsNote ? 'italic text-brand-500' : contentPreview ? 'text-warm-500' : 'italic text-warm-300'}">
-					{contentPreview ?? 'Add a note about this place...'}
-				</p>
-
-				<p class="mb-3 line-clamp-1 text-[13px] font-medium leading-relaxed text-warm-400">
-					{place.address ?? '\u00A0'}
-				</p>
+				<div class="min-h-0 flex-1">
+					{#if contentPreview}
+						<p class="line-clamp-2 text-[13px] font-medium italic leading-[1.4em] text-brand-500">
+							{contentPreview}
+						</p>
+					{:else}
+						<p class="text-[13px] italic text-warm-300">Add a note...</p>
+					{/if}
+				</div>
 
 				<div class="mb-3">
 					<TagInput
@@ -479,7 +477,7 @@
 
 		<!-- DESKTOP BACK (Notes) -->
 		<div class="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-			<article class="flex h-full flex-col rounded-2xl border border-warm-200 bg-white p-5">
+			<article class="flex h-[260px] flex-col rounded-2xl border border-warm-200 bg-white p-5">
 				<div class="mb-3 flex items-center justify-between">
 					<h3 class="line-clamp-1 text-lg font-extrabold text-warm-800">{place.title}</h3>
 					<div class="flex shrink-0 items-center gap-2">

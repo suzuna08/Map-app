@@ -2,11 +2,13 @@ import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const supabase = locals.supabase;
+	const userId = locals.user?.id ?? locals.session?.user?.id;
 
 	const [listsRes, listPlacesRes] = await Promise.all([
 		supabase
 			.from('lists')
 			.select('id, user_id, name, description, color, emoji, visibility, share_slug, created_at, updated_at')
+			.eq('user_id', userId!)
 			.order('updated_at', { ascending: false }),
 		supabase.from('list_places').select('list_id, place_id')
 	]);

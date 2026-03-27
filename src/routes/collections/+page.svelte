@@ -131,6 +131,7 @@
 		}
 	}
 
+	let confirmDeleteId = $state<string | null>(null);
 	let editingColorId = $state<string | null>(null);
 	let colorPickerEls = $state<Record<string, HTMLDivElement>>({});
 
@@ -337,15 +338,30 @@
 								</div>
 								{/if}
 							</div>
-							<button
-								onclick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(col); }}
-								class="rounded-md p-1.5 text-warm-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-400 group-hover:opacity-100"
-								aria-label="Delete collection"
-							>
-								<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-									<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-								</svg>
-							</button>
+							{#if confirmDeleteId === col.id}
+								<button
+									onclick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(col); confirmDeleteId = null; }}
+									class="rounded-md bg-red-100 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-200"
+								>
+									Confirm
+								</button>
+								<button
+									onclick={(e) => { e.preventDefault(); e.stopPropagation(); confirmDeleteId = null; }}
+									class="ml-1 text-xs text-warm-400"
+								>
+									Cancel
+								</button>
+							{:else}
+								<button
+									onclick={(e) => { e.preventDefault(); e.stopPropagation(); confirmDeleteId = col.id; }}
+									class="rounded-md p-1.5 text-warm-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-400 group-hover:opacity-100"
+									aria-label="Delete collection"
+								>
+									<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+									</svg>
+								</button>
+							{/if}
 						</div>
 					</div>
 

@@ -2,7 +2,6 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { fetchPlaceDetails } from '$lib/google-places';
 import type { Place } from '$lib/types/database';
-import { upsertSystemTags } from '$lib/tag-utils';
 import { computeIntelTags, type IntelTagResult } from '$lib/intel-tagging';
 
 export const POST: RequestHandler = async ({ locals }) => {
@@ -42,8 +41,6 @@ export const POST: RequestHandler = async ({ locals }) => {
 						enriched_at: new Date().toISOString()
 					} as any)
 					.eq('id', place.id);
-
-				await upsertSystemTags(locals.supabase, user.id, place.id, details.category, details.area);
 
 				const intel = computeIntelTags(details.primary_type, details.types);
 				intelResults.push({ place_id: place.id, title: place.title, intel });

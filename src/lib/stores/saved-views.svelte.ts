@@ -81,14 +81,10 @@ export async function deleteSavedView(
 }
 
 export function buildFiltersSnapshot(
-	selectedCategoryIds: string[],
-	selectedAreaIds: string[],
 	selectedCustomIds: string[],
 	selectedSource: string
 ): SavedViewFilters {
 	const filters: SavedViewFilters = {};
-	if (selectedCategoryIds.length > 0) filters.categoryTagIds = [...selectedCategoryIds];
-	if (selectedAreaIds.length > 0) filters.areaTagIds = [...selectedAreaIds];
 	if (selectedCustomIds.length > 0) filters.customTagIds = [...selectedCustomIds];
 	if (selectedSource !== 'all') filters.source = selectedSource;
 	return filters;

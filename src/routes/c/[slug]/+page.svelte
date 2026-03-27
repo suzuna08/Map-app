@@ -1,11 +1,18 @@
 <script lang="ts">
-	import type { Collection, Place } from '$lib/types/database';
+	import type { Collection, Place, Tag } from '$lib/types/database';
 	import MapView from '$lib/components/MapView.svelte';
+	import { textColorForBg } from '$lib/tag-colors';
+	import { buildPlaceTagsMap } from '$lib/stores/places.svelte';
 
 	let { data } = $props();
 	let collection = (data as any).collection as Collection;
 	let places = (data as any).places as Place[];
 	let maptilerKey: string = data.maptilerKey ?? '';
+
+	let allTags = $state<Tag[]>((data as any).tags ?? []);
+	let placeTagsMap = $state<Record<string, Tag[]>>(
+		buildPlaceTagsMap((data as any).tags ?? [], (data as any).placeTags ?? [])
+	);
 
 	let viewMode = $state<'grid' | 'list'>('grid');
 	let search = $state('');
@@ -19,23 +26,27 @@
 		places.filter((p) => {
 			if (!search) return true;
 			const s = search.toLowerCase();
+			const pTags = placeTagsMap[p.id] ?? [];
 			return (
 				p.title.toLowerCase().includes(s) ||
 				(p.address ?? '').toLowerCase().includes(s) ||
-				(p.category ?? '').toLowerCase().includes(s)
+				(p.category ?? '').toLowerCase().includes(s) ||
+				(p.area ?? '').toLowerCase().includes(s) ||
+				pTags.some((t) => t.name.toLowerCase().includes(s))
 			);
 		})
 	);
 
-	function formatRating(r: number | null): string {
-		return r ? r.toFixed(1) : '';
-	}
-
 	function handleMapPlaceSelect(placeId: string) {
 		selectedPlaceId = placeId;
 		requestAnimationFrame(() => {
-			const el = document.querySelector(`[data-place-id="${placeId}"]`);
-			if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+			const els = document.querySelectorAll(`[data-place-id="${placeId}"]`);
+			for (const el of els) {
+				if (el instanceof HTMLElement && el.offsetParent !== null) {
+					el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+					break;
+				}
+			}
 		});
 	}
 
@@ -71,7 +82,6 @@
 	<!-- Map -->
 	{#if hasMap}
 		<div class="mb-4 overflow-hidden rounded-xl border border-warm-200 sm:mb-6 sm:rounded-2xl">
-			<!-- Toggle bar -->
 			<button
 				onclick={() => { mapExpanded = !mapExpanded; }}
 				class="flex w-full items-center justify-between bg-white px-3 py-2 text-xs font-semibold text-warm-500 transition-colors hover:bg-warm-50 sm:px-4 sm:py-2.5 sm:text-sm"
@@ -147,43 +157,62 @@
 	{:else if viewMode === 'grid'}
 		<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4">
 			{#each filteredPlaces as place (place.id)}
+				{@const pTags = (placeTagsMap[place.id] ?? []).filter((t) => t.source === 'user')}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<article
 					data-place-id={place.id}
-					class="cursor-pointer rounded-xl border bg-white p-3 transition-all hover:shadow-md hover:shadow-warm-200/50 sm:rounded-2xl sm:p-5 {selectedPlaceId === place.id ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}"
+					class="flex cursor-pointer flex-col rounded-xl border bg-white p-3 transition-all hover:shadow-md hover:shadow-warm-200/50 sm:rounded-2xl sm:p-5 {selectedPlaceId === place.id ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}"
 					onclick={() => handleCardClick(place.id)}
 				>
-					<div class="mb-2 flex items-center justify-between">
-						<div class="flex items-center gap-1.5">
+					<div class="mb-2 flex items-center justify-between sm:mb-3">
+						<div class="flex flex-wrap items-center gap-1.5">
 							{#if place.category}
-								<span class="rounded-full bg-warm-200 px-2 py-0.5 text-[10px] font-bold text-warm-600 sm:text-[11px]">{place.category}</span>
+								<span class="rounded-full bg-warm-200 px-2 py-0.5 text-[10px] font-bold text-warm-600 sm:text-xs">{place.category}</span>
 							{/if}
 							{#if place.area}
-								<span class="rounded-full bg-sage-200 px-2 py-0.5 text-[10px] font-bold text-sage-700 sm:text-[11px]">{place.area}</span>
+								<span class="rounded-full bg-sage-200 px-2 py-0.5 text-[10px] font-bold text-sage-700 sm:text-xs">{place.area}</span>
+							{/if}
+							{#if place.price_level}
+								<span class="text-[10px] font-bold text-brand-600 sm:text-xs">{place.price_level}</span>
 							{/if}
 						</div>
-					{#if place.user_rating}
-						<span class="text-xs font-extrabold text-warm-700">{formatRating(place.user_rating)}<span class="text-brand-500">★</span></span>
-					{/if}
+						{#if place.user_rating}
+							<span class="text-xs font-extrabold text-warm-700 sm:text-sm">{place.user_rating.toFixed(1)}<span class="text-brand-500">★</span></span>
+						{/if}
 					</div>
 
-					<h3 class="mb-1 line-clamp-1 text-sm font-extrabold text-warm-800 sm:text-base">{place.title}</h3>
+					<h3 class="mb-1 line-clamp-1 text-sm font-extrabold leading-snug text-warm-800 sm:text-lg">{place.title}</h3>
 
-					{#if place.description}
-						<p class="mb-2 line-clamp-2 text-xs text-warm-500">{place.description}</p>
+					<div class="min-h-0 flex-1">
+						{#if place.note?.trim()}
+							<p class="line-clamp-2 text-xs font-medium italic leading-[1.4em] text-brand-500 sm:text-[13px]">
+								{place.note.trim()}
+							</p>
+						{:else if place.description}
+							<p class="line-clamp-2 text-xs text-warm-400 sm:text-[13px]">{place.description}</p>
+						{/if}
+					</div>
+
+					<!-- Tags -->
+					{#if pTags.length > 0}
+						<div class="mb-2 mt-2 flex flex-wrap items-center gap-1 sm:mb-3 sm:gap-1.5">
+							{#each pTags as tag (tag.id)}
+								<span
+									class="rounded-full px-2 py-0.5 text-[10px] font-bold sm:text-[11px]"
+									style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
+								>{tag.name}</span>
+							{/each}
+						</div>
 					{/if}
 
-					{#if place.address}
-						<p class="mb-2 truncate text-[11px] text-warm-400">{place.address}</p>
-					{/if}
-
-					<div class="flex items-center gap-1 border-t border-warm-100 pt-2">
+					<div class="mt-auto flex items-center gap-1 border-t border-warm-100 pt-2 sm:pt-2.5">
 						{#if place.url}
 							<a
 								href={place.url}
 								target="_blank"
 								class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+								onclick={(e) => e.stopPropagation()}
 							>
 								<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 									<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
@@ -196,6 +225,7 @@
 								href={place.website}
 								target="_blank"
 								class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+								onclick={(e) => e.stopPropagation()}
 							>
 								<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 									<circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
@@ -210,6 +240,7 @@
 	{:else}
 		<div class="overflow-hidden rounded-xl border border-warm-200 bg-white divide-y divide-warm-100 sm:rounded-2xl">
 			{#each filteredPlaces as place (place.id)}
+				{@const pTags = (placeTagsMap[place.id] ?? []).filter((t) => t.source === 'user')}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
@@ -219,22 +250,36 @@
 				>
 					<div class="min-w-0 flex-1">
 						<h3 class="truncate text-sm font-bold text-warm-800">{place.title}</h3>
-						<p class="truncate text-[11px] text-warm-400">
-							{#if place.area && place.category}
-								{place.area} · {place.category}
-							{:else if place.area}
-								{place.area}
-							{:else if place.category}
-								{place.category}
+						<div class="mt-0.5 flex items-center gap-1.5">
+							<span class="shrink-0 text-[11px] text-warm-400">
+								{#if place.area && place.category}
+									{place.area} · {place.category}
+								{:else if place.area}
+									{place.area}
+								{:else if place.category}
+									{place.category}
+								{/if}
+							</span>
+							{#if pTags.length > 0}
+								<span class="text-warm-300">·</span>
+								{#each pTags.slice(0, 2) as tag (tag.id)}
+									<span
+										class="shrink-0 rounded-full px-1.5 py-px text-[9px] font-semibold"
+										style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
+									>{tag.name}</span>
+								{/each}
+								{#if pTags.length > 2}
+									<span class="text-[9px] font-bold text-warm-400">+{pTags.length - 2}</span>
+								{/if}
 							{/if}
-						</p>
+						</div>
 					</div>
-				{#if place.user_rating}
-					<span class="shrink-0 text-xs font-bold"><span class="text-brand-500">★</span> {formatRating(place.user_rating)}</span>
-				{/if}
+					{#if place.user_rating}
+						<span class="shrink-0 text-xs font-bold"><span class="text-brand-500">★</span> {place.user_rating.toFixed(1)}</span>
+					{/if}
 					<div class="flex shrink-0 items-center gap-1">
 						{#if place.url}
-							<a href={place.url} target="_blank" class="rounded p-1 text-warm-300 hover:text-warm-600" aria-label="Maps">
+							<a href={place.url} target="_blank" class="rounded p-1 text-warm-300 hover:text-warm-600" aria-label="Maps" onclick={(e) => e.stopPropagation()}>
 								<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 									<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
 								</svg>

@@ -9,8 +9,6 @@
 		userId,
 		savedViews = [],
 		activeSavedViewId = null,
-		selectedCategoryIds = [],
-		selectedAreaIds = [],
 		selectedCustomIds = [],
 		selectedSource = 'all',
 		sortBy = 'newest',
@@ -24,8 +22,6 @@
 		userId: string;
 		savedViews: SavedView[];
 		activeSavedViewId: string | null;
-		selectedCategoryIds: string[];
-		selectedAreaIds: string[];
 		selectedCustomIds: string[];
 		selectedSource: string;
 		sortBy: string;
@@ -48,8 +44,6 @@
 	let menuPos = $state({ x: 0, y: 0 });
 
 	let hasFilters = $derived(
-		selectedCategoryIds.length > 0 ||
-		selectedAreaIds.length > 0 ||
 		selectedCustomIds.length > 0 ||
 		selectedSource !== 'all'
 	);
@@ -77,7 +71,7 @@
 	async function handleCreate() {
 		const name = newViewName.trim();
 		if (!name) { cancelCreate(); return; }
-		const filters = buildFiltersSnapshot(selectedCategoryIds, selectedAreaIds, selectedCustomIds, selectedSource);
+		const filters = buildFiltersSnapshot(selectedCustomIds, selectedSource);
 		const result = await createSavedView(supabase, userId, name, filters, sortBy, viewMode);
 		if (result) {
 			showToast('success', '', `Saved view "${name}" created`);

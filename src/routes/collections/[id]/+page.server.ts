@@ -3,12 +3,14 @@ import { error } from '@sveltejs/kit';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const supabase = locals.supabase;
+	const userId = locals.user?.id ?? locals.session?.user?.id;
 	const collectionId = params.id;
 
 	const { data: collection, error: colErr } = await supabase
 		.from('lists')
 		.select('id, user_id, name, description, color, emoji, visibility, share_slug, created_at, updated_at')
 		.eq('id', collectionId)
+		.eq('user_id', userId!)
 		.single();
 
 	if (colErr || !collection) {
@@ -32,11 +34,12 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	}
 
 	const [tagsRes, placeTagsRes, allPlacesRes] = await Promise.all([
-		supabase.from('tags').select('id, user_id, name, color, source, created_at, order_index').order('name'),
+		supabase.from('tags').select('id, user_id, name, color, source, created_at, order_index').eq('user_id', userId!).order('name'),
 		supabase.from('place_tags').select('place_id, tag_id'),
 		supabase
 			.from('places')
 			.select('id, title, area, category, user_rating')
+			.eq('user_id', userId!)
 			.order('created_at', { ascending: false })
 	]);
 

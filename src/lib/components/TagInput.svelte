@@ -199,7 +199,7 @@
 	{#each visibleTags as tag (tag.id)}
 		<span
 			data-tag-id={tag.id}
-			class="inline-flex items-center gap-0.5 rounded-full text-[11px] font-bold sm:text-xs"
+			class="inline-flex items-center gap-0.5 rounded-full text-[11px] font-bold opacity-80 sm:text-xs"
 			style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
 		>
 			<button

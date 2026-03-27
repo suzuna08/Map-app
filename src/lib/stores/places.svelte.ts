@@ -4,10 +4,16 @@ import type { Database, Place, Tag } from '$lib/types/database';
 const PLACES_COLUMNS = 'id, user_id, title, note, url, source_list, created_at, google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at, user_rating, user_rated_at';
 const TAGS_COLUMNS = 'id, user_id, name, color, source, created_at, order_index';
 
-export async function loadPlacesData(supabase: SupabaseClient<Database>) {
+export async function loadPlacesData(supabase: SupabaseClient<Database>, userId?: string) {
+	let placesQuery = supabase.from('places').select(PLACES_COLUMNS);
+	let tagsQuery = supabase.from('tags').select(TAGS_COLUMNS);
+	if (userId) {
+		placesQuery = placesQuery.eq('user_id', userId);
+		tagsQuery = tagsQuery.eq('user_id', userId);
+	}
 	const [placesRes, tagsRes, placeTagsRes] = await Promise.all([
-		supabase.from('places').select(PLACES_COLUMNS).order('created_at', { ascending: false }),
-		supabase.from('tags').select(TAGS_COLUMNS).order('name'),
+		placesQuery.order('created_at', { ascending: false }),
+		tagsQuery.order('name'),
 		supabase.from('place_tags').select('place_id, tag_id')
 	]);
 	return {
@@ -17,9 +23,13 @@ export async function loadPlacesData(supabase: SupabaseClient<Database>) {
 	};
 }
 
-export async function refreshTagsData(supabase: SupabaseClient<Database>) {
+export async function refreshTagsData(supabase: SupabaseClient<Database>, userId?: string) {
+	let tagsQuery = supabase.from('tags').select(TAGS_COLUMNS);
+	if (userId) {
+		tagsQuery = tagsQuery.eq('user_id', userId);
+	}
 	const [tagsRes, placeTagsRes] = await Promise.all([
-		supabase.from('tags').select(TAGS_COLUMNS).order('name'),
+		tagsQuery.order('name'),
 		supabase.from('place_tags').select('place_id, tag_id')
 	]);
 	return {

@@ -2,6 +2,7 @@
 	import type { Place, Tag, Collection } from '$lib/types/database';
 	import PlaceCard from '$lib/components/PlaceCard.svelte';
 	import PlaceListItem from '$lib/components/PlaceListItem.svelte';
+	import MapView from '$lib/components/MapView.svelte';
 	import { buildPlaceTagsMap, refreshTagsData } from '$lib/stores/places.svelte';
 	import { textColorForBg } from '$lib/tag-colors';
 	import {
@@ -86,6 +87,11 @@
 
 	let selectedPlaceId = $state<string | null>(null);
 	let isMobile = $state(false);
+	let mapExpanded = $state(true);
+	let maptilerKey: string = data.maptilerKey ?? '';
+
+	let mappablePlaces = $derived(places.filter((p) => p.lat != null && p.lng != null));
+	let hasMap = $derived(mappablePlaces.length > 0);
 
 	$effect(() => {
 		function check() { isMobile = window.innerWidth < 1024; }
@@ -141,7 +147,8 @@
 	}
 
 	async function refreshTags() {
-		const result = await refreshTagsData(supabase);
+		const userId = session?.user?.id;
+		const result = await refreshTagsData(supabase, userId);
 		allTags = result.tags;
 		placeTagsMap = buildPlaceTagsMap(allTags, result.placeTags);
 	}
@@ -223,7 +230,20 @@
 	}
 
 	function handleCardSelect(placeId: string) {
+		selectedPlaceId = selectedPlaceId === placeId ? null : placeId;
+	}
+
+	function handleMapPlaceSelect(placeId: string) {
 		selectedPlaceId = placeId;
+		requestAnimationFrame(() => {
+			const els = document.querySelectorAll(`[data-place-id="${placeId}"]`);
+			for (const el of els) {
+				if (el instanceof HTMLElement && el.offsetParent !== null) {
+					el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+					break;
+				}
+			}
+		});
 	}
 
 	function updateNote(placeId: string, note: string) {
@@ -245,151 +265,190 @@
 	<title>{collection.name} — MapOrganizer</title>
 </svelte:head>
 
-<div class="mx-auto max-w-4xl px-3 py-4 sm:px-6 sm:py-8">
-	<!-- Breadcrumb -->
-	<div class="mb-3 flex items-center gap-1.5 text-[13px] text-warm-400 sm:mb-4 sm:text-[15px]">
-		<a href="/collections" class="transition-colors hover:text-warm-600">Collections</a>
-		<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6" /></svg>
-		<span class="font-semibold text-warm-600">{collection.name}</span>
-	</div>
+<!-- Sticky top panel: header + map -->
+<div class="sticky top-12 z-10 border-b border-warm-200/80 bg-[#faf7f2] shadow-sm sm:top-14">
+	<div class="mx-auto max-w-4xl px-3 sm:px-6">
+		<!-- Breadcrumb + Header combined -->
+		<div class="flex items-center gap-1.5 pt-2 text-[11px] text-warm-400 sm:pt-2.5 sm:text-[13px]">
+			<a href="/collections" class="transition-colors hover:text-warm-600">Collections</a>
+			<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6" /></svg>
+			<span class="font-semibold text-warm-600">{collection.name}</span>
+		</div>
 
-	<!-- Header -->
-	<div class="mb-5 sm:mb-8">
-		<div class="flex items-start justify-between gap-3">
-			<div class="min-w-0 flex-1">
-				<div class="flex items-center gap-2.5">
-					<div class="relative" bind:this={colorPickerEl}>
-					<button
-						onclick={() => { editingColor = !editingColor; }}
-						class="flex shrink-0 items-center justify-center rounded-full transition-all hover:scale-110 {collection.emoji ? 'h-8 w-8 sm:h-9 sm:w-9' : 'h-5 w-5 sm:h-6 sm:w-6 hover:ring-2 hover:ring-warm-300 hover:ring-offset-1'}"
-						style={collection.emoji
-						? `background-color: #faf7f2; box-shadow: inset 0 0 0 2.5px ${collection.color ?? '#A5834F'}`
-						: `background-color: ${collection.color ?? '#A5834F'}`}
-						aria-label="Change collection color"
-					>
-						{#if collection.emoji}
-							<span class="text-base leading-none sm:text-lg">{collection.emoji}</span>
-						{/if}
-					</button>
-					{#if editingColor}
-						<div class="absolute left-0 top-full z-20 mt-2 rounded-xl border border-warm-200 bg-white p-2.5 shadow-lg" style="width: max-content; max-width: 280px;">
-							<div class="flex flex-wrap gap-1.5">
-								{#each COLORS as color}
-									<button
-										onclick={() => saveColor(color)}
-										class="h-5.5 w-5.5 rounded-full transition-all {collection.color === color ? 'ring-2 ring-offset-1 ring-warm-400 scale-110' : 'hover:scale-110'}"
-										style="background-color: {color}"
-										aria-label="Select color"
-									></button>
-								{/each}
-							</div>
-							<div class="mt-2 border-t border-warm-100 pt-2">
-								<span class="mb-1 block text-[10px] font-bold text-warm-400">Icon</span>
-							<div class="flex flex-wrap gap-1">
-								<button
-									type="button"
-									onclick={(e) => { e.stopPropagation(); saveEmoji(null); }}
-									class="flex h-7 w-7 items-center justify-center rounded text-[10px] text-warm-400 transition-all {!collection.emoji ? 'ring-1.5 ring-warm-400 ring-offset-1 bg-warm-100' : 'hover:bg-warm-50'}"
-									aria-label="No icon"
-								>--</button>
-								{#each EMOJI_OPTIONS as em}
+		<!-- Header -->
+		<div class="pb-2 pt-1 sm:pb-2.5 sm:pt-1.5">
+			<div class="flex items-center justify-between gap-3">
+				<div class="min-w-0 flex-1">
+					<div class="flex items-center gap-2.5">
+						<div class="relative" bind:this={colorPickerEl}>
+						<button
+							onclick={() => { editingColor = !editingColor; }}
+							class="flex shrink-0 items-center justify-center rounded-full transition-all hover:scale-110 {collection.emoji ? 'h-8 w-8 sm:h-9 sm:w-9' : 'h-5 w-5 sm:h-6 sm:w-6 hover:ring-2 hover:ring-warm-300 hover:ring-offset-1'}"
+							style={collection.emoji
+							? `background-color: #faf7f2; box-shadow: inset 0 0 0 2.5px ${collection.color ?? '#A5834F'}`
+							: `background-color: ${collection.color ?? '#A5834F'}`}
+							aria-label="Change collection color"
+						>
+							{#if collection.emoji}
+								<span class="text-base leading-none sm:text-lg">{collection.emoji}</span>
+							{/if}
+						</button>
+						{#if editingColor}
+							<div class="absolute left-0 top-full z-20 mt-2 rounded-xl border border-warm-200 bg-white p-2.5 shadow-lg" style="width: max-content; max-width: 280px;">
+								<div class="flex flex-wrap gap-1.5">
+									{#each COLORS as color}
+										<button
+											onclick={() => saveColor(color)}
+											class="h-5.5 w-5.5 rounded-full transition-all {collection.color === color ? 'ring-2 ring-offset-1 ring-warm-400 scale-110' : 'hover:scale-110'}"
+											style="background-color: {color}"
+											aria-label="Select color"
+										></button>
+									{/each}
+								</div>
+								<div class="mt-2 border-t border-warm-100 pt-2">
+									<span class="mb-1 block text-[10px] font-bold text-warm-400">Icon</span>
+								<div class="flex flex-wrap gap-1">
 									<button
 										type="button"
-										onclick={(e) => { e.stopPropagation(); saveEmoji(em); }}
-										class="flex h-7 w-7 items-center justify-center rounded text-sm transition-all {collection.emoji === em ? 'ring-1.5 ring-warm-400 ring-offset-1 bg-warm-100 scale-110' : 'hover:bg-warm-50 hover:scale-110'}"
-										aria-label="Select {em}"
-									>{em}</button>
-								{/each}
+										onclick={(e) => { e.stopPropagation(); saveEmoji(null); }}
+										class="flex h-7 w-7 items-center justify-center rounded text-[10px] text-warm-400 transition-all {!collection.emoji ? 'ring-1.5 ring-warm-400 ring-offset-1 bg-warm-100' : 'hover:bg-warm-50'}"
+										aria-label="No icon"
+									>--</button>
+									{#each EMOJI_OPTIONS as em}
+										<button
+											type="button"
+											onclick={(e) => { e.stopPropagation(); saveEmoji(em); }}
+											class="flex h-7 w-7 items-center justify-center rounded text-sm transition-all {collection.emoji === em ? 'ring-1.5 ring-warm-400 ring-offset-1 bg-warm-100 scale-110' : 'hover:bg-warm-50 hover:scale-110'}"
+											aria-label="Select {em}"
+										>{em}</button>
+									{/each}
+								</div>
+								</div>
 							</div>
-							</div>
+						{/if}
 						</div>
-					{/if}
-					</div>
-					<div class="min-w-0 flex-1">
-						{#if editingName}
-							<input
-								type="text"
-								bind:value={editName}
-								onkeydown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') editingName = false; }}
-								onblur={saveName}
-								class="w-full rounded-lg border border-warm-200 bg-warm-50 px-2 py-1 text-lg font-extrabold text-warm-800 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:text-2xl"
-								autofocus
-							/>
-						{:else}
-							<h1
-								class="cursor-pointer truncate text-xl font-extrabold text-warm-800 transition-colors hover:text-brand-600 sm:text-2xl"
-								onclick={() => { editingName = true; editName = collection.name; }}
-							>
-								{collection.name}
-							</h1>
-						{/if}
-						{#if editingDesc}
-							<input
-								type="text"
-								bind:value={editDesc}
-								onkeydown={(e) => { if (e.key === 'Enter') saveDescription(); if (e.key === 'Escape') editingDesc = false; }}
-								onblur={saveDescription}
-								placeholder="Add a description..."
-								class="mt-1 w-full rounded-lg border border-warm-200 bg-warm-50 px-2 py-1 text-[13px] text-warm-500 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:text-[15px]"
-								autofocus
-							/>
-						{:else}
-							<p
-								class="mt-0.5 cursor-pointer text-[13px] text-warm-400 transition-colors hover:text-warm-500 sm:text-[15px]"
-								onclick={() => { editingDesc = true; editDesc = collection.description ?? ''; }}
-							>
-								{collection.description || 'Add a description...'}
-							</p>
-						{/if}
+						<div class="min-w-0 flex-1">
+							{#if editingName}
+								<input
+									type="text"
+									bind:value={editName}
+									onkeydown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') editingName = false; }}
+									onblur={saveName}
+									class="w-full rounded-lg border border-warm-200 bg-warm-50 px-2 py-0.5 text-base font-extrabold text-warm-800 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:text-lg"
+									autofocus
+								/>
+							{:else}
+								<h1
+									class="cursor-pointer truncate text-base font-extrabold text-warm-800 transition-colors hover:text-brand-600 sm:text-lg"
+									onclick={() => { editingName = true; editName = collection.name; }}
+								>
+									{collection.name}
+								</h1>
+							{/if}
+							{#if editingDesc}
+								<input
+									type="text"
+									bind:value={editDesc}
+									onkeydown={(e) => { if (e.key === 'Enter') saveDescription(); if (e.key === 'Escape') editingDesc = false; }}
+									onblur={saveDescription}
+									placeholder="Add a description..."
+									class="mt-0.5 w-full rounded-lg border border-warm-200 bg-warm-50 px-2 py-0.5 text-[11px] text-warm-500 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:text-[13px]"
+									autofocus
+								/>
+							{:else}
+								<p
+									class="mt-0.5 cursor-pointer text-[11px] text-warm-400 transition-colors hover:text-warm-500 sm:text-[13px]"
+									onclick={() => { editingDesc = true; editDesc = collection.description ?? ''; }}
+								>
+									{collection.description || 'Add a description...'}
+								</p>
+							{/if}
+						</div>
 					</div>
 				</div>
-			</div>
 
-			<div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
-				{#if collection.visibility === 'link_access'}
+				<div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
+					{#if collection.visibility === 'link_access'}
+						<button
+							onclick={copyShareLink}
+							class="rounded-md p-1.5 text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600 sm:p-2"
+							aria-label="Copy share link"
+						>
+							<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+								<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+							</svg>
+						</button>
+					{/if}
 					<button
-						onclick={copyShareLink}
-						class="rounded-md p-1.5 text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600 sm:p-2"
-						aria-label="Copy share link"
+						onclick={toggleSharing}
+						class="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold transition-colors sm:px-3 sm:py-1.5 sm:text-xs
+							{collection.visibility === 'link_access'
+								? 'border-sage-200 bg-sage-50 text-sage-700 hover:bg-sage-100'
+								: 'border-warm-200 text-warm-500 hover:bg-warm-50'}"
+					>
+						<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							{#if collection.visibility === 'link_access'}
+								<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+							{:else}
+								<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+								<line x1="1" y1="1" x2="23" y2="23" />
+							{/if}
+						</svg>
+						{collection.visibility === 'link_access' ? 'Shared' : 'Private'}
+					</button>
+					<button
+						onclick={() => { showAddModal = true; }}
+						class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700 sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-sm"
 					>
 						<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-							<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+							<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
 						</svg>
+						<span class="hidden sm:inline">Add Places</span>
 					</button>
-				{/if}
-				<button
-					onclick={toggleSharing}
-					class="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold transition-colors sm:px-3 sm:py-1.5 sm:text-xs
-						{collection.visibility === 'link_access'
-							? 'border-sage-200 bg-sage-50 text-sage-700 hover:bg-sage-100'
-							: 'border-warm-200 text-warm-500 hover:bg-warm-50'}"
-				>
-					<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						{#if collection.visibility === 'link_access'}
-							<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
-						{:else}
-							<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-							<line x1="1" y1="1" x2="23" y2="23" />
-						{/if}
-					</svg>
-					{collection.visibility === 'link_access' ? 'Shared' : 'Private'}
-				</button>
-				<button
-					onclick={() => { showAddModal = true; }}
-					class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700 sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-sm"
-				>
-					<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-					</svg>
-					<span class="hidden sm:inline">Add Places</span>
-				</button>
+				</div>
 			</div>
 		</div>
 	</div>
 
-	<!-- Controls -->
-	<div class="mb-3 flex items-center justify-between sm:mb-4">
+	<!-- Map (inside sticky panel) -->
+	{#if hasMap}
+		<div class="mx-auto max-w-4xl px-3 pb-2 sm:px-6 sm:pb-2.5">
+			<div class="overflow-hidden rounded-xl border border-warm-200 sm:rounded-2xl">
+				<button
+					onclick={() => { mapExpanded = !mapExpanded; }}
+					class="flex w-full items-center justify-between bg-white px-3 py-1.5 text-[11px] font-semibold text-warm-500 transition-colors hover:bg-warm-50 sm:px-4 sm:py-2 sm:text-xs"
+				>
+					<div class="flex items-center gap-2">
+						<svg class="h-3.5 w-3.5 text-brand-500 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+						</svg>
+						<span>{mappablePlaces.length} {mappablePlaces.length === 1 ? 'place' : 'places'} on map</span>
+					</div>
+					<svg
+						class="h-3.5 w-3.5 transition-transform duration-200 {mapExpanded ? 'rotate-180' : ''}"
+						viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+					>
+						<polyline points="6 9 12 15 18 9" />
+					</svg>
+				</button>
+
+				{#if mapExpanded}
+					<div class="h-[180px] border-t border-warm-200 sm:h-[220px]">
+						<MapView
+							places={filteredPlaces}
+							{selectedPlaceId}
+							onPlaceSelect={handleMapPlaceSelect}
+							{maptilerKey}
+						/>
+					</div>
+				{/if}
+			</div>
+		</div>
+	{/if}
+
+	<!-- Controls (inside sticky panel) -->
+	<div class="mx-auto flex max-w-4xl items-center justify-between border-t border-warm-200/60 px-3 py-1.5 sm:px-6 sm:py-2">
 		<p class="text-xs font-semibold text-warm-500 sm:text-[15px]">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</p>
 		<div class="flex items-center gap-1.5 sm:gap-2">
 			<div class="relative">
@@ -434,7 +493,9 @@
 			</div>
 		</div>
 	</div>
+</div>
 
+<div class="mx-auto max-w-4xl px-3 pb-8 pt-3 sm:px-6 sm:pb-12 sm:pt-4">
 	<!-- Places -->
 	{#if sortedPlaces.length === 0}
 		<div class="py-16 text-center">

@@ -27,13 +27,20 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	if (placeIds.length > 0) {
 		const { data } = await supabase
 			.from('places')
-			.select('id, title, url, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, user_rating')
+			.select('id, title, note, url, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, user_rating')
 			.in('id', placeIds);
 		places = data ?? [];
 	}
 
+	const [tagsRes, placeTagsRes] = await Promise.all([
+		supabase.from('tags').select('id, user_id, name, color, source, created_at, order_index').order('name'),
+		supabase.from('place_tags').select('place_id, tag_id')
+	]);
+
 	return {
 		collection,
-		places
+		places,
+		tags: tagsRes.data ?? [],
+		placeTags: placeTagsRes.data ?? []
 	};
 };

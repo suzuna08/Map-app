@@ -10,7 +10,6 @@ import {
 	buildGoogleMapsUrl
 } from '$lib/google-places';
 import type { Place } from '$lib/types/database';
-import { upsertSystemTags } from '$lib/tag-utils';
 import { computeIntelTags, buildMarketDiscussionOutput } from '$lib/intel-tagging';
 
 const NO_CACHE_HEADERS = {
@@ -238,8 +237,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	const place = inserted as Place;
 	console.log('[add-by-url] INSERTED:', place.title);
-
-	await upsertSystemTags(locals.supabase, user.id, place.id, details.category, details.area);
 
 	let contextTagsApplied = 0;
 	if (autoApplyContextTags && contextTagIds.length > 0) {

@@ -449,8 +449,6 @@ export type PlaceIntelTagRow = Database['public']['Tables']['place_intel_tags'][
 export type PlaceIntelTagInsert = Database['public']['Tables']['place_intel_tags']['Insert'];
 
 export interface SavedViewFilters {
-	categoryTagIds?: string[];
-	areaTagIds?: string[];
 	customTagIds?: string[];
 	source?: string;
 }
