@@ -37,7 +37,7 @@ The app follows SvelteKit's file-based routing with a clear separation:
 - **Pages** (`src/routes/`) handle layout, navigation, and page-level state
 - **Components** (`src/lib/components/`) are reusable UI elements (PlaceCard, TagInput, MapView, MobileMapShell, etc.)
 - **Stores** (`src/lib/stores/`) contain shared reactive state and data-access helpers (places data loading, toast notifications)
-- **Library code** (`src/lib/`) contains business logic (CSV parsing, Google API, tag utilities, intel tagging engine)
+- **Library code** (`src/lib/`) contains business logic (CSV parsing, Google API, tag colors & ordering, intel tagging engine)
 - **Actions** (`src/lib/actions/`) contain Svelte actions (drag-and-drop sortable)
 - **API routes** (`src/routes/api/`) are server-side endpoints for operations that need secrets (Google Places API key) and admin operations (intel catalog seeding)
 
@@ -65,7 +65,7 @@ Runes are enabled project-wide via `svelte.config.js` with `dynamicCompileOption
 
 Auth is handled through `@supabase/ssr` with a server hook (`hooks.server.ts`) and a universal layout load (`+layout.ts`).
 
-**Server hook** (`hooks.server.ts`): Creates a server-side Supabase client that reads/writes cookies for session persistence. It exposes a `safeGetSession` helper on `event.locals`. Cookie options include `httpOnly: true`, `sameSite: 'lax'`, and a 30-day `maxAge` for session persistence across browser restarts.
+**Server hook** (`hooks.server.ts`): Creates a server-side Supabase client that reads/writes cookies for session persistence. It exposes a `safeGetSession` helper on `event.locals`. Cookie options include `httpOnly: false` (required for the Supabase browser client to manage sessions), `sameSite: 'lax'`, and a 30-day `maxAge` for session persistence across browser restarts.
 
 **The `safeGetSession` pattern**: `getSession()` reads the session from the JWT in the cookie, but the JWT could be tampered with. So after getting the session, it calls `getUser()` which makes an actual request to Supabase Auth to validate the token. If `getUser()` succeeds, the validated user is returned. If `getUser()` fails (error response or network exception), the function falls back to `session.user` from the JWT rather than rejecting the session entirely. This keeps the app functional when Supabase Auth is temporarily unreachable, while RLS policies still enforce row-level access control as a second layer of defense.
 
@@ -104,7 +104,7 @@ Auth is handled through `@supabase/ssr` with a server hook (`hooks.server.ts`) a
 
 Both triggers use `security definer` with `search_path = ''` to safely access the `auth` schema.
 
-**`lists`** and **`list_places`** -- Used for the Collections feature. `lists` stores user-created collections with name, description, color, visibility (`'private'` or `'link_access'`), and optional `share_slug` for public sharing. `list_places` is the junction table linking places to collections, with a `position` column for manual ordering. Extended via `add_collections_columns.sql` and `add_list_places_position.sql` migrations.
+**`lists`** and **`list_places`** -- Used for the Collections feature. `lists` stores user-created collections with name, description, color, optional `emoji` (a single emoji character for the collection icon), visibility (`'private'` or `'link_access'`), and optional `share_slug` for public sharing. `list_places` is the junction table linking places to collections, with a `position` column for manual ordering. Extended via `add_collections_columns.sql`, `add_list_places_position.sql`, and `add_emoji_column.sql` migrations.
 
 **`saved_views`** -- Persists user-defined filter/sort/layout presets. Stores `filters_json` (JSONB with category, area, custom tag IDs and source), `sort_by`, and `layout_mode`. See [Saved Views](#saved-views).
 
@@ -116,7 +116,7 @@ Both triggers use `security definer` with `search_path = ''` to safely access th
 
 ### Row-Level Security
 
-All tables have RLS enabled. Policies ensure users can only see/modify their own data. For `list_places`, the policy checks ownership through the parent `lists` table.
+All tables have RLS enabled. Policies ensure users can only see/modify their own data. For `list_places`, the policy checks ownership through the parent `lists` table. For `tags` and `place_tags`, ownership is verified through the parent `places` table (place_tags) or directly via `user_id` (tags). Shared collections (`visibility = 'link_access'`) have additional read-only policies allowing anonymous SELECT on tags and place_tags that belong to places inside a shared collection.
 
 ### Migration Gap
 
@@ -135,6 +135,10 @@ A sixth migration file, `add_list_places_position.sql`, adds a `position` intege
 A seventh migration file, `add_intel_tag_system.sql`, creates three tables for the intel tagging system: `google_place_type_catalog` (type registry), `intel_tag_mappings` (classification rules), and `place_intel_tags` (per-place computed cache). Catalog and mappings are read-only for authenticated users; place intel tags have full CRUD policies scoped to the owning user.
 
 An eighth migration file, `add_user_rating.sql`, adds `user_rating` (numeric(2,1)) and `user_rated_at` (timestamptz) columns to `places` with a CHECK constraint enforcing 0.5–5.0 half-star values.
+
+A ninth migration file, `fix_rls_data_isolation.sql`, enables RLS on the `tags` and `place_tags` tables (which were previously missing it) and creates full CRUD policies scoped to the owning user. Additional read-only policies allow anonymous SELECT on tags and place_tags for places that belong to a `link_access` collection, enabling shared collection pages to display tags.
+
+A tenth migration file, `add_emoji_column.sql`, adds an optional `emoji` text column to the `lists` table. It stores a single emoji character (e.g. a food emoji) as the collection icon; `NULL` means no emoji is set and the UI falls back to the default color-circle icon.
 
 ### Type Name vs. Table Name
 
@@ -193,7 +197,7 @@ The `/api/places/enrich-all` endpoint processes up to 10 unenriched places per r
 
 ### System Tag Creation
 
-After enrichment, `upsertSystemTags` automatically creates and links category and area tags. It uses find-or-create semantics: check if a tag with the same name, source, and user already exists; if not, create it. Then link it to the place via `place_tags` (also with dedup check).
+System tags (category and area) are no longer auto-created during enrichment. The `tag-utils.ts` module (which contained `upsertSystemTags`) has been removed. Category and area information from Google Places enrichment is stored directly on the `places` row (`category`, `area` columns) and used for filtering without creating separate tag rows. The intel tagging system provides richer classification via `suggested_tags` in the enrichment response.
 
 ---
 
@@ -433,11 +437,11 @@ Saved Views are lightweight user-defined presets that capture the current browsi
 ### What Is Stored
 
 Each saved view persists:
-- **Filter state**: selected category tag IDs, area tag IDs, custom tag IDs, and source filter
+- **Filter state**: selected custom tag IDs and source filter
 - **Sort option**: the current `sortBy` value (newest, oldest, A-Z, etc.)
 - **Layout mode**: grid or list
 
-Not stored in MVP: map center/zoom, selected place, collection scope, search text.
+Not stored: category/area tag selections (these are derived from the data), map center/zoom, selected place, collection scope, search text.
 
 ### Data Model
 
@@ -445,7 +449,7 @@ Not stored in MVP: map center/zoom, selected place, collection scope, search tex
 - `id` (uuid, PK)
 - `user_id` (uuid, FK to `auth.users`)
 - `name` (text)
-- `filters_json` (jsonb) -- stores `{ categoryTagIds?, areaTagIds?, customTagIds?, source? }`
+- `filters_json` (jsonb) -- stores `{ customTagIds?, source? }`
 - `sort_by` (text, default `'newest'`)
 - `layout_mode` (text, default `'grid'`)
 - `created_at`, `updated_at` (timestamptz)
@@ -511,14 +515,17 @@ Collections are user-created, persistent groups of places. Unlike Saved Views (w
 Collections reuse the existing `lists` and `list_places` tables from the original schema:
 
 - **`lists`** → Collections. Extended with:
+  - `emoji` (text, nullable): Optional emoji character used as the collection icon (e.g. a food emoji). Falls back to color-circle when null
   - `visibility` (text, default `'private'`): `'private'` or `'link_access'`
   - `share_slug` (text, nullable, unique): URL-safe random identifier for public sharing
 - **`list_places`** → Collection membership (many-to-many junction)
 
-A migration file (`supabase/add_collections_columns.sql`) adds these columns and creates three new RLS policies:
+A migration file (`supabase/add_collections_columns.sql`) adds visibility and share_slug columns and creates three new RLS policies:
 1. Public SELECT on `lists` where `visibility = 'link_access'`
 2. Public SELECT on `list_places` via parent list visibility
 3. Public SELECT on `places` that belong to a `link_access` collection (via join through `list_places` → `lists`)
+
+A separate migration (`supabase/add_emoji_column.sql`) adds the `emoji` column to `lists`.
 
 ### Routes
 
@@ -759,14 +766,9 @@ The suggestion dropdown uses a Svelte action (`use:portal`) that moves the eleme
 
 The rating UI is a two-component system. `RatingDisplay` renders the compact trigger (`4.5 ★` or `Not rated`) and handles optimistic persistence. `RatingEditor` is the popover star scrubber with half-star precision via pointer events. The editor teleports its DOM to `document.body` on mount to escape PlaceCard's 3D-transform stacking context (same root cause as the TagInput portal, see [Bug #14](#14-rating-popover-invisible-inside-3d-transformed-card)). Full details in [Personal Rating System](#personal-rating-system).
 
-### TagSidebar
+### TagSidebar (Removed)
 
-The sidebar provides an alternative navigation interface for filters and source lists:
-
-- **Mobile overlay**: Controlled by `mobileOpen` prop. Shows as a slide-in panel (`translate-x-0` / `-translate-x-full`) with a semi-transparent backdrop. Only visible below `lg` breakpoint.
-- **"All Places" clears filters**: Clicking "All Places" when filters are active iterates through all selected tag IDs and calls `onTagToggle` for each, effectively clearing the filter. This is different from a simple reset -- it fires individual toggle events.
-- **Source list filtering**: The "Sources" section shows all distinct `source_list` values with counts. Clicking a source toggles between that source filter and "all". This filters orthogonally to tags.
-- **Tag creation**: The sidebar's "Add tag" flow creates user tags with a color from a local `TAG_COLORS` array using `Math.random()` for selection. This differs from the deterministic `colorForTag()` used in TagInput and TagManager (see [Known Inconsistencies](#known-inconsistencies)).
+The `TagSidebar.svelte` component has been removed. Sidebar filter navigation (tag groups, source lists, "All Places" reset) is now handled inline on the places page itself. Filter tags are displayed as chip rows directly in the main content area rather than in a separate side panel.
 
 ### TagManager
 
@@ -851,7 +853,6 @@ The app has distinct mobile and desktop layouts rather than just reflowing:
 - **PlaceCard**: Mobile uses a compact layout with smaller text, fewer visible details, and swipe-to-delete. Desktop shows price level, more metadata, and hover-reveal delete. Both show an inline personal rating display (`4.5 ★` / `Not rated`) that opens a star scrubber popover on click. The card grid uses 1-2 columns (reduced from 3 to accommodate the map panel).
 - **PlaceListItem**: Mobile has swipe-to-delete; desktop has hover-reveal action buttons.
 - **Tag filtering**: Mobile uses a tabbed horizontal scroll (Category | Area | Custom); desktop shows all three rows inline.
-- **Sidebar**: On mobile, it's a slide-in overlay with backdrop blur. On desktop (lg+), it's fixed at 256px width.
 - **Navigation**: Heights differ (48px mobile, 56px desktop). The "Add Place" button text is hidden on mobile, showing only the icon.
 - **Safe areas**: The layout respects `env(safe-area-inset-*)` for notched devices.
 
@@ -919,9 +920,9 @@ Public vars (prefixed `PUBLIC_`) are safe to expose to the browser. The Google A
 
 **Chose**: Separate `tags` and `place_tags` tables (normalized schema).
 
-**Why**: Enables efficient tag-based queries, independent tag management (rename, recolor, delete across all places), and count aggregation. RLS policies are straightforward.
+**Why**: Enables efficient tag-based queries, independent tag management (rename, recolor, delete across all places), and count aggregation. RLS policies on both tables enforce data isolation -- `tags` policies check `user_id` directly, while `place_tags` policies verify ownership through the parent `places` table.
 
-**Downside**: More complex client-side code. The `placeTagsMap` needs to be built by joining place_tags with tags, and every tag operation (add, remove) requires a separate database call.
+**Downside**: More complex client-side code. The `placeTagsMap` needs to be built by joining place_tags with tags, and every tag operation (add, remove) requires a separate database call. The RLS join-based policies on `place_tags` add query overhead compared to a simple `user_id` check.
 
 ### 5. Portal Pattern for Tag Dropdown
 
@@ -953,7 +954,7 @@ Public vars (prefixed `PUBLIC_`) are safe to expose to the browser. The Google A
 
 **Why**: The strict version (return null on any `getUser()` failure) caused users to be logged out during transient Supabase Auth outages or slow network conditions. For a personal tool, availability matters more than guarding against JWT forgery on every request.
 
-**Downside**: During an Auth service outage, a forged JWT would be trusted. This is mitigated by RLS policies (which validate `auth.uid()` at the database level using the JWT), but it's theoretically weaker than server-side validation on every request.
+**Downside**: During an Auth service outage, a forged JWT would be trusted. This is mitigated by RLS policies (which validate `auth.uid()` at the database level using the JWT), but it's theoretically weaker than server-side validation on every request. Additionally, session cookies use `httpOnly: false` (required for the Supabase browser client to manage sessions), which means the token is accessible to client-side JavaScript and therefore vulnerable to XSS. The combination of non-httpOnly cookies and lenient server validation means the auth security relies heavily on RLS as the final enforcement layer.
 
 ### 9. MapLibre + MapTiler vs. Google Maps Display API
 
@@ -994,6 +995,22 @@ Public vars (prefixed `PUBLIC_`) are safe to expose to the browser. The Google A
 **Why**: Keeps the rating logic self-contained within `RatingDisplay` → `RatingEditor`. No need for page-level state to track which place's rating is being edited, no prop-drilling for open/close, and each card independently manages its own rating editor lifecycle. This matches the existing `TagInput` portal pattern.
 
 **Downside**: DOM teleport bypasses Svelte's normal component tree for layout purposes. The teleported elements inherit `document.body`'s styles rather than any parent's scoped styles (mitigated by using Tailwind utility classes which are global). The wrapper element briefly exists in the original DOM position before teleportation, requiring the `display: none` → `mounted` flag workaround.
+
+### 14. Emoji Icon vs. Image Upload for Collections
+
+**Chose**: Collections can optionally display a single emoji character as their icon, selectable from a curated picker. The `emoji` column on `lists` stores a plain text character.
+
+**Why**: Emojis are universally supported, require zero storage infrastructure (no image hosting, resizing, or CDN), and render natively on all platforms. A curated picker keeps the UI fast and avoids moderation concerns. The column is nullable, so existing collections gracefully fall back to the color-circle indicator.
+
+**Downside**: Limited expressiveness -- users can't upload custom images or logos. The curated emoji set may not cover every use case. Emoji rendering varies across operating systems (an emoji may look different on iOS vs. Android vs. Windows). A future enhancement could add image upload alongside emoji as an alternative.
+
+### 15. Inline Filter Bar vs. Sidebar Navigation
+
+**Chose**: Replaced the `TagSidebar` component with inline filter chip rows rendered directly in the main content area of the places page.
+
+**Why**: The sidebar consumed significant horizontal space on desktop (256px fixed width) and required a separate slide-in overlay on mobile. Inline filter chips are more compact, visible at all times without a toggle, and consistent across breakpoints. This also simplified the component tree -- no separate `TagSidebar.svelte` component, no `mobileOpen` state management, no backdrop blur overlay.
+
+**Downside**: The inline approach has less room for hierarchical organization. The sidebar could display tag groups with headers, counts, and "All Places" navigation in a scannable vertical list. Inline chips rely on horizontal scrolling which can hide tags that overflow the viewport. Source list filtering (by import source) was part of the sidebar and needed to be integrated differently.
 
 ---
 
@@ -1085,36 +1102,40 @@ Public vars (prefixed `PUBLIC_`) are safe to expose to the browser. The Google A
 
 **Fix**: The `RatingEditor` wraps all its content in a single `<div>` that is teleported to `document.body` via `onMount(() => document.body.appendChild(wrapperEl))`. This escapes all ancestor stacking contexts and transforms. The wrapper starts hidden (`display: none`) and becomes visible once the `mounted` flag is set after teleportation, preventing a visual flash during the first render frame. Svelte's reactivity continues to work because it tracks the component tree, not DOM position. The element is removed from the body on `onDestroy` via the `onMount` cleanup return.
 
+### 15. Cross-User Data Leakage via Missing RLS on Tags and Place_Tags
+
+**Problem**: The `tags` and `place_tags` tables were created without Row Level Security enabled or any RLS policies. This meant that any authenticated user could read (and potentially modify) every other user's tags and place-tag associations via the Supabase client. The data isolation relied entirely on client-side query filtering (`eq('user_id', ...)`) which is trivially bypassed.
+
+**Fix**: Migration `fix_rls_data_isolation.sql` enables RLS on both tables and creates full CRUD policies. For `tags`, ownership is verified directly via `auth.uid() = user_id`. For `place_tags`, ownership is verified through the parent `places` table (a place_tag is accessible only if the linked place belongs to the current user). Additional read-only SELECT policies allow anonymous access to tags and place_tags that belong to places inside a `link_access` collection, preserving shared collection functionality.
+
+### 16. Cookie `httpOnly` Changed from `true` to `false`
+
+**Problem**: With `httpOnly: true` on the session cookie, the Supabase JS client running in the browser could not read or refresh the session token from cookies. This caused issues with client-side auth state management -- the browser client couldn't detect existing sessions, leading to unnecessary re-authentication or stale session state.
+
+**Fix**: Changed the cookie option in `hooks.server.ts` from `httpOnly: true` to `httpOnly: false`. This allows the Supabase browser client to read and manage the session cookie directly. The security trade-off is that the session token becomes accessible to client-side JavaScript (and therefore to XSS attacks), but this is the expected configuration for `@supabase/ssr` where the browser client needs cookie access for session management.
+
 ---
 
 ## Known Inconsistencies
 
 These are not bugs, but implementation inconsistencies worth noting for future cleanup.
 
-### 1. Tag Color Assignment -- Random vs. Deterministic
-
-**TagSidebar** creates new tags with `TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)]` -- a random color from a local palette. **TagInput** and **TagManager** use `colorForTag()` from `tag-colors.ts`, which deterministically hashes the tag name to pick a color from `TAG_PALETTE`.
-
-The two palettes (`TAG_COLORS` in TagSidebar vs. `TAG_PALETTE` in `tag-colors.ts`) also contain different color values. This means a tag created via the sidebar may get a different initial color than the same tag name created via the inline input.
-
-**Impact**: Low. Users can override the color via TagManager. But the inconsistency is surprising.
-
-### 2. `order_index` Optional
+### 1. `order_index` Optional
 
 The `order_index` column on `tags` may not exist if the migration hasn't been run. All tag ordering code (`saveTagOrder`, `getNextOrderIndex`, `reindexAfterDelete`) uses `try/catch` and falls back silently. Tags created when `order_index` is missing get no ordering, and the UI falls back to alphabetical sort.
 
-### 3. Debug `console.log` Statements
+### 2. Debug `console.log` Statements
 
-Multiple `console.log` calls remain in production code:
-- `places/+page.svelte`: URL add debugging (lines 101, 118)
-- `api/places/add-by-url/+server.ts`: Extensive request/response logging throughout (lines 90, 97, 110, 124, 149, 165, 172, 239, 246)
+`console.log` and `console.warn`/`console.error` calls remain in production code:
+- `places/+page.svelte`: URL add debugging (lines 138, 155), data load warnings (lines 220, 230), and collection creation errors (line 421)
+- `api/places/add-by-url/+server.ts`: Extensive request/response logging throughout (12 `console.log` calls tracing the full URL resolution, deduplication, and insertion flow)
 
-These should be removed or gated behind a debug flag before production deployment.
+The `console.log` calls should be removed or gated behind a debug flag before production deployment. The `console.warn` and `console.error` calls are more defensible as they log actual failure conditions.
 
-### 4. Two `normalizeUrl` Functions
+### 3. Two `normalizeUrl` Functions
 
 `cleanGoogleMapsUrl()` in `google-places.ts` strips all query params from shortened URLs aggressively. `normalizeUrl()` in `add-by-url/+server.ts` selectively strips tracking params while keeping place-identifying ones. Both serve URL normalization but with different strategies and no shared code.
 
-### 5. Mobile Layout Detection -- JS vs. CSS
+### 4. Mobile Layout Detection -- JS vs. CSS
 
 The mobile/desktop split uses a JS `isMobile` state variable (updated on `resize`, threshold 1024px) to conditionally render different component trees (`MobileMapShell` vs. bare `MapView`). This duplicates the `lg:` Tailwind breakpoint at 1024px but in JS. If the breakpoint changes in Tailwind, the JS threshold must also be updated manually. A `matchMedia` approach or a shared breakpoint constant would reduce this coupling.

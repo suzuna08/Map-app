@@ -52,6 +52,7 @@ src/
 ├── app.d.ts                       # SvelteKit app types (Locals, PageData)
 ├── hooks.server.ts                # Supabase auth middleware
 ├── lib/
+│   ├── index.ts                  # SvelteKit lib index
 │   ├── supabase.ts                # Supabase client helpers
 │   ├── csv-parser.ts              # Google Takeout CSV parsing
 │   ├── google-places.ts           # Google Places API client
@@ -60,17 +61,18 @@ src/
 │   ├── intel-tag-mappings.ts      # Google type → internal classification mappings
 │   ├── intel-tagging.verify.ts    # Verification tests for intel tagging
 │   ├── tag-colors.ts              # Tag color palette & hash
-│   ├── tag-utils.ts               # System tag upsert logic
 │   ├── tag-order.ts               # Tag reorder persistence
 │   ├── actions/
 │   │   └── sortable.ts            # Drag-to-reorder Svelte action
+│   ├── assets/
+│   │   └── favicon.svg            # App favicon
 │   ├── stores/
 │   │   ├── places.svelte.ts       # Data-access helpers (load, tag ops)
 │   │   ├── collections.svelte.ts  # Collection CRUD, membership & sharing helpers
 │   │   ├── saved-views.svelte.ts  # Saved Views CRUD & filter snapshot
 │   │   └── toasts.svelte.ts       # Toast notification store
 │   ├── types/
-│   │   └── database.ts            # Supabase type definitions (10 tables)
+│   │   └── database.ts            # Supabase type definitions (11 tables)
 │   └── components/
 │       ├── AddPlaceModal.svelte    # URL/CSV add place modal
 │       ├── AddToCollectionModal.svelte # Add place to collection picker
@@ -84,7 +86,6 @@ src/
 │       ├── TagContextMenu.svelte   # Right-click tag menu
 │       ├── TagInput.svelte         # Inline tag add/remove
 │       ├── TagManager.svelte       # Tag CRUD modal
-│       ├── TagSidebar.svelte       # Sidebar navigation
 │       └── TopBarTagAdd.svelte     # Top bar tag creation shortcut
 └── routes/
     ├── +layout.svelte              # Root layout & nav
@@ -167,9 +168,11 @@ supabase/add_collections_columns.sql
 supabase/add_list_places_position.sql
 supabase/add_intel_tag_system.sql
 supabase/add_user_rating.sql
+supabase/fix_rls_data_isolation.sql
+supabase/add_emoji_column.sql
 ```
 
-The first migration creates the `places`, `lists`, and `list_places` tables along with row-level security policies and indexes. The second adds the `order_index` column to `tags` for drag-to-reorder persistence. The third creates the `profiles` table with auto-sync triggers from Supabase Auth. The fourth creates the `saved_views` table for user-defined filter/sort/layout presets. The fifth extends `lists` with `visibility` and `share_slug` columns for collections sharing, plus public-access RLS policies. The sixth adds a `position` column to `list_places` for manual ordering within collections. The seventh creates the `google_place_type_catalog`, `intel_tag_mappings`, and `place_intel_tags` tables for the intel tagging system. The eighth adds `user_rating` and `user_rated_at` columns to `places` with a CHECK constraint enforcing 0.5–5.0 half-star values.
+The first migration creates the `places`, `lists`, and `list_places` tables along with row-level security policies and indexes. The second adds the `order_index` column to `tags` for drag-to-reorder persistence. The third creates the `profiles` table with auto-sync triggers from Supabase Auth. The fourth creates the `saved_views` table for user-defined filter/sort/layout presets. The fifth extends `lists` with `visibility` and `share_slug` columns for collections sharing, plus public-access RLS policies. The sixth adds a `position` column to `list_places` for manual ordering within collections. The seventh creates the `google_place_type_catalog`, `intel_tag_mappings`, and `place_intel_tags` tables for the intel tagging system. The eighth adds `user_rating` and `user_rated_at` columns to `places` with a CHECK constraint enforcing 0.5–5.0 half-star values. The ninth enables RLS on the `tags` and `place_tags` tables and creates user-scoped CRUD policies plus read-only policies for shared collections. The tenth adds an optional `emoji` column to `lists` for collection icons.
 
 You will also need to create the `tags` and `place_tags` tables (used by the tagging system but not yet in the migration file). The expected schema is defined in `src/lib/types/database.ts`.
 
