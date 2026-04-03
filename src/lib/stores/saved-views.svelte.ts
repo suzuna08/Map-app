@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database, SavedView, SavedViewFilters } from '$lib/types/database';
+import type { Database, SavedView, SavedViewFilters, TagGroup } from '$lib/types/database';
 
 const SAVED_VIEWS_COLUMNS = 'id, user_id, name, filters_json, sort_by, layout_mode, created_at, updated_at';
 
@@ -82,10 +82,14 @@ export async function deleteSavedView(
 
 export function buildFiltersSnapshot(
 	selectedCustomIds: string[],
-	selectedSource: string
+	selectedSource: string,
+	tagGroups?: TagGroup[]
 ): SavedViewFilters {
 	const filters: SavedViewFilters = {};
 	if (selectedCustomIds.length > 0) filters.customTagIds = [...selectedCustomIds];
+	if (tagGroups && tagGroups.length > 0) {
+		filters.tagGroups = tagGroups.map((g) => ({ id: g.id, tagIds: [...g.tagIds], mode: g.mode }));
+	}
 	if (selectedSource !== 'all') filters.source = selectedSource;
 	return filters;
 }

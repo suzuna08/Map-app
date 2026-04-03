@@ -3,7 +3,7 @@ import { error } from '@sveltejs/kit';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const supabase = locals.supabase;
-	const userId = locals.user?.id ?? locals.session?.user?.id;
+	const userId = locals.user?.id;
 	const collectionId = params.id;
 
 	const { data: collection, error: colErr } = await supabase
@@ -33,15 +33,19 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		places = data ?? [];
 	}
 
-	const [tagsRes, placeTagsRes, allPlacesRes] = await Promise.all([
+	const [tagsRes, allPlacesRes] = await Promise.all([
 		supabase.from('tags').select('id, user_id, name, color, source, created_at, order_index').eq('user_id', userId!).order('name'),
-		supabase.from('place_tags').select('place_id, tag_id'),
 		supabase
 			.from('places')
 			.select('id, title, area, category, user_rating')
 			.eq('user_id', userId!)
 			.order('created_at', { ascending: false })
 	]);
+
+	const allUserPlaceIds = (allPlacesRes.data ?? []).map((p) => p.id);
+	const placeTagsRes = allUserPlaceIds.length > 0
+		? await supabase.from('place_tags').select('place_id, tag_id').in('place_id', allUserPlaceIds)
+		: { data: [] as { place_id: string; tag_id: string }[] };
 
 	return {
 		collection,

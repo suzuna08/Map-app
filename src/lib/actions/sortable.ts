@@ -233,6 +233,8 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 		document.removeEventListener('touchmove', onDragTouchMove);
 		document.removeEventListener('touchend', onTouchEnd);
 		document.removeEventListener('touchcancel', onTouchEnd);
+
+		setTimeout(() => { suppressNextClick = false; }, 0);
 	}
 
 	function cleanupPendingPointer() {
@@ -264,6 +266,8 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 		if (options.disabled || e.button !== 0 || dragging) return;
 		if (e.pointerType === 'touch') return;
 
+		if (shouldIgnoreTarget(e.target as HTMLElement)) return;
+
 		const target = (e.target as HTMLElement).closest(options.itemSelector) as HTMLElement | null;
 		if (!target || !node.contains(target)) return;
 
@@ -294,8 +298,11 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 
 	function onClickCapture(e: MouseEvent) {
 		if (suppressNextClick) {
-			e.stopPropagation();
-			e.preventDefault();
+			const target = (e.target as HTMLElement).closest(options.itemSelector);
+			if (target && node.contains(target)) {
+				e.stopPropagation();
+				e.preventDefault();
+			}
 			suppressNextClick = false;
 		}
 	}

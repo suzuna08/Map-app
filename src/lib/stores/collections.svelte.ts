@@ -67,7 +67,7 @@ export async function createCollection(
 export async function updateCollection(
 	supabase: SupabaseClient<Database>,
 	collectionId: string,
-	updates: { name?: string; description?: string; color?: string; emoji?: string | null; visibility?: string; share_slug?: string }
+	updates: { name?: string; description?: string; color?: string; emoji?: string | null; visibility?: string; share_slug?: string | null }
 ): Promise<boolean> {
 	const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
 	if (updates.name !== undefined) payload.name = updates.name;
@@ -202,7 +202,7 @@ export async function disableSharing(
 ): Promise<boolean> {
 	return updateCollection(supabase, collectionId, {
 		visibility: 'private',
-		share_slug: undefined
+		share_slug: null
 	});
 }
 

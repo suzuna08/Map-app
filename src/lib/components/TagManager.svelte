@@ -82,8 +82,12 @@
 	}
 
 	async function deleteTag(tagId: string) {
-		await supabase.from('place_tags').delete().eq('tag_id', tagId);
-		await supabase.from('tags').delete().eq('id', tagId);
+		const ptResult = await supabase.from('place_tags').delete().eq('tag_id', tagId);
+		if (ptResult.error) console.error('[TagManager] place_tags delete failed:', ptResult.error);
+
+		const tagResult = await supabase.from('tags').delete().eq('id', tagId);
+		if (tagResult.error) console.error('[TagManager] tags delete failed:', tagResult.error);
+
 		await reindexAfterDelete(supabase, userId);
 		confirmDeleteId = null;
 		onTagsChanged();
@@ -223,20 +227,20 @@
 
 		{#each allTags as tag (tag.id)}
 			{#if confirmDeleteId === tag.id}
-				<!-- Delete confirmation -->
-				<div class="flex items-center justify-between rounded-lg bg-red-50 px-3 py-2">
-					<span class="text-xs text-red-600">Delete "{tag.name}"?</span>
-					<div class="flex items-center gap-1">
-						<button
-							onclick={() => { confirmDeleteId = null; }}
-							class="rounded-md px-2 py-0.5 text-[11px] text-warm-500 hover:bg-white"
-						>Cancel</button>
-						<button
-							onclick={() => deleteTag(tag.id)}
-							class="rounded-md bg-red-600 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-red-700"
-						>Delete</button>
-					</div>
+			<!-- Delete confirmation -->
+			<div class="flex items-center justify-between rounded-lg bg-red-50 px-3 py-2">
+				<span class="text-xs text-red-600">Delete "{tag.name}"?</span>
+				<div class="flex items-center gap-1">
+					<button
+						onclick={() => { confirmDeleteId = null; }}
+						class="rounded-md px-2 py-0.5 text-[11px] text-warm-500 hover:bg-white"
+					>Cancel</button>
+					<button
+						onclick={() => deleteTag(tag.id)}
+						class="rounded-md bg-red-600 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-red-700"
+					>Delete</button>
 				</div>
+			</div>
 			{:else}
 				<!-- Tag row -->
 				<div data-tag-id={tag.id} class="group flex items-center gap-2.5 rounded-lg px-3 py-1.5 transition-colors hover:bg-warm-100/70">

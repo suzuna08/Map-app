@@ -32,15 +32,31 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		places = data ?? [];
 	}
 
-	const [tagsRes, placeTagsRes] = await Promise.all([
-		supabase.from('tags').select('id, user_id, name, color, source, created_at, order_index').order('name'),
-		supabase.from('place_tags').select('place_id, tag_id')
-	]);
+	let tags: unknown[] = [];
+	let placeTags: { place_id: string; tag_id: string }[] = [];
+
+	if (placeIds.length > 0) {
+		const placeTagsRes = await supabase
+			.from('place_tags')
+			.select('place_id, tag_id')
+			.in('place_id', placeIds);
+		placeTags = (placeTagsRes.data ?? []) as { place_id: string; tag_id: string }[];
+
+		const tagIds = [...new Set(placeTags.map((pt) => pt.tag_id))];
+		if (tagIds.length > 0) {
+			const tagsRes = await supabase
+				.from('tags')
+				.select('id, user_id, name, color, source, created_at, order_index')
+				.in('id', tagIds)
+				.order('name');
+			tags = tagsRes.data ?? [];
+		}
+	}
 
 	return {
 		collection,
 		places,
-		tags: tagsRes.data ?? [],
-		placeTags: placeTagsRes.data ?? []
+		tags,
+		placeTags
 	};
 };

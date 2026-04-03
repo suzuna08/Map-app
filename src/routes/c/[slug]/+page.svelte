@@ -123,8 +123,20 @@
 				type="text"
 				bind:value={search}
 				placeholder="Search places..."
-				class="w-full rounded-lg border border-warm-200 bg-warm-50 py-1.5 pl-8 pr-3 text-sm font-medium text-warm-700 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20"
+				class="w-full rounded-lg border border-warm-200 bg-warm-50 py-1.5 pl-8 pr-8 text-sm font-medium text-warm-700 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20"
 			/>
+			{#if search}
+				<button
+					onclick={() => { search = ''; }}
+					class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600"
+					aria-label="Clear search"
+				>
+					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+						<line x1="18" y1="6" x2="6" y2="18" />
+						<line x1="6" y1="6" x2="18" y2="18" />
+					</svg>
+				</button>
+			{/if}
 		</div>
 		<div class="flex items-center gap-0.5 rounded-md border border-warm-200 bg-white p-0.5">
 			<button

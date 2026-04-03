@@ -18,14 +18,41 @@
 	let supabase = $derived(data.supabase);
 	let session = $derived(data.session);
 
-	let collection = $state<Collection>((data as any).collection);
-	let places = $state<Place[]>((data as any).places ?? []);
-	let placeIds = $state<string[]>((data as any).placeIds ?? []);
-	let allTags = $state<Tag[]>((data as any).tags ?? []);
-	let placeTagsMap = $state<Record<string, Tag[]>>(
-		buildPlaceTagsMap((data as any).tags ?? [], (data as any).placeTags ?? [])
-	);
-	let allPlaces = $state<Place[]>((data as any).allPlaces ?? []);
+	let serverCollection = $derived((data as any).collection as Collection);
+	let serverPlaces = $derived(((data as any).places ?? []) as Place[]);
+	let serverPlaceIds = $derived(((data as any).placeIds ?? []) as string[]);
+	let serverTags = $derived(((data as any).tags ?? []) as Tag[]);
+	let serverPlaceTags = $derived(((data as any).placeTags ?? []) as { place_id: string; tag_id: string }[]);
+	let serverAllPlaces = $derived(((data as any).allPlaces ?? []) as Place[]);
+
+	let collection = $state<Collection>(serverCollection);
+	let places = $state<Place[]>(serverPlaces);
+	let placeIds = $state<string[]>(serverPlaceIds);
+	let allTags = $state<Tag[]>(serverTags);
+	let placeTagsMap = $state<Record<string, Tag[]>>(buildPlaceTagsMap(serverTags, serverPlaceTags));
+	let allPlaces = $state<Place[]>(serverAllPlaces);
+
+	let prevCollectionId = $state(serverCollection?.id);
+
+	$effect(() => {
+		if (serverCollection?.id !== prevCollectionId) {
+			prevCollectionId = serverCollection?.id;
+			collection = serverCollection;
+			places = serverPlaces;
+			placeIds = serverPlaceIds;
+			allTags = serverTags;
+			placeTagsMap = buildPlaceTagsMap(serverTags, serverPlaceTags);
+			allPlaces = serverAllPlaces;
+			editName = serverCollection.name;
+			editDesc = serverCollection.description ?? '';
+			editingName = false;
+			editingDesc = false;
+			search = '';
+			showAddModal = false;
+			addSearch = '';
+			addTagFilter = {};
+		}
+	});
 
 	let toasts = $derived(getToasts());
 	let viewMode = $state<'grid' | 'list'>('grid');
@@ -35,9 +62,9 @@
 	let addSearch = $state('');
 	let addTagFilter = $state<Record<string, boolean>>({});
 	let editingName = $state(false);
-	let editName = $state(collection.name);
+	let editName = $state(serverCollection?.name ?? '');
 	let editingDesc = $state(false);
-	let editDesc = $state(collection.description ?? '');
+	let editDesc = $state(serverCollection?.description ?? '');
 
 	let editingColor = $state(false);
 	let colorPickerEl = $state<HTMLDivElement | null>(null);
@@ -88,7 +115,7 @@
 	let selectedPlaceId = $state<string | null>(null);
 	let isMobile = $state(false);
 	let mapExpanded = $state(true);
-	let maptilerKey: string = data.maptilerKey ?? '';
+	let maptilerKey = $derived(data.maptilerKey ?? '');
 
 	let mappablePlaces = $derived(places.filter((p) => p.lat != null && p.lng != null));
 	let hasMap = $derived(mappablePlaces.length > 0);
@@ -262,10 +289,11 @@
 </script>
 
 <svelte:head>
-	<title>{collection.name} — MapOrganizer</title>
+	<title>{collection?.name ?? 'Collection'} — MapOrganizer</title>
 </svelte:head>
 
 <!-- Sticky top panel: header + map -->
+{#if collection}
 <div class="sticky top-12 z-10 border-b border-warm-200/80 bg-[#faf7f2] shadow-sm sm:top-14">
 	<div class="mx-auto max-w-4xl px-3 sm:px-6">
 		<!-- Breadcrumb + Header combined -->
@@ -338,12 +366,13 @@
 									autofocus
 								/>
 							{:else}
-								<h1
-									class="cursor-pointer truncate text-base font-extrabold text-warm-800 transition-colors hover:text-brand-600 sm:text-lg"
+								<button
+									type="button"
+									class="cursor-pointer truncate text-left text-base font-extrabold text-warm-800 transition-colors hover:text-brand-600 sm:text-lg"
 									onclick={() => { editingName = true; editName = collection.name; }}
 								>
 									{collection.name}
-								</h1>
+								</button>
 							{/if}
 							{#if editingDesc}
 								<input
@@ -356,12 +385,13 @@
 									autofocus
 								/>
 							{:else}
-								<p
-									class="mt-0.5 cursor-pointer text-[11px] text-warm-400 transition-colors hover:text-warm-500 sm:text-[13px]"
+								<button
+									type="button"
+									class="mt-0.5 cursor-pointer text-left text-[11px] text-warm-400 transition-colors hover:text-warm-500 sm:text-[13px]"
 									onclick={() => { editingDesc = true; editDesc = collection.description ?? ''; }}
 								>
 									{collection.description || 'Add a description...'}
-								</p>
+								</button>
 							{/if}
 						</div>
 					</div>
@@ -662,6 +692,7 @@
 			</div>
 		</div>
 	</div>
+{/if}
 {/if}
 
 <!-- Toasts -->

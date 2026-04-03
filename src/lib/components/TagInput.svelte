@@ -26,13 +26,17 @@
 	let dropdownPos = $state<{ top: number; left: number; maxWidth: number } | null>(null);
 	let posRafId = 0;
 
+	let dropdownAbove = $state(false);
+
 	function updateDropdownPos() {
 		if (!inputEl) { dropdownPos = null; return; }
 		const rect = inputEl.getBoundingClientRect();
 		const vw = window.innerWidth;
 		const vh = window.innerHeight;
+		const dropH = 208;
 		const left = Math.max(8, Math.min(rect.left, vw - 200));
-		const fitsBelow = rect.bottom + 4 + 200 < vh;
+		const fitsBelow = rect.bottom + 4 + dropH < vh;
+		dropdownAbove = !fitsBelow;
 		const top = fitsBelow ? rect.bottom + 4 : rect.top - 4;
 		dropdownPos = { top, left, maxWidth: Math.min(192, vw - left - 8) };
 	}
@@ -268,10 +272,10 @@
 {#if showSuggestions && dropdownPos && (suggestions.length > 0 || showCreateOption)}
 	<div
 		use:portal
-		class="fixed z-[9999] w-48 rounded-lg border border-warm-200 bg-white py-1 shadow-xl"
-		style="top: {dropdownPos.top}px; left: {dropdownPos.left}px; max-width: {dropdownPos.maxWidth}px; pointer-events: auto;"
+		class="fixed z-[9999] w-48 max-h-52 overflow-y-auto overscroll-contain rounded-lg border border-warm-200 bg-white py-1 shadow-xl"
+		style="{dropdownAbove ? `bottom: ${window.innerHeight - dropdownPos.top}px` : `top: ${dropdownPos.top}px`}; left: {dropdownPos.left}px; max-width: {dropdownPos.maxWidth}px; pointer-events: auto;"
 	>
-		{#each suggestions.slice(0, 5) as tag (tag.id)}
+		{#each suggestions as tag (tag.id)}
 			<button
 				onmousedown={(e) => { e.preventDefault(); addExistingTag(tag); }}
 				class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] hover:bg-warm-50"

@@ -64,12 +64,14 @@
 				}),
 				'top-right'
 			);
-			map.addControl(
-				new ml.AttributionControl({ compact: true }),
-				mapMode === 'default' ? 'bottom-right' : 'top-left'
-			);
+			const attrib = new ml.AttributionControl({ compact: true });
+			map.addControl(attrib, mapMode === 'default' ? 'bottom-right' : 'top-left');
 
 			map.on('load', () => {
+				const attribEl = container?.querySelector('.maplibregl-ctrl-attrib');
+				if (attribEl) {
+					attribEl.classList.remove('maplibregl-compact-show');
+				}
 				mapReady = true;
 				syncMarkers();
 				fitToMarkers(false);

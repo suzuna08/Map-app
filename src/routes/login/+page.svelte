@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 
 	let { data } = $props();
 	let supabase = $derived(data.supabase);
@@ -14,7 +14,7 @@
 
 	const DEFAULT_REDIRECT = '/places';
 
-	const confirmError = $derived($page.url.searchParams.get('error') === 'invalid-confirmation-link');
+	const confirmError = $derived(page.url.searchParams.get('error') === 'invalid-confirmation-link');
 
 	function getSafeRedirect(url: string | null): string {
 		if (!url) return DEFAULT_REDIRECT;
@@ -30,7 +30,7 @@
 	}
 
 	function getEmailRedirectTo(): string {
-		return `${$page.url.origin}/auth/confirm?next=/login`;
+		return `${page.url.origin}/auth/confirm?next=/login`;
 	}
 
 	async function handleSubmit(e: Event) {
@@ -55,7 +55,7 @@
 			if (err) {
 				error = err.message;
 			} else {
-				const redirectTo = getSafeRedirect($page.url.searchParams.get('redirect'));
+				const redirectTo = getSafeRedirect(page.url.searchParams.get('redirect'));
 				goto(redirectTo);
 			}
 		}

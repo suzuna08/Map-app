@@ -448,8 +448,15 @@ export type IntelTagMappingRow = Database['public']['Tables']['intel_tag_mapping
 export type PlaceIntelTagRow = Database['public']['Tables']['place_intel_tags']['Row'];
 export type PlaceIntelTagInsert = Database['public']['Tables']['place_intel_tags']['Insert'];
 
+export interface TagGroup {
+	id: string;
+	tagIds: string[];
+	mode: 'any' | 'all';
+}
+
 export interface SavedViewFilters {
 	customTagIds?: string[];
+	tagGroups?: TagGroup[];
 	source?: string;
 }
 
