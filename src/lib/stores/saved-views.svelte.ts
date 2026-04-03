@@ -83,7 +83,8 @@ export async function deleteSavedView(
 export function buildFiltersSnapshot(
 	selectedCustomIds: string[],
 	selectedSource: string,
-	tagGroups?: TagGroup[]
+	tagGroups?: TagGroup[],
+	searchText?: string
 ): SavedViewFilters {
 	const filters: SavedViewFilters = {};
 	if (selectedCustomIds.length > 0) filters.customTagIds = [...selectedCustomIds];
@@ -91,5 +92,6 @@ export function buildFiltersSnapshot(
 		filters.tagGroups = tagGroups.map((g) => ({ id: g.id, tagIds: [...g.tagIds], mode: g.mode }));
 	}
 	if (selectedSource !== 'all') filters.source = selectedSource;
+	if (searchText) filters.searchText = searchText;
 	return filters;
 }

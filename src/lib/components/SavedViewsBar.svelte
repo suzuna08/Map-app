@@ -15,6 +15,7 @@
 		selectedSource = 'all',
 		sortBy = 'newest',
 		viewMode = 'grid',
+		search = '',
 		onApply,
 		onViewsChanged,
 		onEditView,
@@ -33,6 +34,7 @@
 		selectedSource: string;
 		sortBy: string;
 		viewMode: string;
+		search: string;
 		onApply: (view: SavedView) => void;
 		onViewsChanged: () => void;
 		onEditView: (view: SavedView) => void;
@@ -55,8 +57,19 @@
 
 	let hasFilters = $derived(
 		selectedCustomIds.length > 0 ||
-		selectedSource !== 'all'
+		selectedSource !== 'all' ||
+		(search.trim() !== '' && !isGoogleMapsUrl(search))
 	);
+
+	function isGoogleMapsUrl(text: string): boolean {
+		const t = text.trim();
+		return /^https?:\/\/(maps\.google\.|www\.google\.\w+\/maps|maps\.app\.goo\.gl|goo\.gl\/maps|share\.google\/)/i.test(t);
+	}
+
+	function getSearchTextForSnapshot(): string | undefined {
+		const trimmed = search.trim();
+		return (trimmed && !isGoogleMapsUrl(trimmed)) ? trimmed : undefined;
+	}
 
 	function openCreate() {
 		showCreateInput = true;
@@ -84,7 +97,8 @@
 		const tg: TagGroup[] = selectedCustomIds.length > 0
 			? [{ id: '0', tagIds: [...selectedCustomIds], mode: filterMode }]
 			: [];
-		const filters = buildFiltersSnapshot(selectedCustomIds, selectedSource, tg);
+		const searchText = getSearchTextForSnapshot();
+		const filters = buildFiltersSnapshot(selectedCustomIds, selectedSource, tg, searchText);
 		const result = await createSavedView(supabase, userId, name, filters, sortBy, viewMode);
 		if (result) {
 			showToast('success', '', `Saved view "${name}" created`);

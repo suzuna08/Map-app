@@ -79,8 +79,8 @@
 	let savedViews = $state<SavedView[]>([]);
 	let activeSavedViewId = $state<string | null>(null);
 	let editingViewId = $state<string | null>(null);
-	let editingSnapshot = $state<{ selectedTagMap: Record<string, boolean>; filterMode: 'all' | 'any'; source: string; sortBy: string; layoutMode: string } | null>(null);
-	let appliedSnapshot = $state<{ tagMapKey: string; source: string } | null>(null);
+	let editingSnapshot = $state<{ selectedTagMap: Record<string, boolean>; filterMode: 'all' | 'any'; source: string; sortBy: string; layoutMode: string; searchText: string } | null>(null);
+	let appliedSnapshot = $state<{ tagMapKey: string; source: string; searchText: string } | null>(null);
 	let suppressDeactivate = $state(false);
 
 	let isMobile = $state(false);
@@ -258,6 +258,7 @@
 			selectedTagMap = {};
 			filterMode = 'all';
 			selectedSource = 'all';
+			search = '';
 			return;
 		}
 
@@ -274,6 +275,7 @@
 		selectedTagMap = tagMap;
 		filterMode = mode;
 		selectedSource = f.source ?? 'all';
+		search = f.searchText ?? '';
 		sortBy = (view.sort_by ?? 'newest') as typeof sortBy;
 		viewMode = (view.layout_mode ?? 'grid') as typeof viewMode;
 		activeSavedViewId = view.id;
@@ -281,7 +283,8 @@
 		editingSnapshot = null;
 		appliedSnapshot = {
 			tagMapKey: JSON.stringify(Object.keys(tagMap).sort()),
-			source: f.source ?? 'all'
+			source: f.source ?? 'all',
+			searchText: f.searchText ?? ''
 		};
 		requestAnimationFrame(() => { suppressDeactivate = false; });
 	}
@@ -300,12 +303,14 @@
 		selectedTagMap = tagMap;
 		filterMode = mode;
 		selectedSource = f.source ?? 'all';
+		search = f.searchText ?? '';
 		sortBy = (view.sort_by ?? 'newest') as typeof sortBy;
 		viewMode = (view.layout_mode ?? 'grid') as typeof viewMode;
 		activeSavedViewId = view.id;
 		appliedSnapshot = {
 			tagMapKey: JSON.stringify(Object.keys(tagMap).sort()),
-			source: f.source ?? 'all'
+			source: f.source ?? 'all',
+			searchText: f.searchText ?? ''
 		};
 		editingViewId = view.id;
 		editingSnapshot = {
@@ -313,7 +318,8 @@
 			filterMode: mode,
 			source: f.source ?? 'all',
 			sortBy: view.sort_by ?? 'newest',
-			layoutMode: view.layout_mode ?? 'grid'
+			layoutMode: view.layout_mode ?? 'grid',
+			searchText: f.searchText ?? ''
 		};
 		requestAnimationFrame(() => { suppressDeactivate = false; });
 	}
@@ -323,7 +329,8 @@
 		const tg: TagGroup[] = selectedCustomIds.length > 0
 			? [{ id: '0', tagIds: [...selectedCustomIds], mode: filterMode }]
 			: [];
-		const filters = buildFiltersSnapshot(selectedCustomIds, selectedSource, tg);
+		const searchText = (!detectedUrl && search.trim()) ? search.trim() : undefined;
+		const filters = buildFiltersSnapshot(selectedCustomIds, selectedSource, tg, searchText);
 		const ok = await updateSavedView(supabase, editingViewId, {
 			filtersJson: filters,
 			sortBy,
@@ -335,7 +342,8 @@
 			await refreshSavedViews();
 			appliedSnapshot = {
 				tagMapKey: JSON.stringify([...selectedCustomIds].sort()),
-				source: selectedSource
+				source: selectedSource,
+				searchText: searchText ?? ''
 			};
 		} else {
 			showToast('error', '', 'Could not update view');
@@ -355,9 +363,11 @@
 		selectedSource = editingSnapshot.source;
 		sortBy = editingSnapshot.sortBy as typeof sortBy;
 		viewMode = editingSnapshot.layoutMode as typeof viewMode;
+		search = editingSnapshot.searchText ?? '';
 		appliedSnapshot = {
 			tagMapKey: JSON.stringify(Object.keys(editingSnapshot.selectedTagMap).sort()),
-			source: editingSnapshot.source
+			source: editingSnapshot.source,
+			searchText: editingSnapshot.searchText ?? ''
 		};
 		editingViewId = null;
 		editingSnapshot = null;
@@ -385,7 +395,10 @@
 
 	let userTags = $derived(allTags.filter((t) => t.source === 'user').sort(sortByOrder));
 	let selectedTagIds = $derived(Object.keys(selectedTagMap).filter((id) => selectedTagMap[id]));
-	let hasActiveFilters = $derived(selectedTagIds.length > 0);
+	let activeSearchTerms = $derived(
+		(!detectedUrl && search.trim()) ? search.split(',').map(t => t.trim()).filter(Boolean) : []
+	);
+	let hasActiveFilters = $derived(selectedTagIds.length > 0 || activeSearchTerms.length > 0);
 
 	// Auto-remove selected filters that no longer exist in the dataset
 	$effect(() => {
@@ -418,7 +431,8 @@
 		const currentTagKey = JSON.stringify([...selectedCustomIds].sort());
 		const tagsMatch = currentTagKey === appliedSnapshot.tagMapKey;
 		const sourceMatch = selectedSource === appliedSnapshot.source;
-		if (!tagsMatch || !sourceMatch) {
+		const searchMatch = search === (appliedSnapshot.searchText ?? '');
+		if (!tagsMatch || !sourceMatch || !searchMatch) {
 			activeSavedViewId = null;
 			appliedSnapshot = null;
 		}
@@ -450,16 +464,21 @@
 		scopedPlaces.filter((p) => {
 			const pTags = placeTagsMap[p.id] ?? [];
 			const pTagIds = pTags.map((t) => t.id);
-			const searchLower = search.toLowerCase();
 
-			const matchesSearch =
-				search === '' || detectedUrl !== null ||
-				p.title.toLowerCase().includes(searchLower) ||
-				(p.description ?? '').toLowerCase().includes(searchLower) ||
-				(p.address ?? '').toLowerCase().includes(searchLower) ||
-				(p.category ?? '').toLowerCase().includes(searchLower) ||
-				(p.area ?? '').toLowerCase().includes(searchLower) ||
-				pTags.some((t) => t.name.toLowerCase().includes(searchLower));
+			const matchesSearch = (() => {
+				if (search === '' || detectedUrl !== null) return true;
+				const terms = search.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+				if (terms.length === 0) return true;
+				const haystack = [
+					p.title,
+					p.description ?? '',
+					p.address ?? '',
+					p.category ?? '',
+					p.area ?? '',
+					...pTags.map((t) => t.name)
+				].join(' ').toLowerCase();
+				return terms.every((term) => haystack.includes(term));
+			})();
 
 			const matchesSource = selectedSource === 'all' || p.source_list === selectedSource;
 
@@ -599,6 +618,7 @@
 		selectedTagMap = {};
 		filterMode = 'all';
 		selectedSource = 'all';
+		search = '';
 	}
 
 	async function enrichSingle(placeId: string) {
@@ -799,6 +819,7 @@
 				{selectedSource}
 				{sortBy}
 				{viewMode}
+				{search}
 				onApply={applySavedView}
 				onViewsChanged={refreshSavedViews}
 				onEditView={startEditView}
@@ -812,6 +833,27 @@
 			<div class="mb-1 flex min-h-[28px] flex-wrap items-center gap-1.5 sm:mb-3 sm:min-h-[32px] sm:gap-2">
 				{#if hasActiveFilters || selectedSource !== 'all'}
 				<span class="text-xs font-bold text-warm-400 sm:text-[13px]">Filtered by:</span>
+				{#if activeSearchTerms.length > 0}
+					{#each activeSearchTerms as term, i (i)}
+						<button
+							onclick={() => {
+								const remaining = activeSearchTerms.filter((_, idx) => idx !== i);
+								search = remaining.join(', ');
+							}}
+							class="inline-flex items-center gap-1 rounded-full border border-warm-200 bg-warm-50 px-2 py-0.5 text-xs font-medium text-warm-600 transition-colors hover:bg-warm-100 sm:px-2.5 sm:text-[13px]"
+						>
+							<svg class="h-2.5 w-2.5 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+								<circle cx="11" cy="11" r="8" />
+								<line x1="21" y1="21" x2="16.65" y2="16.65" />
+							</svg>
+							{term}
+							<svg class="h-2 w-2 sm:h-2.5 sm:w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+								<line x1="18" y1="6" x2="6" y2="18" />
+								<line x1="6" y1="6" x2="18" y2="18" />
+							</svg>
+						</button>
+					{/each}
+				{/if}
 				{#if selectedCustomIds.length >= 2}
 					<div class="inline-flex overflow-hidden rounded-full border border-warm-200 text-[11px] font-bold sm:text-xs">
 						<button

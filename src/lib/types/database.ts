@@ -458,6 +458,7 @@ export interface SavedViewFilters {
 	customTagIds?: string[];
 	tagGroups?: TagGroup[];
 	source?: string;
+	searchText?: string;
 }
 
 export type SavedView = Database['public']['Tables']['saved_views']['Row'];
