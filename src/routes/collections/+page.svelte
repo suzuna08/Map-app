@@ -84,10 +84,13 @@
 			(c) => c.color && !colorsSet.has(c.color) && OLD_TO_NEW[c.color]
 		);
 		if (toMigrate.length === 0) return;
-		await Promise.all(
+		collections = collections.map((c) => {
+			const newColor = c.color && OLD_TO_NEW[c.color];
+			return newColor ? { ...c, color: newColor } : c;
+		});
+		Promise.all(
 			toMigrate.map((c) => updateCollection(supabase, c.id, { color: OLD_TO_NEW[c.color!] }))
 		);
-		await refresh();
 	}
 
 	$effect(() => {

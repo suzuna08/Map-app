@@ -9,20 +9,19 @@ export async function loadCollections(supabase: SupabaseClient<Database>): Promi
 	collections: Collection[];
 	collectionPlacesMap: CollectionMemberMap;
 }> {
-	const [colRes, membersRes] = await Promise.all([
-		supabase.from('lists').select(LISTS_COLUMNS).order('created_at', { ascending: false }),
-		supabase.from('list_places').select('list_id, place_id')
-	]);
+	const { data, error } = await supabase
+		.from('lists')
+		.select(`${LISTS_COLUMNS}, list_places(place_id)`)
+		.order('created_at', { ascending: false });
 
-	if (colRes.error) console.error('[loadCollections] lists error:', colRes.error);
-	if (membersRes.error) console.error('[loadCollections] list_places error:', membersRes.error);
+	if (error) console.error('[loadCollections] error:', error);
 
-	const collections = (colRes.data ?? []) as Collection[];
+	const rows = (data ?? []) as (Collection & { list_places: { place_id: string }[] })[];
 	const collectionPlacesMap: CollectionMemberMap = {};
-
-	for (const row of membersRes.data ?? []) {
-		(collectionPlacesMap[row.list_id] ??= []).push(row.place_id);
-	}
+	const collections = rows.map(({ list_places, ...col }) => {
+		collectionPlacesMap[col.id] = list_places.map((lp) => lp.place_id);
+		return col as Collection;
+	});
 
 	return { collections, collectionPlacesMap };
 }
