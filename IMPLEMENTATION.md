@@ -28,6 +28,8 @@ Detailed documentation of the architecture, design decisions, trade-offs, and bu
 - [Bugs & Fixes](#bugs--fixes)
 - [Known Inconsistencies](#known-inconsistencies)
 
+> **See also**: [UI-DESIGN.md](./UI-DESIGN.md) for a detailed visual design specification covering color palettes, component anatomy, layout measurements, and interaction patterns.
+
 ---
 
 ## Architecture Overview
@@ -43,7 +45,7 @@ The app follows SvelteKit's file-based routing with a clear separation:
 
 All data fetching on the places page happens client-side via the Supabase JS client, while enrichment and URL import go through server-side API routes because they need the private `GOOGLE_PLACES_API_KEY`. The map view uses MapLibre GL JS with MapTiler tiles, loaded client-side only via dynamic import to avoid SSR issues.
 
-**Server-side data preloading**: Pages with heavy data requirements (`places`, `collections`, `collections/[id]`, `c/[slug]`) use `+page.server.ts` files to preload data in parallel on the server before hydration. For example, `places/+page.server.ts` fetches places, tags, place_tags, lists, and list_places concurrently. This reduces the initial client-side waterfall while keeping subsequent interactions client-side only.
+**Server-side data preloading**: Pages with heavy data requirements (`places`, `collections`, `collections/[id]`, `c/[slug]`) use `+page.server.ts` files to preload data in parallel on the server before hydration. For example, `places/+page.server.ts` fetches places, tags, place_tags, lists, and list_places concurrently. `collections/[id]/+page.server.ts` preloads the collection's member places alongside all user tags, a lightweight all-places list, and place_tags for the "Add Places" modal tag filtering. `c/[slug]/+page.server.ts` loads the collection, its member places, and their associated tags and place_tags for tag display on the public page. This reduces the initial client-side waterfall while keeping subsequent interactions client-side only.
 
 State management uses Svelte 5 runes throughout:
 - `$state` for mutable reactive variables
@@ -289,7 +291,7 @@ The response includes `contextTagsApplied` and `contextTagsRequested` counts, en
 
 ### Tag Colors
 
-User tags get deterministic colors via `colorForTag`: the tag name is normalized (lowercase, trimmed, single spaces), then hashed with djb2, and the hash modulo the palette length picks from a curated 10-color palette (rose, amber, olive, teal, slate blue, purple, salmon, brown, steel, mauve). The same name always gets the same color, but users can override it.
+User tags get deterministic colors via `colorForTag`: the tag name is normalized (lowercase, trimmed, single spaces), then hashed with djb2, and the hash modulo the palette length picks from a curated 6-color muted palette (muted gold, stone sage, slate blue, terracotta, muted teal, dusty purple). The same name always gets the same color, but users can override it.
 
 ### TagInput Component
 
@@ -318,7 +320,7 @@ Right-clicking a user tag opens a context menu with rename, recolor, and delete 
 
 Tags in all three groups (category, area, custom) support drag-and-drop reordering via a custom Svelte action (`use:sortable` in `sortable.ts`).
 
-**Sortable action**: Implements drag-and-drop with both mouse and touch support. On touch devices, a 300ms long-press initiates drag (movement < 5px during the press cancels it). The action accepts configuration: `onReorder` callback, `itemSelector`, `idAttribute`, `longPressMs`, and `disabled`.
+**Sortable action**: Implements drag-and-drop with both mouse and touch support. On touch devices, a configurable long-press initiates drag (default 400ms; the mobile tag strip on the places page uses 500ms). The action accepts configuration: `onReorder` callback, `itemSelector`, `idAttribute`, `longPressMs`, and `disabled`.
 
 **Ghost element**: During drag, a cloned element follows the cursor with `position: fixed`, `z-index: 9999`, `scale(1.06)`, and `box-shadow` for visual feedback. The original element gets `opacity: 0.3`.
 
@@ -336,11 +338,13 @@ The filter combines different tag types with different logic:
 
 - **Category tags**: OR within the group -- a place matches if it has ANY of the selected category tags
 - **Area tags**: OR within the group -- a place matches if it has ANY of the selected area tags
-- **Custom tags**: AND within the group -- a place must have ALL selected custom tags
+- **Custom tags**: Configurable AND/OR via a `filterMode` toggle. Default is AND (a place must have ALL selected custom tags). When set to `any`, a place matches if it has ANY of the selected custom tags.
 
-Between groups, the logic is AND: a place must satisfy category OR, AND area OR, AND custom AND, AND search text, AND source filter.
+Between groups, the logic is AND: a place must satisfy category OR, AND area OR, AND custom AND/OR (depending on `filterMode`), AND search text, AND source filter.
 
-This was chosen because categories and areas are mutually exclusive (a place is typically one category, one area), so OR makes sense for broadening results. Custom tags are additive descriptors (e.g., "date night" + "outdoor seating"), so AND makes sense for narrowing.
+A segmented "and / or" control appears inline in the filter summary row when 2+ custom tags are selected. The toggle immediately switches between `selectedCustomIds.every(...)` and `selectedCustomIds.some(...)` in the derived `filteredPlaces` computation.
+
+This was chosen because categories and areas are mutually exclusive (a place is typically one category, one area), so OR makes sense for broadening results. Custom tags default to AND as additive descriptors (e.g., "date night" + "outdoor seating"), but the OR option lets users broaden (e.g., "show me anything tagged Italian OR Japanese").
 
 ### Active Tags Only
 
@@ -437,9 +441,11 @@ Saved Views are lightweight user-defined presets that capture the current browsi
 ### What Is Stored
 
 Each saved view persists:
-- **Filter state**: selected custom tag IDs and source filter
+- **Filter state**: selected custom tag IDs (via `tagGroups` with per-group AND/OR mode), source filter
 - **Sort option**: the current `sortBy` value (newest, oldest, A-Z, etc.)
 - **Layout mode**: grid or list
+
+The `filters_json` JSONB column stores a `SavedViewFilters` object containing optional `tagGroups` (an array of `{ id, tagIds, mode: 'any' | 'all' }`) alongside a legacy `customTagIds` flat array. When restoring, `tagGroups` takes priority; `customTagIds` is used as a fallback for views saved before the tag-group migration.
 
 Not stored: category/area tag selections (these are derived from the data), map center/zoom, selected place, collection scope, search text.
 
@@ -460,8 +466,8 @@ RLS policies restrict all operations to `auth.uid() = user_id`.
 
 Follows the same patterns as the existing codebase:
 
-- **Data-access helpers** (`src/lib/stores/saved-views.svelte.ts`): Pure async functions (`loadSavedViews`, `createSavedView`, `updateSavedView`, `deleteSavedView`, `buildFiltersSnapshot`) matching the style of `places.svelte.ts` and `collections.svelte.ts`. No module-level reactive state.
-- **Types** (`src/lib/types/database.ts`): `SavedView`, `SavedViewInsert`, `SavedViewFilters` interface.
+- **Data-access helpers** (`src/lib/stores/saved-views.svelte.ts`): Pure async functions (`loadSavedViews`, `createSavedView`, `updateSavedView`, `deleteSavedView`, `buildFiltersSnapshot`) matching the style of `places.svelte.ts` and `collections.svelte.ts`. No module-level reactive state. `buildFiltersSnapshot()` accepts an optional `tagGroups` parameter and stores it in the filters for the multi-group model.
+- **Types** (`src/lib/types/database.ts`): `SavedView`, `SavedViewInsert`, `SavedViewFilters` interface (includes `tagGroups?: TagGroup[]`), `TagGroup` interface (`{ id, tagIds, mode: 'any' | 'all' }`), `BrowseScope` type.
 - **Component** (`src/lib/components/SavedViewsBar.svelte`): Reusable bar component receiving all needed state as props and calling back via `onApply` and `onViewsChanged`. The three-dot menu uses `position: fixed` to escape the `overflow-x-auto` scrollable container (same approach as TagInput's portal dropdown).
 - **Integration** (`src/routes/places/+page.svelte`): Loads saved views on mount, manages `activeSavedViewId` state, provides `applySavedView()` to restore filter/sort/layout, and auto-saves filter changes back to the active view with an 800ms debounce.
 
@@ -476,27 +482,27 @@ The SavedViewsBar renders on the places page between the search bar area and the
 ### User Actions
 
 - **Create**: Click the "+ Save View" button, type a name, press Enter or click Save. Captures current filter/sort/layout state. Clicking outside the input (blur) dismisses it if empty.
-- **Apply**: Click a saved view pill to restore its filter/sort/layout state. Click again to deactivate (clears all filters).
+- **Apply**: Click a saved view pill to restore its filter/sort/layout state. The pill highlights as active. Click the same pill again to deactivate (clears all filters).
+- **Browse freely**: While a saved view is active, changing any tag filter or source filter silently deactivates the view (the pill unhighlights). The saved definition is never touched. This means pressing Clear, removing a tag chip with X, or adding a new tag simply returns you to free-form browsing. Click the saved view pill again to snap back to its original filters.
+- **Edit View**: Open the three-dot menu → Edit View. This applies the view's filters and enters edit mode: the pill turns amber, a Save/Cancel button pair appears, and filter changes do not deactivate the view. Adjust tags freely, then Save to persist or Cancel to revert.
+- **Create Collection from View**: Open the three-dot menu → New Collection. Evaluates the saved view's filters against the current `scopedPlaces` via `getPlaceIdsForView()`, then creates a new collection pre-populated with all matching place IDs. Toast confirms creation with place count.
+- **Add to Collection from View**: Open the three-dot menu → Add to Collection. Same filter evaluation, then opens `AddToCollectionModal` in batch mode with all matching place IDs. Supports adding to any existing collection with duplicate-aware feedback.
 - **Rename**: Open the three-dot menu → Rename. Inline input replaces the pill; Enter or blur saves.
 - **Delete**: Open the three-dot menu → Delete. Removes the view with toast confirmation.
 
-### Auto-Save on Filter Change
+### Auto-Deactivate on Filter Change
 
-When a saved view is active (`activeSavedViewId` is set) and the user changes any filter (toggles a tag, switches source, changes sort or layout), the view auto-saves to reflect the new state. This eliminates a manual "update" step.
+When a saved view is active (but not in edit mode) and the user changes any filter (toggles a tag, clears filters, switches source), the view automatically deactivates -- the pill loses its highlight and `activeSavedViewId` resets to `null`. The saved view's stored definition is never modified.
 
-**Implementation**: An `$effect` in `+page.svelte` compares the current filter state against the active view's stored `filters_json`. If they differ:
+When in edit mode (`editingViewId` is set), auto-deactivation is suppressed so the user can freely adjust filters without losing the active view context. Save persists the changes; Cancel reverts to the original filters.
 
-1. A debounce timer (800ms) is started/reset -- rapid changes (e.g., toggling multiple tags) are batched into a single save
-2. After the debounce, `buildFiltersSnapshot()` captures the current filter/sort/layout state
-3. `updateSavedView()` sends a PATCH to Supabase via PostgREST (`UPDATE saved_views SET filters_json = ... WHERE id = ... AND auth.uid() = user_id`)
-4. `refreshSavedViews()` reloads the saved views so the local state reflects the persisted data
-5. An `autoSaving` flag prevents the effect from re-triggering during the save cycle
+**Implementation**: An `$effect` in `+page.svelte` keeps a lightweight snapshot (`appliedSnapshot`) of the tag IDs and source at the moment a view is applied. On every filter change, it compares the current filter state against this snapshot. If they diverge and `editingViewId` is not set, `activeSavedViewId` is set to `null`. A `suppressDeactivate` flag prevents the effect from firing during the initial `applySavedView()` call (since that call itself changes the filters to match the snapshot).
 
-The 800ms debounce matches the notes auto-save pattern used elsewhere in the app. There is no server-side logic beyond Supabase's standard PostgREST + RLS -- all orchestration is client-side.
+Sort and layout changes do not deactivate the view -- only tag and source filter changes do, since those are the semantically meaningful filters that define what a view "means."
 
 ### Trade-offs
 
-- **Auto-save vs. explicit save**: Saved views auto-update when filters change, which is convenient but means a user can't temporarily explore different filters without altering the view. Clicking the active view pill again deactivates it (clears filters), which provides an escape hatch. A future improvement could add a "lock" toggle to prevent auto-save on specific views.
+- **Auto-deactivate + explicit edit**: Saved views silently deactivate when filters change during normal browsing, preventing accidental overwrites. To actually update a view, the user opens the 3-dot menu → Edit View, which enters an amber-highlighted edit mode with Save/Cancel. This balances safety (no accidental edits) with usability (easy to update when you intend to).
 - **Tag ID references, not names**: Saved views store tag IDs in `filters_json`. If a tag is deleted, those IDs become stale and the saved view silently skips them (the stale filter auto-cleanup effect handles this). An alternative would be to store tag names, but that would break on renames.
 - **No search text persistence**: Search text is intentionally excluded. Saved views are meant for filter presets, not full session restoration. Including search would make applying a view feel like it's "typing for you."
 - **Client-side only filtering**: Consistent with the existing architecture -- saved views restore the client-side filter state and the existing `$derived` chain handles the rest.
@@ -527,6 +533,10 @@ A migration file (`supabase/add_collections_columns.sql`) adds visibility and sh
 
 A separate migration (`supabase/add_emoji_column.sql`) adds the `emoji` column to `lists`.
 
+### Color Auto-Migration
+
+The collections index page (`/collections`) includes a one-time client-side color migration that maps old palette colors to the curated 6-color palette. An `OLD_TO_NEW` dictionary (40+ entries) maps previous colors (Tailwind defaults, earlier custom palettes) to their closest match in the new set (`#A5834F`, `#8C8B82`, `#7489A6`, `#936756`, `#5B7D8A`, `#6A6196`). The migration runs once via `$effect` when collections load, batch-updating affected collections with `Promise.all`. A `migrated` flag prevents re-execution.
+
 ### Routes
 
 **`/collections`** — Index page showing all user collections as cards in a responsive grid. Each card shows the name, place count, color accent, visibility badge, and last-updated date. Supports creating new collections with a name and color picker.
@@ -539,7 +549,7 @@ A separate migration (`supabase/add_emoji_column.sql`) adds the `emoji` column t
 - "+ Add Places" modal with search over all user places not in the collection
 - Share toggle (private ↔ link_access) with copy-link button
 
-**`/c/[slug]`** — Public read-only share page. Accessed without authentication. Shows a clean layout with the collection name, description, place count, and all places in grid or list view. Each place shows category, area, user rating, and links to Google Maps/website. No editing capabilities.
+**`/c/[slug]`** — Public read-only share page. Accessed without authentication. Shows a clean layout with the collection name, description, place count, and all places in grid or list view. Each place shows category, area, user rating, user tags (colored pills), and links to Google Maps/website. Search includes tag name matching. No editing capabilities. The server load function (`c/[slug]/+page.server.ts`) now fetches `place_tags` for all collection places and the corresponding `tags` by ID, passing them to the page for display.
 
 ### Store Architecture
 
@@ -561,9 +571,9 @@ Three entry points for adding places to collections:
 
 1. **From PlaceCard / PlaceListItem**: A folder+plus icon button in the action row opens `AddToCollectionModal`, which lists all collections with checkmarks for current membership. Toggling adds/removes instantly with optimistic updates and toast feedback.
 
-2. **From collection detail page**: The "+ Add Places" button opens a modal showing all user places not yet in the collection, with search. Clicking a place adds it immediately.
+2. **From collection detail page**: The "+ Add Places" button opens a modal showing all user places not yet in the collection, with search and tag filter pills for narrowing results. Users can toggle individual user tags to filter the list (AND logic across selected tags). The server preloads a lightweight `allPlaces` list and all `place_tags` for the modal via `collections/[id]/+page.server.ts`.
 
-3. **Bulk on creation**: (Future enhancement) Collections can be created from the current filtered view, capturing all visible place IDs at creation time.
+3. **From Saved View**: The three-dot menu on any saved view pill offers "New Collection" (creates a collection from all matching places) and "Add to Collection..." (opens `AddToCollectionModal` in batch mode). The `getPlaceIdsForView()` function re-evaluates the view's filters against `scopedPlaces` to compute matching place IDs.
 
 **Mobile**: All add/remove actions use explicit buttons and modals — no drag-and-drop dependency. The `AddToCollectionModal` renders as a bottom-sheet (rounded top corners, `items-end` on mobile) for thumb-friendly interaction.
 
@@ -652,10 +662,10 @@ The map uses [MapLibre GL JS](https://maplibre.org/) (an open-source fork of Map
 The map and content share a single flex container, using CSS and conditional rendering for different screen sizes:
 
 **Mobile (< lg)**: Uses a `MobileMapShell` component that wraps `MapView` with an interactive collapse/expand mechanism. The shell has two states:
-- **Collapsed** (default): 128px tall, showing a compact map preview. Markers are visible but popups are suppressed, and the attribution control fades to 45% opacity at 90% scale.
-- **Expanded**: 42vh tall, providing a full interactive map experience with popups and full-opacity controls.
+- **Collapsed** (default): 128px tall (draggable down to 80px minimum), showing a compact map preview. Markers are visible but popups are suppressed, and the attribution control fades to 45% opacity at 90% scale.
+- **Expanded**: 55vh tall, providing a full interactive map experience with popups and full-opacity controls.
 
-A drag-handle button at the bottom of the shell toggles between states with a 200ms CSS height transition. The `mapMode` prop (`'collapsed'` | `'expanded'`) is passed to `MapView` to adjust behaviors like popup display, attribution placement, fit-bounds padding, and fly-to offsets.
+A drag-handle at the bottom of the shell supports pointer-drag resizing with snap thresholds (collapses below 100px, expands above). The `mapMode` prop (`'collapsed'` | `'expanded'`) is passed to `MapView` to adjust behaviors like popup display, attribution placement, fit-bounds padding, and fly-to offsets.
 
 The mobile layout uses `overflow: hidden` on the outer container with the content panel in a scrollable `flex-1 min-h-0 overflow-y-auto` div, preventing the map from scrolling with the page.
 
@@ -705,6 +715,14 @@ The `transform-origin: bottom center` ensures scaling anchors the pin at its poi
 ### Popups
 
 Each marker has a MapLibre Popup styled with the `.map-popup-warm` class to match the app's design -- Nunito font, rounded corners, warm-200 border. Popups show the place title, category, and personal rating (display-only). They appear on hover (desktop) and stay open for the selected marker.
+
+### Geolocate Control
+
+The map includes a MapLibre geolocate control that allows users to center the map on their current location. The control is custom-styled in `app.css` to match the app's warm palette:
+
+- **Default state**: White rounded button with a warm-700 (`#5a5042`) crosshair SVG icon
+- **Active state**: Icon color changes to brand-500 (`#a8935f`) when actively tracking
+- **User location dot**: Styled with `brand-500` background and a 30% opacity `brand-400` ring, replacing MapLibre's default blue dot
 
 ### Bidirectional Selection Sync
 
@@ -784,6 +802,27 @@ Accessed via the "+" button in the custom tags row. A modal that manages user ta
 
 A compact tag creation component (`TopBarTagAdd.svelte`) used in the filter bar area. Renders as a small "+ Add" dashed-border pill that expands into an inline input on click. Features the same portal-based dropdown as `TagInput` for suggestions, auto-title-case normalization, deterministic color assignment via `colorForTag()`, and `order_index` assignment via `getNextOrderIndex()`. Designed for quick tag creation without opening the full TagManager modal.
 
+### AddToCollectionModal
+
+A modal for adding one or more places to collections. Supports two usage modes:
+
+- **Single-place mode**: Opened from PlaceCard/PlaceListItem action row with a single `placeId`. Shows all collections with checkmarks for membership.
+- **Batch mode**: Opened from Saved View three-dot menu actions with an array of `placeIds`. Shows checkmarks for "all added", partial membership counts ("N already in"), and handles bulk upserts via `addPlacesToCollection()`.
+
+The modal renders as a bottom-sheet on mobile (`items-end`, `rounded-t-2xl`) and centered card on desktop. If no collections exist, it shows a link to `/collections`. Each collection row displays the `CollectionAvatar` (emoji or color icon), name, place count, and membership status badge.
+
+### PlaceActionMenu
+
+A context menu for places within collection views. Provides two destructive actions: "Remove from collection" (removes the place-collection membership only) and "Delete place permanently" (deletes the place itself). Renders as a bottom sheet on mobile and a dropdown menu on desktop. Used by the collection detail page (`/collections/[id]`) to differentiate between collection-scoped removal and permanent deletion.
+
+### CollectionAvatar
+
+A reusable avatar component for collection icons. Displays either an emoji character or a colored dot inside a ringed circle. Supports five size variants (`xs`, `sm`, `md`, `lg`, `xl`) with proportional dimensions. Used in collection cards, the `AddToCollectionModal`, and collection detail headers.
+
+### EmojiPicker
+
+A categorized emoji picker component with ~794 emojis across 8 categories (Food & Drink, Travel & Places, Activities, Nature, Objects, Smileys, Symbols, Flags). Features category tab navigation, text search filtering, and a "no icon" option to clear the selection. Used in the collection create/edit forms for selecting collection icons.
+
 ### AddPlaceModal
 
 A modal with two tabs: "Paste URL" and "Upload CSV". The CSV tab simply links to the `/upload` page rather than embedding the upload flow.
@@ -838,7 +877,7 @@ A `visibilitychange` listener also checks the session when the tab regains focus
 All design tokens live in `app.css` inside a `@theme` block (Tailwind v4 syntax):
 
 - **brand** palette: Warm browns (#f9f6f1 to #4a412a) -- used for accents, ratings, active states
-- **sage** palette: Muted greens (#f2f4ef to #2f362a) -- used for area tags, success states, page background
+- **sage** palette: Muted blue-grays (#f2f1ef to #24313b) -- used for area tags, success states, page background
 - **warm** palette: Neutral taupes (#faf9f7 to #28221c) -- used for text, borders, backgrounds
 
 Additional global styles handle safe area insets, tap highlight removal, overscroll behavior, and the toast animation keyframes.
@@ -849,7 +888,7 @@ Additional global styles handle safe area insets, tap highlight removal, overscr
 
 The app has distinct mobile and desktop layouts rather than just reflowing:
 
-- **Map layout**: Mobile uses a `MobileMapShell` component with a collapsible map (128px collapsed / 42vh expanded) above a scrollable content panel. Desktop uses a sticky right panel (42% width) alongside a scrollable left content area. The two layouts render different component trees controlled by a JS `isMobile` flag (threshold: 1024px).
+- **Map layout**: Mobile uses a `MobileMapShell` component with a draggable map (128px collapsed / 55vh expanded, 80px minimum) above a scrollable content panel. Desktop uses a sticky right panel (42% width) alongside a scrollable left content area. The two layouts render different component trees controlled by a JS `isMobile` flag (threshold: 1024px).
 - **PlaceCard**: Mobile uses a compact layout with smaller text, fewer visible details, and swipe-to-delete. Desktop shows price level, more metadata, and hover-reveal delete. Both show an inline personal rating display (`4.5 ★` / `Not rated`) that opens a star scrubber popover on click. The card grid uses 1-2 columns (reduced from 3 to accommodate the map panel).
 - **PlaceListItem**: Mobile has swipe-to-delete; desktop has hover-reveal action buttons.
 - **Tag filtering**: Mobile uses a tabbed horizontal scroll (Category | Area | Custom); desktop shows all three rows inline.
@@ -946,7 +985,7 @@ Public vars (prefixed `PUBLIC_`) are safe to expose to the browser. The Google A
 
 **Why**: Ensures tags created inline (via TagInput on a card) get a visually distinct color immediately without requiring the user to pick one. The same tag name always maps to the same color, so there's consistency.
 
-**Downside**: Users might not like the auto-assigned color. Two semantically different tags could hash to the same color. The 10-color palette limits variety.
+**Downside**: Users might not like the auto-assigned color. Two semantically different tags could hash to the same color. The 6-color palette limits variety.
 
 ### 8. Resilient Auth Fallback vs. Strict Validation
 

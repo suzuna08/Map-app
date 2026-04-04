@@ -12,22 +12,22 @@ MapOrganizer is a web app that helps you manage and organize places you've saved
 - **Inline URL Import** -- Paste a Google Maps link (including `share.google` links) directly into the search bar on the Places page and press Enter to add a place instantly, with toast notifications for success/duplicate/error feedback. The same flow is also available in the navbar's "+ Add Place" modal
 - **Place Enrichment** -- Fetch ratings, addresses, phone numbers, coordinates, and more from the Google Places API (single or batch). Uses a three-strategy lookup: Place ID, text search with location bias, and coordinate fallback
 - **Personal Ratings** -- Rate any place on a 0.5–5.0 half-star scale. Click the compact rating display on any card to open a drag-to-rate star editor. Saves instantly with optimistic UI updates
-- **Interactive Map** -- All enriched places are plotted on a MapLibre GL map (powered by MapTiler). Click a marker to scroll to the card; click a card to fly to its pin. Shows a pastel base map style with custom pin markers and popups
+- **Interactive Map** -- All enriched places are plotted on a MapLibre GL map (powered by MapTiler). Click a marker to scroll to the card; click a card to fly to its pin. Shows a pastel base map style with custom pin markers, popups, and a geolocate control styled to match the app palette
 - **Flexible Tagging** -- Organize places with three tag types: category (auto-generated from Google place types), area (auto-generated from address), and custom (user-created with color coding)
 - **Drag-to-Reorder Tags** -- Reorder tags via drag-and-drop (click-drag on desktop, long-press-drag on mobile). Order is persisted per user
-- **Tag Management** -- Rename, recolor, and delete custom tags. Right-click any tag for a context menu. Tags get deterministic colors from a curated palette, overridable by the user
-- **Search & Filter** -- Find places by name, tags, area, description, or source list. Category and area filters use OR logic; custom tag filters use AND logic
-- **Sorting** -- Sort by newest, oldest, A-Z, Z-A, my rating, most tagged, or tag group
+- **Tag Management** -- Rename, recolor, and delete custom tags. Right-click any tag for a context menu. Tags get deterministic colors from a curated 6-color muted palette, overridable by the user
+- **Search & Filter** -- Find places by name, tags, area, description, or source list. Custom tag filters use configurable AND/OR logic (toggle between "all" and "any" when 2+ tags selected); search also detects Google Maps URLs for inline import
+- **Sorting** -- Sort by newest, oldest, A–Z, Z–A, personal rating, most tagged, or tag group
 - **Grid & List Views** -- Switch between card grid and compact list layouts. Cards flip (3D animation) to reveal a notes editor on the back
 - **Notes** -- Attach personal notes to any place with debounced auto-save (800ms)
 - **Deduplication** -- Three-layer duplicate detection by Google Place ID, normalized URL, and title + address
 - **Swipe to Delete** -- Swipe cards or list items left on mobile to reveal a delete action
 - **Contextual Capture** -- When viewing a custom tag filter, new places added via URL are automatically tagged to match. Includes an auto-tag toggle and undo support
-- **Saved Views** -- Save the current filter/sort/layout state as a named preset. Views auto-update when you tweak filters while active. Create, rename, and delete views. Persisted per-user in Supabase
-- **Collections** -- Create curated, shareable groups of places. Collections are independent from filters: add places individually or from your current filtered view, then manage membership manually. Share a collection via a public link (`/c/slug`), toggle between private and link-accessible visibility, and browse any collection with the same grid/list view and sort options as the main places page
+- **Saved Views** -- Save the current filter/sort/layout state as a named preset. Clicking a view applies its filters; changing any filter afterward simply deactivates the view (the saved definition is never touched). To update a view's filters, use the 3-dot menu → Edit View: the view's filters are applied and you can adjust tags freely with Save/Cancel buttons. The 3-dot menu also offers "New Collection" (creates a collection from all matching places) and "Add to Collection..." (batch-adds matching places to an existing collection). Persisted per-user in Supabase
+- **Collections** -- Create curated, shareable groups of places. Collections are independent from filters: add places individually, from the collection detail "Add Places" modal (with tag filtering), or from a saved view's 3-dot menu. Share a collection via a public link (`/c/slug`) that displays user tags and supports tag-based search. Toggle between private and link-accessible visibility, and browse any collection with the same grid/list view and sort options as the main places page
 - **Intel Tagging** -- Structured intelligence layer that maps Google Place types to internal classifications (primary category, operational status, market niche, discussion pillar, suggested tags). Pure computation engine with a full Google Place type catalog (100+ types) and editable mapping rules. Optional database persistence and admin seeding endpoint
 - **Auth** -- Email/password authentication via Supabase with server-side route protection, proactive token refresh, and resilient session validation. Email confirmation callback endpoint
-- **Responsive** -- Distinct mobile and desktop layouts: split map+list on desktop, collapsible map on mobile. Sidebar navigation, safe-area support for notched devices
+- **Responsive** -- Distinct mobile and desktop layouts: split map+list on desktop, collapsible map (80–55vh draggable range) on mobile. Inline filter chips, safe-area support for notched devices
 
 ## Tech Stack
 
@@ -76,8 +76,11 @@ src/
 │   └── components/
 │       ├── AddPlaceModal.svelte    # URL/CSV add place modal
 │       ├── AddToCollectionModal.svelte # Add place to collection picker
+│       ├── CollectionAvatar.svelte  # Ringed circle/emoji avatar for collections
+│       ├── EmojiPicker.svelte       # Categorized emoji picker with search
 │       ├── MapView.svelte          # MapLibre GL map with markers
 │       ├── MobileMapShell.svelte   # Collapsible mobile map wrapper
+│       ├── PlaceActionMenu.svelte  # Context menu for place actions in collections
 │       ├── PlaceCard.svelte        # Grid card (flip, swipe, notes, rating, collections)
 │       ├── PlaceListItem.svelte    # List row (expand, swipe, rating, collections)
 │       ├── RatingDisplay.svelte    # Compact rating trigger (4.5 ★ / Not rated)
@@ -191,9 +194,11 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 3. **Enrich** imported places by clicking "Fetch Details" to pull ratings, addresses, coordinates, and category data from Google
 4. **Rate** places by clicking the rating display on any card to open the star editor — drag or tap to set a 0.5–5.0 rating
 5. **Tag** places with custom tags directly on each card or via the Tag Manager
-6. **Filter** by clicking category, area, or custom tags in the sidebar or inline filter bar
-7. **Browse** on the map -- click pins to see details, click cards to fly to their location
+6. **Filter** by clicking custom tag pills in the inline filter bar, or select a source filter
+7. **Browse** on the map — click pins to see details, click cards to fly to their location
 8. **Reorder tags** by dragging them in the filter bar (long-press on mobile)
+9. **Create collections** to curate shareable groups of places — share via public link
+10. **Save views** to bookmark your current filter/sort/layout as a named preset
 
 ## Scripts
 
@@ -217,7 +222,8 @@ Set the following environment variables in your Vercel project settings:
 
 ## Documentation
 
-See [IMPLEMENTATION.md](./IMPLEMENTATION.md) for detailed documentation of architecture decisions, trade-offs, and bugs encountered during development.
+- [IMPLEMENTATION.md](./IMPLEMENTATION.md) — Detailed documentation of architecture decisions, trade-offs, and bugs encountered during development.
+- [UI-DESIGN.md](./UI-DESIGN.md) — Visual design specification covering color palettes, component anatomy, page layouts, responsive behavior, and interaction patterns.
 
 ## License
 
