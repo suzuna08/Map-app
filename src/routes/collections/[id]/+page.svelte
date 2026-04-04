@@ -13,6 +13,8 @@
 		disableSharing
 	} from '$lib/stores/collections.svelte';
 	import { showToast, getToasts, dismissToast } from '$lib/stores/toasts.svelte';
+	import EmojiPicker from '$lib/components/EmojiPicker.svelte';
+	import CollectionAvatar from '$lib/components/CollectionAvatar.svelte';
 
 	let { data } = $props();
 	let supabase = $derived(data.supabase);
@@ -71,12 +73,6 @@
 	const COLORS = [
 		'#A5834F', '#8C8B82', '#7489A6', '#936756', '#5B7D8A',
 		'#6A6196'
-	];
-
-	const EMOJI_OPTIONS = [
-		'🍜','🍣','🍰','🍺','☕','🛒','🏪','🎭','🏛️','⛩️',
-		'🌸','🗾','🚃','🏔️','🌊','🎌','📍','⭐','💎','🔖',
-		'🎨','📸','🧳','🏖️','🎵','🧘','🛍️','💡','🏠','❤️',
 	];
 
 	$effect(() => {
@@ -311,15 +307,10 @@
 						<div class="relative" bind:this={colorPickerEl}>
 						<button
 							onclick={() => { editingColor = !editingColor; }}
-							class="flex shrink-0 items-center justify-center rounded-full transition-all hover:scale-110 {collection.emoji ? 'h-8 w-8 sm:h-9 sm:w-9' : 'h-5 w-5 sm:h-6 sm:w-6 hover:ring-2 hover:ring-warm-300 hover:ring-offset-1'}"
-							style={collection.emoji
-							? `background-color: #faf7f2; box-shadow: inset 0 0 0 2.5px ${collection.color ?? '#A5834F'}`
-							: `background-color: ${collection.color ?? '#A5834F'}`}
+							class="flex shrink-0 items-center justify-center rounded-full transition-all hover:scale-110"
 							aria-label="Change collection color"
 						>
-							{#if collection.emoji}
-								<span class="text-base leading-none sm:text-lg">{collection.emoji}</span>
-							{/if}
+							<CollectionAvatar color={collection.color} emoji={collection.emoji} size="lg" />
 						</button>
 						{#if editingColor}
 							<div class="absolute left-0 top-full z-20 mt-2 rounded-xl border border-warm-200 bg-white p-2.5 shadow-lg" style="width: max-content; max-width: 280px;">
@@ -333,25 +324,10 @@
 										></button>
 									{/each}
 								</div>
-								<div class="mt-2 border-t border-warm-100 pt-2">
-									<span class="mb-1 block text-[10px] font-bold text-warm-400">Icon</span>
-								<div class="flex flex-wrap gap-1">
-									<button
-										type="button"
-										onclick={(e) => { e.stopPropagation(); saveEmoji(null); }}
-										class="flex h-7 w-7 items-center justify-center rounded text-[10px] text-warm-400 transition-all {!collection.emoji ? 'ring-1.5 ring-warm-400 ring-offset-1 bg-warm-100' : 'hover:bg-warm-50'}"
-										aria-label="No icon"
-									>--</button>
-									{#each EMOJI_OPTIONS as em}
-										<button
-											type="button"
-											onclick={(e) => { e.stopPropagation(); saveEmoji(em); }}
-											class="flex h-7 w-7 items-center justify-center rounded text-sm transition-all {collection.emoji === em ? 'ring-1.5 ring-warm-400 ring-offset-1 bg-warm-100 scale-110' : 'hover:bg-warm-50 hover:scale-110'}"
-											aria-label="Select {em}"
-										>{em}</button>
-									{/each}
-								</div>
-								</div>
+							<div class="mt-2 border-t border-warm-100 pt-2">
+								<span class="mb-1 block text-[10px] font-bold text-warm-400">Icon</span>
+								<EmojiPicker selected={collection.emoji ?? null} onSelect={(em) => { saveEmoji(em); }} />
+							</div>
 							</div>
 						{/if}
 						</div>

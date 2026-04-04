@@ -133,7 +133,7 @@
 			<div class="mx-2 my-0.5 border-t border-warm-100"></div>
 			<button
 				onclick={() => { mode = 'delete'; }}
-				class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs text-red-500 hover:bg-red-50"
+				class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs text-danger-600 hover:bg-danger-50"
 			>
 				<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<polyline points="3 6 5 6 21 6" />
@@ -201,7 +201,7 @@
 				</button>
 				<button
 					onclick={deleteTag}
-					class="rounded-md bg-red-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-red-700"
+					class="rounded-md bg-danger-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-danger-800"
 				>
 					Delete
 				</button>

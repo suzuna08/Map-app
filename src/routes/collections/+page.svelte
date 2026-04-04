@@ -3,6 +3,8 @@
 	import { createCollection, deleteCollection, loadCollections, updateCollection } from '$lib/stores/collections.svelte';
 	import type { CollectionMemberMap } from '$lib/stores/collections.svelte';
 	import { showToast, getToasts, dismissToast } from '$lib/stores/toasts.svelte';
+	import EmojiPicker from '$lib/components/EmojiPicker.svelte';
+	import CollectionAvatar from '$lib/components/CollectionAvatar.svelte';
 
 	let { data } = $props();
 	let supabase = $derived(data.supabase);
@@ -22,11 +24,6 @@
 	];
 	let selectedColor = $state(COLORS[0]);
 
-	const EMOJI_OPTIONS = [
-		'🍜','🍣','🍰','🍺','☕','🛒','🏪','🎭','🏛️','⛩️',
-		'🌸','🗾','🚃','🏔️','🌊','🎌','📍','⭐','💎','🔖',
-		'🎨','📸','🧳','🏖️','🎵','🧘','🛍️','💡','🏠','❤️',
-	];
 	let selectedEmoji = $state<string | null>(null);
 
 	const OLD_TO_NEW: Record<string, string> = {
@@ -132,28 +129,67 @@
 	}
 
 	let confirmDeleteId = $state<string | null>(null);
-	let editingColorId = $state<string | null>(null);
-	let colorPickerEls = $state<Record<string, HTMLDivElement>>({});
 
-	$effect(() => {
-		if (!editingColorId) return;
-		function onClickOutside(e: MouseEvent) {
-			const el = colorPickerEls[editingColorId!];
-			if (el && !el.contains(e.target as Node)) {
-				editingColorId = null;
+	// Swipe-to-delete state (mobile)
+	let swipeId = $state<string | null>(null);
+	let swipeX = $state(0);
+	let swiping = $state(false);
+	let swipeConfirm = $state(false);
+	let startX = 0;
+	let startY = 0;
+	let locked = false;
+	const DELETE_WIDTH = 72;
+	const SNAP_THRESHOLD = 36;
+
+	function onTouchStart(id: string, e: TouchEvent) {
+		const t = e.touches[0];
+		startX = t.clientX;
+		startY = t.clientY;
+		locked = false;
+		swiping = false;
+		if (swipeId !== id) {
+			swipeId = id;
+			swipeX = 0;
+			swipeConfirm = false;
+		}
+	}
+
+	function onTouchMove(e: TouchEvent) {
+		const t = e.touches[0];
+		const dx = t.clientX - startX;
+		const dy = t.clientY - startY;
+
+		if (!locked) {
+			if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 5) {
+				locked = true;
+				return;
 			}
+			if (Math.abs(dx) > 5) swiping = true;
 		}
-		document.addEventListener('click', onClickOutside, true);
-		return () => document.removeEventListener('click', onClickOutside, true);
-	});
+		if (locked || !swiping) return;
 
-	async function handleChangeColor(col: Collection, color: string) {
-		if (color === col.color) { editingColorId = null; return; }
-		const ok = await updateCollection(supabase, col.id, { color });
-		if (ok) {
-			collections = collections.map((c) => c.id === col.id ? { ...c, color } : c);
+		e.preventDefault();
+		swipeX = Math.max(-DELETE_WIDTH, Math.min(0, dx));
+	}
+
+	function onTouchEnd() {
+		swiping = false;
+		const snapped = swipeX < -SNAP_THRESHOLD ? -DELETE_WIDTH : 0;
+		if (snapped === 0) { swipeConfirm = false; }
+		swipeX = snapped;
+	}
+
+	function handleSwipeDelete(col: Collection, e: MouseEvent) {
+		e.preventDefault();
+		e.stopPropagation();
+		if (!swipeConfirm) {
+			swipeConfirm = true;
+			return;
 		}
-		editingColorId = null;
+		swipeX = 0;
+		swipeConfirm = false;
+		swipeId = null;
+		handleDelete(col);
 	}
 
 	async function handleChangeEmoji(col: Collection, emoji: string | null) {
@@ -165,9 +201,6 @@
 		}
 	}
 
-	function formatDate(iso: string): string {
-		return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-	}
 </script>
 
 <svelte:head>
@@ -175,11 +208,8 @@
 </svelte:head>
 
 <div class="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-8">
-	<div class="mb-5 flex items-center justify-between sm:mb-8">
-		<div>
-			<h1 class="text-xl font-extrabold text-warm-800 sm:text-2xl">Collections</h1>
-			<p class="mt-0.5 text-[13px] text-warm-400 sm:text-[15px]">Curated groups of your saved places</p>
-		</div>
+	<div class="mb-5 flex items-start justify-between gap-3 sm:mb-8 sm:items-center">
+		<h1 class="text-xl font-extrabold text-warm-800 sm:text-2xl">Collections</h1>
 		<button
 			onclick={() => { showCreate = true; }}
 			class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2.5 py-1.5 text-sm font-extrabold text-white transition-colors hover:bg-brand-700 sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-sm"
@@ -219,24 +249,9 @@
 						{/each}
 					</div>
 				</div>
-					<div>
-					<label class="mb-1 block text-xs font-bold text-warm-500">Icon</label>
-					<div class="flex flex-wrap items-center gap-1" style="max-width: 260px;">
-						<button
-							type="button"
-							onclick={() => { selectedEmoji = null; }}
-							class="flex h-7 w-7 items-center justify-center rounded-md text-[10px] font-medium text-warm-400 transition-all {selectedEmoji === null ? 'ring-2 ring-warm-400 ring-offset-1 bg-warm-100' : 'hover:bg-warm-100'}"
-							aria-label="No icon"
-						>--</button>
-						{#each EMOJI_OPTIONS as em}
-							<button
-								type="button"
-								onclick={() => { selectedEmoji = em; }}
-								class="flex h-7 w-7 items-center justify-center rounded-md text-sm transition-all {selectedEmoji === em ? 'ring-2 ring-warm-400 ring-offset-1 bg-warm-100 scale-110' : 'hover:bg-warm-50 hover:scale-110'}"
-								aria-label="Select {em}"
-							>{em}</button>
-						{/each}
-					</div>
+				<div>
+				<label class="mb-1 block text-xs font-bold text-warm-500">Icon</label>
+				<EmojiPicker selected={selectedEmoji} onSelect={(em) => { selectedEmoji = em; }} />
 				</div>
 			</div>
 			<div class="mt-3.5 flex items-center gap-2 border-t border-warm-100 pt-3.5">
@@ -271,120 +286,162 @@
 			</button>
 		</div>
 	{:else}
-		<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4">
+		<div class="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2 sm:gap-4">
 			{#each collections as col (col.id)}
 				{@const count = (collectionPlacesMap[col.id] ?? []).length}
-				<a
-					href="/collections/{col.id}"
-					class="group flex flex-col rounded-xl border border-warm-200 bg-white p-3.5 transition-all hover:shadow-md hover:shadow-warm-200/50 sm:rounded-2xl sm:p-5"
+				<!-- Mobile: swipe-to-delete wrapper (delete layer always behind card, like PlaceListItem) -->
+				<div
+					class="relative h-[96px] w-full shrink-0 overflow-hidden rounded-xl border border-warm-200/80 bg-danger-500 sm:hidden"
 				>
-					<div class="mb-2 flex items-center justify-between">
-						<div class="flex items-center gap-1.5">
-							{#if col.visibility === 'link_access'}
-								<span class="rounded-full bg-sage-200 px-2 py-0.5 text-[11px] font-bold text-sage-700">Shared</span>
-							{/if}
-							<span class="text-[11px] font-medium text-warm-300">{formatDate(col.updated_at)}</span>
-						</div>
+					<button
+						onclick={(e) => handleSwipeDelete(col, e)}
+						class="absolute right-0 top-0 flex h-full w-[72px] flex-col items-center justify-center gap-0.5 rounded-r-[11px] text-white transition-colors {swipeConfirm ? 'bg-danger-600' : 'bg-transparent'}"
+						aria-label={swipeConfirm ? 'Confirm delete' : 'Delete collection'}
+					>
+						{#if swipeConfirm}
+							<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+								<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+							</svg>
+							<span class="text-[10px] font-bold">Confirm?</span>
+						{:else}
+							<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+							</svg>
+						{/if}
+					</button>
 
-						<div class="flex items-center gap-0.5">
-							<div class="relative" bind:this={colorPickerEls[col.id]}>
-								<button
-									onclick={(e) => { e.preventDefault(); e.stopPropagation(); editingColorId = editingColorId === col.id ? null : col.id; }}
-									class="rounded-md p-1.5 text-warm-300 opacity-0 transition-all hover:bg-warm-100 hover:text-warm-500 group-hover:opacity-100"
-									aria-label="Change color"
-								>
-									<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-										<path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.7-.8 1.7-1.7 0-.4-.2-.8-.4-1.1-.2-.3-.4-.6-.4-1 0-.9.8-1.7 1.7-1.7H16c3.3 0 6-2.7 6-6 0-5.5-4.5-9.5-10-9.5z" />
-										<circle cx="6.5" cy="11.5" r="1.5" fill="currentColor" /><circle cx="10" cy="7.5" r="1.5" fill="currentColor" /><circle cx="14" cy="7.5" r="1.5" fill="currentColor" /><circle cx="17.5" cy="11.5" r="1.5" fill="currentColor" />
-									</svg>
-								</button>
-								{#if editingColorId === col.id}
-									<!-- svelte-ignore a11y_click_events_have_key_events -->
-									<!-- svelte-ignore a11y_no_static_element_interactions -->
-								<div
-									class="absolute right-0 top-full z-30 mt-1.5 rounded-xl border border-warm-200 bg-white p-2.5 shadow-lg"
-									style="width: max-content; max-width: 280px;"
-									onclick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-								>
-									<div class="mb-2 flex flex-wrap gap-1.5">
-										{#each COLORS as color}
-											<button
-												onclick={(e) => { e.preventDefault(); e.stopPropagation(); handleChangeColor(col, color); }}
-												class="h-5.5 w-5.5 rounded-full transition-all {col.color === color ? 'ring-2 ring-offset-1 ring-warm-400 scale-110' : 'hover:scale-110'}"
-												style="background-color: {color}"
-												aria-label="Select color"
-											></button>
-										{/each}
+					<a
+						href="/collections/{col.id}"
+						class="relative flex h-full min-h-0 w-full flex-col overflow-hidden rounded-l-[11px] bg-white transition-all active:bg-warm-50/80"
+						style="transform: translateX({swipeId === col.id ? swipeX : 0}px); transition: {swiping && swipeId === col.id ? 'none' : 'transform 0.2s ease-out'}"
+						onclick={(e) => { if (swipeId === col.id && swipeX < 0) { e.preventDefault(); swipeX = 0; swipeConfirm = false; } }}
+						ontouchstart={(e) => onTouchStart(col.id, e)}
+						ontouchmove={onTouchMove}
+						ontouchend={onTouchEnd}
+					>
+						<div class="relative flex min-h-0 flex-1 flex-col px-3 pb-2 pt-2">
+							<div class="flex min-h-0 flex-1 items-center">
+								<div class="flex min-w-0 items-center gap-2.5">
+									<div class="flex shrink-0">
+										<CollectionAvatar color={col.color} emoji={col.emoji} size="sm" />
 									</div>
-									<div class="border-t border-warm-100 pt-2">
-										<span class="mb-1 block text-[10px] font-bold text-warm-400">Icon</span>
-										<div class="flex flex-wrap gap-1">
-											<button
-												type="button"
-												onclick={(e) => { e.preventDefault(); e.stopPropagation(); handleChangeEmoji(col, null); }}
-												class="flex h-7 w-7 items-center justify-center rounded text-[10px] text-warm-400 transition-all {!col.emoji ? 'ring-1.5 ring-warm-400 ring-offset-1 bg-warm-100' : 'hover:bg-warm-50'}"
-												aria-label="No icon"
-											>--</button>
-											{#each EMOJI_OPTIONS as em}
-												<button
-													type="button"
-													onclick={(e) => { e.preventDefault(); e.stopPropagation(); handleChangeEmoji(col, em); }}
-													class="flex h-7 w-7 items-center justify-center rounded text-sm transition-all {col.emoji === em ? 'ring-1.5 ring-warm-400 ring-offset-1 bg-warm-100 scale-110' : 'hover:bg-warm-50 hover:scale-110'}"
-													aria-label="Select {em}"
-												>{em}</button>
-											{/each}
-										</div>
+									<div class="min-h-0 min-w-0 flex-1 overflow-hidden">
+										<h3 class="truncate text-[15px] font-extrabold leading-tight text-warm-800">{col.name}</h3>
+										{#if col.description}
+											<p class="mt-0.5 line-clamp-1 text-[11px] font-medium leading-4 text-warm-500">{col.description}</p>
+										{/if}
 									</div>
 								</div>
+							</div>
+							<div class="flex shrink-0 flex-wrap items-center gap-1.5">
+								<span
+									class="inline-flex h-5 w-fit items-center rounded-full bg-warm-100/90 px-2 text-[10px] font-bold leading-none text-warm-500"
+								>
+									{count} {count === 1 ? 'place' : 'places'}
+								</span>
+								{#if col.visibility === 'link_access'}
+									<span
+										class="inline-flex h-5 shrink-0 items-center gap-0.5 rounded-full bg-warm-100/90 px-2 text-[10px] font-bold leading-none text-warm-500"
+									>
+										<svg
+											class="h-2.5 w-2.5 shrink-0 opacity-90"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="2"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											aria-hidden="true"
+										>
+											<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+											<circle cx="9" cy="7" r="4" />
+											<path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+											<path d="M16 3.13a4 4 0 0 1 0 7.75" />
+										</svg>
+										Shared
+									</span>
 								{/if}
 							</div>
-							{#if confirmDeleteId === col.id}
-								<button
-									onclick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(col); confirmDeleteId = null; }}
-									class="rounded-md bg-red-100 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-200"
-								>
-									Confirm
-								</button>
-								<button
-									onclick={(e) => { e.preventDefault(); e.stopPropagation(); confirmDeleteId = null; }}
-									class="ml-1 text-xs text-warm-400"
-								>
-									Cancel
-								</button>
-							{:else}
-								<button
-									onclick={(e) => { e.preventDefault(); e.stopPropagation(); confirmDeleteId = col.id; }}
-									class="rounded-md p-1.5 text-warm-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-400 group-hover:opacity-100"
-									aria-label="Delete collection"
-								>
-									<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-										<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-									</svg>
-								</button>
-							{/if}
 						</div>
-					</div>
+					</a>
+				</div>
 
-					<div class="flex items-center gap-2.5">
-						<div
-							class="flex shrink-0 items-center justify-center rounded-full {col.emoji ? 'h-6 w-6 sm:h-7 sm:w-7' : 'h-4 w-4 sm:h-[18px] sm:w-[18px]'}"
-							style={col.emoji
-								? `background-color: #faf7f2; box-shadow: inset 0 0 0 2px ${col.color ?? '#A5834F'}`
-								: `background-color: ${col.color ?? '#A5834F'}`}
-						>
-							{#if col.emoji}
-								<span class="text-sm leading-none sm:text-base">{col.emoji}</span>
-							{/if}
+				<!-- Desktop: hover-based delete -->
+				<a
+					href="/collections/{col.id}"
+					class="group hidden h-[120px] w-full shrink-0 flex-col overflow-hidden rounded-xl border border-warm-200/80 bg-white shadow-sm shadow-warm-900/5 transition-all hover:shadow-md hover:shadow-warm-900/10 sm:flex"
+				>
+					<div class="relative flex min-h-0 flex-1 flex-col px-3 pb-2 pt-2">
+						<div class="flex min-h-0 flex-1 items-center">
+							<div class="flex min-w-0 items-center gap-3">
+								<div class="flex shrink-0">
+									<CollectionAvatar color={col.color} emoji={col.emoji} size="sm" />
+								</div>
+								<div class="min-h-0 min-w-0 flex-1 overflow-hidden">
+									<h3 class="truncate text-base font-extrabold leading-tight text-warm-800">{col.name}</h3>
+									{#if col.description}
+										<p class="mt-0.5 line-clamp-1 text-[12px] font-medium leading-tight text-warm-500">{col.description}</p>
+									{/if}
+								</div>
+							</div>
 						</div>
-						<h3 class="min-w-0 truncate text-base font-extrabold leading-snug text-warm-800 sm:text-lg">{col.name}</h3>
-					</div>
-
-					{#if col.description}
-						<p class="mt-1.5 line-clamp-2 text-[13px] font-medium text-warm-400">{col.description}</p>
-					{/if}
-
-					<div class="mt-auto flex items-center gap-2 pt-3">
-						<span class="rounded-full bg-warm-100 px-2 py-0.5 text-[11px] font-bold text-warm-500">{count} {count === 1 ? 'place' : 'places'}</span>
+						<div class="flex min-w-0 shrink-0 items-center justify-between gap-2">
+							<div class="flex min-w-0 flex-wrap items-center gap-2">
+								<span
+									class="inline-flex h-5 w-fit items-center rounded-full bg-warm-100/90 px-2 text-[10px] font-bold leading-none text-warm-500"
+								>
+									{count} {count === 1 ? 'place' : 'places'}
+								</span>
+								{#if col.visibility === 'link_access'}
+									<span
+										class="inline-flex h-5 shrink-0 items-center gap-0.5 rounded-full bg-warm-100/90 px-2 text-[10px] font-bold leading-none text-warm-500"
+									>
+										<svg
+											class="h-2.5 w-2.5 shrink-0 opacity-90"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="2"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											aria-hidden="true"
+										>
+											<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+											<circle cx="9" cy="7" r="4" />
+											<path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+											<path d="M16 3.13a4 4 0 0 1 0 7.75" />
+										</svg>
+										Shared
+									</span>
+								{/if}
+							</div>
+							<div class="flex shrink-0 items-center gap-1">
+								{#if confirmDeleteId === col.id}
+									<button
+										onclick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(col); confirmDeleteId = null; }}
+										class="rounded-md bg-danger-100 px-1.5 py-0.5 text-[10px] font-medium text-danger-700 hover:bg-danger-200"
+									>
+										Confirm
+									</button>
+									<button
+										onclick={(e) => { e.preventDefault(); e.stopPropagation(); confirmDeleteId = null; }}
+										class="text-[10px] text-warm-400"
+									>
+										Cancel
+									</button>
+								{:else}
+									<button
+										onclick={(e) => { e.preventDefault(); e.stopPropagation(); confirmDeleteId = col.id; }}
+										class="rounded-md p-1 text-warm-300 opacity-0 transition-all hover:bg-danger-50 hover:text-danger-600 group-hover:opacity-100"
+										aria-label="Delete collection"
+									>
+										<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+										</svg>
+									</button>
+								{/if}
+							</div>
+						</div>
 					</div>
 				</a>
 			{/each}

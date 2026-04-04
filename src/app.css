@@ -164,4 +164,12 @@ a,
 	--color-warm-700: #5a5042;
 	--color-warm-800: #3b332a;
 	--color-warm-900: #28221c;
+	/* Muted destructive (swipe-delete; warm terracotta vs bright default red) */
+	--color-danger-50: #f4eceb;
+	--color-danger-100: #e8d6d4;
+	--color-danger-200: #d4b5b2;
+	--color-danger-500: #9a5f5b;
+	--color-danger-600: #7f4844;
+	--color-danger-700: #6a3b38;
+	--color-danger-800: #56302d;
 }

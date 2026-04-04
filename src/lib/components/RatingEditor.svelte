@@ -175,7 +175,7 @@
 			{#if value != null}
 				<button
 					onclick={(e) => { e.stopPropagation(); onClear(); }}
-					class="text-[10px] font-semibold text-warm-400 transition-colors hover:text-red-500"
+					class="text-[10px] font-semibold text-warm-400 transition-colors hover:text-danger-600"
 				>
 					Clear
 				</button>

@@ -3,6 +3,7 @@
 	import MapView from '$lib/components/MapView.svelte';
 	import { textColorForBg } from '$lib/tag-colors';
 	import { buildPlaceTagsMap } from '$lib/stores/places.svelte';
+	import CollectionAvatar from '$lib/components/CollectionAvatar.svelte';
 
 	let { data } = $props();
 	let collection = (data as any).collection as Collection;
@@ -62,15 +63,8 @@
 <div class="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-8">
 	<!-- Header -->
 	<div class="mb-4 text-center sm:mb-6">
-	<div
-		class="mx-auto mb-3 flex items-center justify-center rounded-full {collection.emoji ? 'h-11 w-11 sm:h-14 sm:w-14' : 'h-8 w-8 sm:h-10 sm:w-10'}"
-		style={collection.emoji
-			? `background-color: #faf7f2; box-shadow: inset 0 0 0 3px ${collection.color ?? '#A5834F'}`
-			: `background-color: ${collection.color ?? '#A5834F'}; opacity: 0.7`}
-	>
-		{#if collection.emoji}
-			<span class="text-xl leading-none sm:text-2xl">{collection.emoji}</span>
-		{/if}
+	<div class="mx-auto mb-3 flex justify-center">
+		<CollectionAvatar color={collection.color} emoji={collection.emoji} size="xl" decorative={false} />
 	</div>
 		<h1 class="text-xl font-extrabold text-warm-800 sm:text-2xl">{collection.name}</h1>
 		{#if collection.description}

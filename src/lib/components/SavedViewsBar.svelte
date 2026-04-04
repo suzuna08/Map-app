@@ -357,7 +357,7 @@
 			<div class="my-1 border-t border-warm-100"></div>
 			<button
 				onclick={() => handleDelete(view)}
-				class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-red-500 hover:bg-red-50 hover:text-red-700"
+				class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-danger-600 hover:bg-danger-50 hover:text-danger-700"
 			>
 				<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -439,7 +439,7 @@
 					<div class="mx-4 my-1 border-t border-warm-100"></div>
 					<button
 						onclick={() => handleDelete(view)}
-						class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium text-red-500 active:bg-red-50"
+						class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium text-danger-600 active:bg-danger-50"
 					>
 						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />

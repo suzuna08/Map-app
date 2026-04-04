@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Collection } from '$lib/types/database';
 	import type { CollectionMemberMap } from '$lib/stores/collections.svelte';
+	import CollectionAvatar from '$lib/components/CollectionAvatar.svelte';
 
 	interface Props {
 		placeIds: string[];
@@ -65,16 +66,7 @@
 									<polyline points="20 6 9 17 4 12" />
 								</svg>
 							{:else}
-							<div
-								class="flex items-center justify-center rounded-full {col.emoji ? 'h-5 w-5' : 'h-4 w-4 opacity-60'}"
-								style={col.emoji
-									? `background-color: #faf7f2; box-shadow: inset 0 0 0 1.5px ${col.color ?? '#A5834F'}`
-									: `background-color: ${col.color ?? '#A5834F'}`}
-							>
-								{#if col.emoji}
-									<span class="text-xs leading-none">{col.emoji}</span>
-								{/if}
-							</div>
+							<CollectionAvatar color={col.color} emoji={col.emoji} size="xs" class={col.emoji ? '' : 'opacity-85'} />
 							{/if}
 						</div>
 						<div class="min-w-0 flex-1">

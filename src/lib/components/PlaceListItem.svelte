@@ -97,6 +97,7 @@
 	let startX = 0;
 	let startY = 0;
 	let locked = false;
+	let swipeConfirm = $state(false);
 	const DELETE_WIDTH = 72;
 	const SNAP_THRESHOLD = 36;
 
@@ -131,18 +132,25 @@
 
 	function onTouchEnd() {
 		swiping = false;
-		swipeX = swipeX < -SNAP_THRESHOLD ? -DELETE_WIDTH : 0;
+		const snapped = swipeX < -SNAP_THRESHOLD ? -DELETE_WIDTH : 0;
+		if (snapped === 0) swipeConfirm = false;
+		swipeX = snapped;
 	}
 
 	function handleSwipeDelete() {
+		if (!swipeConfirm) {
+			swipeConfirm = true;
+			return;
+		}
 		swipeX = 0;
+		swipeConfirm = false;
 		onDelete?.(place.id);
 	}
 
 	function handleMobileRowTap(e: MouseEvent) {
 		const target = e.target as HTMLElement;
 		if (target.closest('a, button, input, textarea')) return;
-		if (swipeX !== 0) { swipeX = 0; return; }
+		if (swipeX !== 0) { swipeX = 0; swipeConfirm = false; return; }
 		if (!selected) {
 			onSelect?.(place.id);
 			return;
@@ -164,7 +172,7 @@
 				if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; autoSave(); }
 				expanded = false;
 			}
-			if (swipeX !== 0) swipeX = 0;
+			if (swipeX !== 0) { swipeX = 0; swipeConfirm = false; }
 		}
 		prevSelected = selected;
 	});
@@ -200,12 +208,19 @@
 		{#if onDelete}
 			<button
 				onclick={handleSwipeDelete}
-				class="absolute right-0 top-0 flex h-full w-[72px] items-center justify-center bg-red-400/80 text-white/90"
-				aria-label="Delete place"
+				class="absolute right-0 top-0 flex h-full w-[72px] flex-col items-center justify-center gap-0.5 rounded-r-xl text-white transition-colors {swipeConfirm ? 'bg-danger-600' : 'bg-danger-500'}"
+				aria-label={swipeConfirm ? 'Confirm delete' : 'Delete place'}
 			>
-				<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-				</svg>
+				{#if swipeConfirm}
+					<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+						<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+					</svg>
+					<span class="text-[10px] font-bold">Confirm?</span>
+				{:else}
+					<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+					</svg>
+				{/if}
 			</button>
 		{/if}
 
@@ -386,13 +401,13 @@
 				{#if confirmDelete}
 					<button
 						onclick={() => { onDelete(place.id); confirmDelete = false; }}
-						class="rounded px-1 py-0.5 text-[9px] font-bold text-red-500 hover:bg-red-50"
+						class="rounded px-1 py-0.5 text-[9px] font-bold text-danger-600 hover:bg-danger-50"
 					>Yes</button>
 					<button onclick={() => { confirmDelete = false; }} class="rounded px-0.5 py-0.5 text-[9px] text-warm-400 hover:text-warm-600">No</button>
 				{:else}
 					<button
 						onclick={() => { confirmDelete = true; }}
-						class="rounded p-1 text-warm-300 transition-colors hover:bg-red-50 hover:text-red-500"
+						class="rounded p-1 text-warm-300 transition-colors hover:bg-danger-50 hover:text-danger-600"
 						aria-label="Delete"
 					>
 						<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

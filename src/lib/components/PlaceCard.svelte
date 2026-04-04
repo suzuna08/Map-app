@@ -62,6 +62,7 @@
 	let swipeStartX = 0;
 	let swipeStartY = 0;
 	let swipeLocked = false;
+	let swipeConfirm = $state(false);
 	const SWIPE_DELETE_W = 72;
 	const SWIPE_SNAP = 36;
 
@@ -93,11 +94,18 @@
 
 	function onSwipeEnd() {
 		swiping = false;
-		swipeX = swipeX < -SWIPE_SNAP ? -SWIPE_DELETE_W : 0;
+		const snapped = swipeX < -SWIPE_SNAP ? -SWIPE_DELETE_W : 0;
+		if (snapped === 0) swipeConfirm = false;
+		swipeX = snapped;
 	}
 
 	function handleSwipeDelete() {
+		if (!swipeConfirm) {
+			swipeConfirm = true;
+			return;
+		}
 		swipeX = 0;
+		swipeConfirm = false;
 		onDelete(place.id);
 	}
 
@@ -115,7 +123,7 @@
 	function handleMobileTap(e: MouseEvent) {
 		const target = e.target as HTMLElement;
 		if (target.closest('a, button, input, textarea, [role="button"]')) return;
-		if (swipeX !== 0) { swipeX = 0; return; }
+		if (swipeX !== 0) { swipeX = 0; swipeConfirm = false; return; }
 		if (!selected) {
 			onSelect?.(place.id);
 			return;
@@ -152,7 +160,7 @@
 				if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; autoSave(); }
 				flipped = false;
 			}
-			if (swipeX !== 0) swipeX = 0;
+			if (swipeX !== 0) { swipeX = 0; swipeConfirm = false; }
 		}
 		prevSelected = selected;
 	});
@@ -184,19 +192,24 @@
 <!-- ============================================================ -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="relative sm:hidden" data-place-id={place.id}>
-	<!-- Delete button revealed behind card (only when swiped) -->
-	{#if swipeX < 0}
-		<button
-			onclick={handleSwipeDelete}
-			class="absolute right-0 top-0 flex h-full w-[72px] items-center justify-center rounded-r-xl bg-red-400/80 text-white/90"
-			aria-label="Delete place"
-		>
+<div class="relative overflow-hidden rounded-xl sm:hidden" data-place-id={place.id}>
+	<!-- Delete layer always behind card (matches collections swipe UI) -->
+	<button
+		onclick={handleSwipeDelete}
+		class="absolute right-0 top-0 flex h-full w-[72px] flex-col items-center justify-center gap-0.5 rounded-r-xl text-white transition-colors {swipeConfirm ? 'bg-danger-600' : 'bg-danger-500'}"
+		aria-label={swipeConfirm ? 'Confirm delete' : 'Delete place'}
+	>
+		{#if swipeConfirm}
+			<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+				<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+			</svg>
+			<span class="text-[10px] font-bold">Confirm?</span>
+		{:else}
 			<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 				<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
 			</svg>
-		</button>
-	{/if}
+		{/if}
+	</button>
 
 	<!-- Swipeable card wrapper -->
 	<div
@@ -213,7 +226,7 @@
 			>
 				<!-- MOBILE FRONT -->
 				<div class="[backface-visibility:hidden]">
-					<article class="flex h-[180px] cursor-pointer flex-col rounded-xl border bg-white p-2.5 transition-all hover:shadow-sm {selected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}">
+					<article class="flex h-[180px] cursor-pointer flex-col border bg-white p-2.5 transition-all hover:shadow-sm {selected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}">
 				<div class="flex items-center justify-between">
 					<div class="flex items-center gap-1">
 						{#if place.category}
@@ -313,7 +326,7 @@
 
 		<!-- MOBILE BACK (Notes) -->
 		<div class="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-			<article class="flex h-[180px] flex-col rounded-xl border border-warm-200 bg-white p-2.5">
+			<article class="flex h-[180px] flex-col border border-warm-200 bg-white p-2.5">
 				<div class="mb-1.5 flex items-center justify-between">
 					<h3 class="line-clamp-1 flex-1 text-[15px] font-extrabold text-warm-800">{place.title}</h3>
 					<div class="ml-2 flex items-center gap-1.5">
@@ -464,7 +477,7 @@
 						{#if confirmDelete}
 							<button
 								onclick={() => { onDelete(place.id); confirmDelete = false; }}
-								class="rounded-md bg-red-100 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-200"
+								class="rounded-md bg-danger-100 px-2 py-1 text-xs font-medium text-danger-700 hover:bg-danger-200"
 							>
 								Confirm
 							</button>
@@ -472,7 +485,7 @@
 						{:else}
 							<button
 								onclick={() => { confirmDelete = true; }}
-								class="rounded-md p-2 text-warm-300 opacity-0 transition-opacity hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+								class="rounded-md p-2 text-warm-300 opacity-0 transition-opacity hover:bg-danger-50 hover:text-danger-600 group-hover:opacity-100"
 								aria-label="Delete place"
 							>
 								<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

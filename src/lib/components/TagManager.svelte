@@ -228,8 +228,8 @@
 		{#each allTags as tag (tag.id)}
 			{#if confirmDeleteId === tag.id}
 			<!-- Delete confirmation -->
-			<div class="flex items-center justify-between rounded-lg bg-red-50 px-3 py-2">
-				<span class="text-xs text-red-600">Delete "{tag.name}"?</span>
+			<div class="flex items-center justify-between rounded-lg bg-danger-50 px-3 py-2">
+				<span class="text-xs text-danger-700">Delete "{tag.name}"?</span>
 				<div class="flex items-center gap-1">
 					<button
 						onclick={() => { confirmDeleteId = null; }}
@@ -237,7 +237,7 @@
 					>Cancel</button>
 					<button
 						onclick={() => deleteTag(tag.id)}
-						class="rounded-md bg-red-600 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-red-700"
+						class="rounded-md bg-danger-600 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-danger-800"
 					>Delete</button>
 				</div>
 			</div>
@@ -279,7 +279,7 @@
 					<!-- Delete (hover) -->
 					<button
 						onclick={() => { confirmDeleteId = tag.id; editingId = null; colorPickerId = null; }}
-						class="shrink-0 rounded-md p-1 text-warm-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+						class="shrink-0 rounded-md p-1 text-warm-300 opacity-0 transition-all hover:bg-danger-50 hover:text-danger-600 group-hover:opacity-100"
 						aria-label="Delete tag"
 					>
 						<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
