@@ -37,7 +37,7 @@
 		<div class="flex items-center justify-between border-b border-warm-100 px-4 py-3">
 			<div class="min-w-0 flex-1">
 				<h2 class="text-sm font-bold text-warm-800">Add to Collection</h2>
-				<p class="truncate text-[11px] text-warm-400">{label}</p>
+				<p class="truncate text-xs text-warm-400">{label}</p>
 			</div>
 			<button onclick={onClose} class="shrink-0 rounded-lg p-1.5 text-warm-400 hover:bg-warm-100 hover:text-warm-600" aria-label="Close">
 				<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -71,12 +71,12 @@
 						</div>
 						<div class="min-w-0 flex-1">
 							<p class="truncate text-sm font-semibold text-warm-800">{col.name}</p>
-							<p class="text-[11px] text-warm-400">{count} {count === 1 ? 'place' : 'places'}</p>
+							<p class="text-xs text-warm-400">{count} {count === 1 ? 'place' : 'places'}</p>
 						</div>
 						{#if info.allIn}
-							<span class="shrink-0 text-[10px] font-bold text-sage-600">All added</span>
+							<span class="shrink-0 text-xs font-bold text-sage-600">All added</span>
 						{:else if isBatch && info.someIn}
-							<span class="shrink-0 text-[10px] font-bold text-warm-400">{info.count} already in</span>
+							<span class="shrink-0 text-xs font-bold text-warm-400">{info.count} already in</span>
 						{/if}
 					</button>
 				{/each}

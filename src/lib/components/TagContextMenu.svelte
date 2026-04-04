@@ -145,7 +145,7 @@
 
 	{:else if mode === 'rename'}
 		<div class="p-3">
-			<label class="mb-1.5 block text-[11px] font-bold text-warm-400">Rename tag</label>
+			<label class="mb-1.5 block text-xs font-bold text-warm-400">Rename tag</label>
 			<input
 				bind:this={inputEl}
 				bind:value={renameValue}
@@ -153,19 +153,19 @@
 				class="w-full rounded-lg border border-warm-200 bg-warm-50 px-2.5 py-1.5 text-sm text-warm-700 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
 			/>
 			{#if warning}
-				<p class="mt-1 text-[10px] font-medium text-amber-600">{warning}</p>
+				<p class="mt-1 text-xs font-medium text-amber-600">{warning}</p>
 			{/if}
 			<div class="mt-2.5 flex items-center justify-end gap-1.5">
 				<button
 					onclick={() => { mode = 'menu'; warning = ''; }}
-					class="rounded-md px-2.5 py-1 text-[11px] text-warm-500 hover:bg-warm-100"
+					class="rounded-md px-2.5 py-1 text-xs text-warm-500 hover:bg-warm-100"
 				>
 					Back
 				</button>
 				<button
 					onclick={renameTag}
 					disabled={!renameValue.trim() || saving}
-					class="rounded-md bg-brand-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+					class="rounded-md bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
 				>
 					{saving ? 'Saving...' : 'Save'}
 				</button>
@@ -174,7 +174,7 @@
 
 	{:else if mode === 'color'}
 		<div class="p-3">
-			<label class="mb-2 block text-[11px] font-bold text-warm-400">Choose color</label>
+			<label class="mb-2 block text-xs font-bold text-warm-400">Choose color</label>
 			<div class="flex flex-wrap gap-2">
 				{#each TAG_PALETTE as color}
 					<button
@@ -195,13 +195,13 @@
 			<div class="mt-2.5 flex items-center justify-end gap-1.5">
 				<button
 					onclick={() => { mode = 'menu'; }}
-					class="rounded-md px-2.5 py-1 text-[11px] text-warm-500 hover:bg-warm-100"
+					class="rounded-md px-2.5 py-1 text-xs text-warm-500 hover:bg-warm-100"
 				>
 					Cancel
 				</button>
 				<button
 					onclick={deleteTag}
-					class="rounded-md bg-danger-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-danger-800"
+					class="rounded-md bg-danger-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-danger-800"
 				>
 					Delete
 				</button>

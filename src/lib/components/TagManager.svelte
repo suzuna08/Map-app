@@ -170,7 +170,7 @@
 	<!-- New tag input (top) -->
 	<div class="border-b border-warm-200 px-5 pb-3">
 		{#if duplicateWarning && !editingId}
-			<p class="mb-1.5 text-[11px] font-medium text-amber-600">{duplicateWarning}</p>
+			<p class="mb-1.5 text-xs font-medium text-amber-600">{duplicateWarning}</p>
 		{/if}
 		<div class="flex items-center gap-2.5">
 			<span
@@ -233,11 +233,11 @@
 				<div class="flex items-center gap-1">
 					<button
 						onclick={() => { confirmDeleteId = null; }}
-						class="rounded-md px-2 py-0.5 text-[11px] text-warm-500 hover:bg-white"
+						class="rounded-md px-2 py-0.5 text-xs text-warm-500 hover:bg-white"
 					>Cancel</button>
 					<button
 						onclick={() => deleteTag(tag.id)}
-						class="rounded-md bg-danger-600 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-danger-800"
+						class="rounded-md bg-danger-600 px-2 py-0.5 text-xs font-medium text-white hover:bg-danger-800"
 					>Delete</button>
 				</div>
 			</div>
@@ -273,7 +273,7 @@
 
 					<!-- Duplicate warning (inline) -->
 					{#if duplicateWarning && editingId === tag.id}
-						<span class="shrink-0 text-[10px] font-medium text-amber-600">{duplicateWarning}</span>
+						<span class="shrink-0 text-xs font-medium text-amber-600">{duplicateWarning}</span>
 					{/if}
 
 					<!-- Delete (hover) -->

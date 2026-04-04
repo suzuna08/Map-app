@@ -245,13 +245,13 @@
 					<circle cx="12" cy="10" r="3" />
 				</svg>
 				<p class="text-sm font-semibold text-warm-700">Map requires setup</p>
-				<p class="mt-1 text-xs text-warm-400">Add <code class="rounded bg-warm-100 px-1.5 py-0.5 text-[11px]">PUBLIC_MAPTILER_KEY</code> to your Vercel environment variables, then redeploy</p>
+				<p class="mt-1 text-xs text-warm-400">Add <code class="rounded bg-warm-100 px-1.5 py-0.5 text-xs">PUBLIC_MAPTILER_KEY</code> to your Vercel environment variables, then redeploy</p>
 			</div>
 		</div>
 	{/if}
 
 	{#if unmappableCount > 0 && mappableCount > 0}
-		<div class="absolute bottom-2 left-2 z-10 rounded-lg bg-white/90 px-2.5 py-1.5 text-[10px] font-medium text-warm-500 shadow-sm backdrop-blur-sm sm:text-xs">
+		<div class="absolute bottom-2 left-2 z-10 rounded-lg bg-white/90 px-2.5 py-1.5 text-xs font-medium text-warm-500 shadow-sm backdrop-blur-sm">
 			{mappableCount} on map · {unmappableCount} without coordinates
 		</div>
 	{:else if mappableCount === 0 && places.length > 0}
@@ -276,7 +276,7 @@
 	}
 
 	.map-wrapper:not([data-map-mode="default"]) :global(.maplibregl-ctrl-attrib-inner) {
-		font-size: 10px !important;
+		font-size: 0.75rem !important;
 		line-height: 1.3 !important;
 		padding: 2px 24px 2px 6px !important;
 	}

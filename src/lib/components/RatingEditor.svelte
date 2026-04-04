@@ -165,7 +165,7 @@
 
 		<!-- Value label + clear -->
 		<div class="mt-1.5 flex items-center justify-between">
-			<span class="text-[11px] font-bold text-warm-600">
+			<span class="text-xs font-bold text-warm-600">
 				{#if displayRating > 0}
 					{displayRating.toFixed(1)}
 				{:else}
@@ -175,7 +175,7 @@
 			{#if value != null}
 				<button
 					onclick={(e) => { e.stopPropagation(); onClear(); }}
-					class="text-[10px] font-semibold text-warm-400 transition-colors hover:text-danger-600"
+					class="text-xs font-semibold text-warm-400 transition-colors hover:text-danger-600"
 				>
 					Clear
 				</button>

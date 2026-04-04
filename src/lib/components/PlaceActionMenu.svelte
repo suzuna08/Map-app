@@ -100,7 +100,7 @@
 						</svg>
 						<div>
 							<p class="text-sm font-semibold text-warm-800">Remove from collection</p>
-							<p class="text-[11px] text-warm-400">Place stays in your library</p>
+							<p class="text-xs text-warm-400">Place stays in your library</p>
 						</div>
 					</button>
 					<button
@@ -112,7 +112,7 @@
 						</svg>
 						<div>
 							<p class="text-sm font-semibold text-danger-600">Delete place</p>
-							<p class="text-[11px] text-warm-400">Permanently remove from everywhere</p>
+							<p class="text-xs text-warm-400">Permanently remove from everywhere</p>
 						</div>
 					</button>
 				{/if}
@@ -142,13 +142,13 @@
 					<div class="mt-2 flex items-center justify-end gap-1.5">
 						<button
 							onclick={handleCancelDelete}
-							class="rounded-md px-2.5 py-1 text-[11px] font-medium text-warm-500 hover:bg-warm-100"
+							class="rounded-md px-2.5 py-1 text-xs font-medium text-warm-500 hover:bg-warm-100"
 						>
 							Cancel
 						</button>
 						<button
 							onclick={handleDelete}
-							class="rounded-md bg-danger-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-danger-700"
+							class="rounded-md bg-danger-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-danger-700"
 						>
 							Delete
 						</button>
@@ -162,7 +162,7 @@
 					<svg class="h-3.5 w-3.5 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<path d="M18 6L6 18M6 6l12 12" />
 					</svg>
-					<span class="text-[13px] font-medium text-warm-700">Remove from collection</span>
+					<span class="text-sm font-medium text-warm-700">Remove from collection</span>
 				</button>
 				<button
 					onclick={handleDelete}
@@ -171,7 +171,7 @@
 					<svg class="h-3.5 w-3.5 shrink-0 text-danger-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
 					</svg>
-					<span class="text-[13px] font-medium text-danger-600">Delete place</span>
+					<span class="text-sm font-medium text-danger-600">Delete place</span>
 				</button>
 			{/if}
 		</div>

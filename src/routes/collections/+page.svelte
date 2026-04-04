@@ -280,10 +280,10 @@
 			<svg class="mx-auto h-10 w-10 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
 				<path d="M19 11H5m14 0a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2m14 0V9a2 2 0 0 0-2-2M5 11V9a2 2 0 0 1 2-2m0 0V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2M7 7h10" />
 			</svg>
-			<p class="mt-3 text-[15px] font-medium text-warm-500">No collections yet</p>
+			<p class="mt-3 text-base font-medium text-warm-500">No collections yet</p>
 			<button
 				onclick={() => { showCreate = true; }}
-				class="mt-1.5 text-[15px] font-semibold text-brand-600 hover:text-brand-700"
+				class="mt-1.5 text-base font-semibold text-brand-600 hover:text-brand-700"
 			>
 				Create your first collection
 			</button>
@@ -305,7 +305,7 @@
 							<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 								<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
 							</svg>
-							<span class="text-[10px] font-bold">Confirm?</span>
+							<span class="text-xs font-bold">Confirm?</span>
 						{:else}
 							<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 								<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -329,22 +329,22 @@
 										<CollectionAvatar color={col.color} emoji={col.emoji} size="sm" />
 									</div>
 									<div class="min-h-0 min-w-0 flex-1 overflow-hidden">
-										<h3 class="truncate text-[15px] font-extrabold leading-tight text-warm-800">{col.name}</h3>
+										<h3 class="truncate text-base font-extrabold leading-tight text-warm-800">{col.name}</h3>
 										{#if col.description}
-											<p class="mt-0.5 line-clamp-1 text-[11px] font-medium leading-4 text-warm-500">{col.description}</p>
+											<p class="mt-0.5 line-clamp-1 text-xs font-medium leading-4 text-warm-500">{col.description}</p>
 										{/if}
 									</div>
 								</div>
 							</div>
-							<div class="flex shrink-0 flex-wrap items-center gap-1.5">
+						<div class="flex shrink-0 flex-wrap items-center gap-1.5">
+							<span
+								class="inline-flex h-5 w-fit items-center rounded-full bg-warm-100/90 px-2 text-xs font-bold leading-none text-warm-500"
+							>
+								{count} {count === 1 ? 'place' : 'places'}
+							</span>
+							{#if col.visibility === 'link_access'}
 								<span
-									class="inline-flex h-5 w-fit items-center rounded-full bg-warm-100/90 px-2 text-[10px] font-bold leading-none text-warm-500"
-								>
-									{count} {count === 1 ? 'place' : 'places'}
-								</span>
-								{#if col.visibility === 'link_access'}
-									<span
-										class="inline-flex h-5 shrink-0 items-center gap-0.5 rounded-full bg-warm-100/90 px-2 text-[10px] font-bold leading-none text-warm-500"
+									class="inline-flex h-5 shrink-0 items-center gap-0.5 rounded-full bg-warm-100/90 px-2 text-xs font-bold leading-none text-warm-500"
 									>
 										<svg
 											class="h-2.5 w-2.5 shrink-0 opacity-90"
@@ -383,21 +383,21 @@
 								<div class="min-h-0 min-w-0 flex-1 overflow-hidden">
 									<h3 class="truncate text-base font-extrabold leading-tight text-warm-800">{col.name}</h3>
 									{#if col.description}
-										<p class="mt-0.5 line-clamp-1 text-[12px] font-medium leading-tight text-warm-500">{col.description}</p>
+										<p class="mt-0.5 line-clamp-1 text-xs font-medium leading-tight text-warm-500">{col.description}</p>
 									{/if}
 								</div>
 							</div>
 						</div>
 						<div class="flex min-w-0 shrink-0 items-center justify-between gap-2">
-							<div class="flex min-w-0 flex-wrap items-center gap-2">
+					<div class="flex min-w-0 flex-wrap items-center gap-2">
+							<span
+								class="inline-flex h-5 w-fit items-center rounded-full bg-warm-100/90 px-2 text-xs font-bold leading-none text-warm-500"
+							>
+								{count} {count === 1 ? 'place' : 'places'}
+							</span>
+							{#if col.visibility === 'link_access'}
 								<span
-									class="inline-flex h-5 w-fit items-center rounded-full bg-warm-100/90 px-2 text-[10px] font-bold leading-none text-warm-500"
-								>
-									{count} {count === 1 ? 'place' : 'places'}
-								</span>
-								{#if col.visibility === 'link_access'}
-									<span
-										class="inline-flex h-5 shrink-0 items-center gap-0.5 rounded-full bg-warm-100/90 px-2 text-[10px] font-bold leading-none text-warm-500"
+									class="inline-flex h-5 shrink-0 items-center gap-0.5 rounded-full bg-warm-100/90 px-2 text-xs font-bold leading-none text-warm-500"
 									>
 										<svg
 											class="h-2.5 w-2.5 shrink-0 opacity-90"
@@ -422,13 +422,13 @@
 								{#if confirmDeleteId === col.id}
 									<button
 										onclick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(col); confirmDeleteId = null; }}
-										class="rounded-md bg-danger-100 px-1.5 py-0.5 text-[10px] font-medium text-danger-700 hover:bg-danger-200"
+										class="rounded-md bg-danger-100 px-1.5 py-0.5 text-xs font-medium text-danger-700 hover:bg-danger-200"
 									>
 										Confirm
 									</button>
 									<button
 										onclick={(e) => { e.preventDefault(); e.stopPropagation(); confirmDeleteId = null; }}
-										class="text-[10px] text-warm-400"
+										class="text-xs text-warm-400"
 									>
 										Cancel
 									</button>
@@ -466,11 +466,11 @@
 					{#each toast.actions as action}
 						<button
 							onclick={() => { action.handler(); dismissToast(toast.id); }}
-							class="text-[10px] font-bold underline sm:text-xs"
-						>{action.label}</button>
-					{/each}
-				{/if}
-			</div>
-		{/each}
-	</div>
+						class="text-xs font-bold underline"
+					>{action.label}</button>
+				{/each}
+			{/if}
+		</div>
+	{/each}
+</div>
 {/if}

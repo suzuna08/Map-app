@@ -218,7 +218,7 @@
 			<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 				<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
 			</svg>
-			<span class="text-[10px] font-bold">Confirm?</span>
+			<span class="text-xs font-bold">Confirm?</span>
 		{:else}
 			<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 				<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -245,10 +245,10 @@
 				<div class="flex items-center justify-between">
 					<div class="flex items-center gap-1">
 						{#if place.category}
-							<span class="rounded-full bg-warm-200 px-1.5 py-px text-[10px] font-bold text-warm-600">{place.category}</span>
+							<span class="rounded-full bg-warm-200 px-1.5 py-px text-xs font-bold text-warm-600">{place.category}</span>
 						{/if}
 						{#if place.area}
-							<span class="rounded-full bg-sage-200 px-1.5 py-px text-[10px] font-bold text-sage-700">{place.area}</span>
+							<span class="rounded-full bg-sage-200 px-1.5 py-px text-xs font-bold text-sage-700">{place.area}</span>
 						{/if}
 					</div>
 					<RatingDisplay
@@ -260,7 +260,7 @@
 					/>
 				</div>
 
-				<h3 class="mt-1 line-clamp-1 text-[15px] font-extrabold leading-snug text-warm-800">{place.title}</h3>
+				<h3 class="mt-1 line-clamp-1 text-base font-extrabold leading-snug text-warm-800">{place.title}</h3>
 
 				<div class="min-h-0 flex-1">
 					{#if contentPreview}
@@ -286,7 +286,7 @@
 						<button
 							onclick={() => onEnrich(place.id)}
 							disabled={enrichingId === place.id}
-							class="mt-1 text-[9px] font-semibold text-brand-600 disabled:opacity-50"
+							class="mt-1 text-xs font-semibold text-brand-600 disabled:opacity-50"
 						>
 							{enrichingId === place.id ? '...' : 'Enrich'}
 						</button>
@@ -296,13 +296,13 @@
 				<!-- Mobile action row: Maps | Notes -->
 				<div class="mt-1.5 flex items-center gap-1 border-t border-warm-100 pt-1.5">
 					{#if selected && !flipped}
-						<span class="text-[9px] font-medium text-brand-400 animate-pulse">Tap to flip</span>
+						<span class="text-xs font-medium text-brand-400 animate-pulse">Tap to flip</span>
 					{/if}
 					{#if place.url}
 						<a
 							href={place.url}
 							target="_blank"
-							class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-bold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+							class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-bold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
 							aria-label="Open in Google Maps"
 						>
 							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -313,7 +313,7 @@
 					{/if}
 					<button
 						onclick={flipToBack}
-						class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-bold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+						class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-bold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
 						aria-label="Notes"
 					>
 						<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -324,7 +324,7 @@
 					{#if onCollectionPickerToggle}
 						<button
 							onclick={(e) => { e.stopPropagation(); onCollectionPickerToggle?.(place.id); }}
-							class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-bold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+							class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-bold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
 							aria-label="Add to collection"
 						>
 							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -343,12 +343,12 @@
 		<div class="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
 			<article class="flex h-[180px] flex-col border border-warm-200 bg-white p-2.5">
 				<div class="mb-1.5 flex items-center justify-between">
-					<h3 class="line-clamp-1 flex-1 text-[15px] font-extrabold text-warm-800">{place.title}</h3>
+					<h3 class="line-clamp-1 flex-1 text-base font-extrabold text-warm-800">{place.title}</h3>
 					<div class="ml-2 flex items-center gap-1.5">
 						{#if saving}
-							<span class="text-[9px] text-warm-400">Saving...</span>
+							<span class="text-xs text-warm-400">Saving...</span>
 						{:else if saved}
-							<span class="text-[9px] text-sage-600">Saved</span>
+							<span class="text-xs text-sage-600">Saved</span>
 						{/if}
 						<button
 							onclick={flipToFront}
@@ -409,11 +409,11 @@
 
 				<div class="min-h-0 flex-1">
 					{#if contentPreview}
-						<p class="line-clamp-2 text-[13px] font-medium italic leading-[1.4em] text-brand-500">
+						<p class="line-clamp-2 text-sm font-medium italic leading-[1.4em] text-brand-500">
 							{contentPreview}
 						</p>
 					{:else}
-						<p class="text-[13px] italic text-warm-300">Add a note...</p>
+						<p class="text-sm italic text-warm-300">Add a note...</p>
 					{/if}
 				</div>
 
@@ -432,7 +432,7 @@
 
 			<div class="mt-auto flex items-center gap-1 border-t border-warm-200 pt-2.5">
 				{#if selected && !flipped}
-					<span class="text-[11px] font-medium text-brand-400 animate-pulse">Click to flip</span>
+					<span class="text-xs font-medium text-brand-400 animate-pulse">Click to flip</span>
 				{/if}
 				{#if !place.enriched_at && place.url}
 						<button

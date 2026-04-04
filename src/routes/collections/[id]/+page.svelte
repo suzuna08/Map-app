@@ -63,6 +63,12 @@
 	let showAddModal = $state(false);
 	let addSearch = $state('');
 	let addTagFilter = $state<Record<string, boolean>>({});
+	let urlStatus = $state<'idle' | 'loading' | 'success' | 'duplicate' | 'error'>('idle');
+	let urlResultPlace = $state<Place | null>(null);
+	let urlErrorMessage = $state('');
+
+	const gmapsPattern = /^https?:\/\/(www\.)?(google\.[a-z.]+\/maps|maps\.google\.[a-z.]+|goo\.gl\/maps|maps\.app\.goo\.gl|share\.google)/i;
+	let isUrlMode = $derived(gmapsPattern.test(addSearch.trim()));
 	let editingName = $state(false);
 	let editName = $state(serverCollection?.name ?? '');
 	let editingDesc = $state(false);
@@ -150,7 +156,7 @@
 
 	let nonMemberPlaces = $derived(
 		allPlaces.filter((p) => !placeIds.includes(p.id)).filter((p) => {
-			if (addSearch) {
+			if (addSearch && !isUrlMode) {
 				const s = addSearch.toLowerCase();
 				const matchesText = p.title.toLowerCase().includes(s) || (p.area ?? '').toLowerCase().includes(s) || (p.category ?? '').toLowerCase().includes(s);
 				if (!matchesText) return false;
@@ -229,6 +235,68 @@
 		if (newPlaces) places = [...places, ...(newPlaces as Place[])];
 		showToast('success', '', `Added ${newIds.length} places`);
 		showAddModal = false;
+	}
+
+	async function handleAddByUrl() {
+		const trimmed = addSearch.trim();
+		if (!trimmed) return;
+
+		urlStatus = 'loading';
+		urlErrorMessage = '';
+		urlResultPlace = null;
+
+		try {
+			const res = await fetch('/api/places/add-by-url', {
+				method: 'POST',
+				cache: 'no-store',
+				headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
+				body: JSON.stringify({ url: trimmed })
+			});
+
+			const data = await res.json();
+
+			if (!res.ok) {
+				urlStatus = 'error';
+				urlErrorMessage = data.message || data.error?.message || 'Something went wrong';
+				return;
+			}
+
+			const place = data.place as Place;
+			urlResultPlace = place;
+
+			if (data.duplicate) {
+				urlStatus = 'duplicate';
+			} else {
+				urlStatus = 'success';
+			}
+
+			if (!placeIds.includes(place.id)) {
+				await addPlacesToCollection(supabase, collection.id, [place.id]);
+				placeIds = [...placeIds, place.id];
+				if (!allPlaces.find((p) => p.id === place.id)) {
+					allPlaces = [...allPlaces, place];
+				}
+				const { data: placeData } = await supabase
+					.from('places')
+					.select('id, user_id, title, note, url, source_list, created_at, google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at, user_rating, user_rated_at')
+					.eq('id', place.id)
+					.single();
+				if (placeData) places = [...places, placeData as Place];
+				showToast('success', '', `Added "${place.title}" to collection`);
+			} else {
+				showToast('info', '', `"${place.title}" is already in this collection`);
+			}
+		} catch {
+			urlStatus = 'error';
+			urlErrorMessage = 'Network error. Please check your connection and try again.';
+		}
+	}
+
+	function resetUrl() {
+		addSearch = '';
+		urlStatus = 'idle';
+		urlResultPlace = null;
+		urlErrorMessage = '';
 	}
 
 	async function saveName() {
@@ -311,7 +379,7 @@
 <div class="sticky top-12 z-10 border-b border-warm-200/80 bg-[#faf7f2] shadow-sm sm:top-14">
 	<div class="mx-auto max-w-4xl px-3 sm:px-6">
 		<!-- Breadcrumb + Header combined -->
-		<div class="flex items-center gap-1.5 pt-2 text-[11px] text-warm-400 sm:pt-2.5 sm:text-[13px]">
+		<div class="flex items-center gap-1.5 pt-2 text-xs text-warm-400 sm:pt-2.5 sm:text-sm">
 			<a href="/collections" class="transition-colors hover:text-warm-600">Collections</a>
 			<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6" /></svg>
 			<span class="font-semibold text-warm-600">{collection.name}</span>
@@ -343,8 +411,8 @@
 									{/each}
 								</div>
 							<div class="mt-2 border-t border-warm-100 pt-2">
-								<span class="mb-1 block text-[10px] font-bold text-warm-400">Icon</span>
-								<EmojiPicker selected={collection.emoji ?? null} onSelect={(em) => { saveEmoji(em); }} />
+							<span class="mb-1 block text-xs font-bold text-warm-400">Icon</span>
+							<EmojiPicker selected={collection.emoji ?? null} onSelect={(em) => { saveEmoji(em); }} />
 							</div>
 							</div>
 						{/if}
@@ -375,13 +443,13 @@
 									onkeydown={(e) => { if (e.key === 'Enter') saveDescription(); if (e.key === 'Escape') editingDesc = false; }}
 									onblur={saveDescription}
 									placeholder="Add a description..."
-									class="mt-0.5 w-full rounded-lg border border-warm-200 bg-warm-50 px-2 py-0.5 text-[11px] text-warm-500 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:text-[13px]"
+									class="mt-0.5 w-full rounded-lg border border-warm-200 bg-warm-50 px-2 py-0.5 text-xs text-warm-500 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:text-sm"
 									autofocus
 								/>
 							{:else}
 								<button
 									type="button"
-									class="mt-0.5 cursor-pointer text-left text-[11px] text-warm-400 transition-colors hover:text-warm-500 sm:text-[13px]"
+									class="mt-0.5 cursor-pointer text-left text-xs text-warm-400 transition-colors hover:text-warm-500 sm:text-sm"
 									onclick={() => { editingDesc = true; editDesc = collection.description ?? ''; }}
 								>
 									{collection.description || 'Add a description...'}
@@ -406,7 +474,7 @@
 					{/if}
 					<button
 						onclick={toggleSharing}
-						class="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold transition-colors sm:px-3 sm:py-1.5 sm:text-xs
+						class="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-bold transition-colors sm:px-3 sm:py-1.5
 							{collection.visibility === 'link_access'
 								? 'border-sage-200 bg-sage-50 text-sage-700 hover:bg-sage-100'
 								: 'border-warm-200 text-warm-500 hover:bg-warm-50'}"
@@ -441,7 +509,7 @@
 			<div class="overflow-hidden rounded-xl border border-warm-200 sm:rounded-2xl">
 				<button
 					onclick={() => { mapExpanded = !mapExpanded; }}
-					class="flex w-full items-center justify-between bg-white px-3 py-1.5 text-[11px] font-semibold text-warm-500 transition-colors hover:bg-warm-50 sm:px-4 sm:py-2 sm:text-xs"
+					class="flex w-full items-center justify-between bg-white px-3 py-1.5 text-xs font-semibold text-warm-500 transition-colors hover:bg-warm-50 sm:px-4 sm:py-2"
 				>
 					<div class="flex items-center gap-2">
 						<svg class="h-3.5 w-3.5 text-brand-500 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -473,7 +541,7 @@
 
 	<!-- Controls (inside sticky panel) -->
 	<div class="mx-auto flex max-w-4xl items-center justify-between border-t border-warm-200/60 px-3 py-1.5 sm:px-6 sm:py-2">
-		<p class="text-xs font-semibold text-warm-500 sm:text-[15px]">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</p>
+		<p class="text-xs font-semibold text-warm-500 sm:text-base">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</p>
 		<div class="flex items-center gap-1.5 sm:gap-2">
 			<div class="relative">
 				<svg class="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -483,7 +551,7 @@
 					type="text"
 					bind:value={search}
 					placeholder="Search..."
-					class="w-28 rounded-lg border border-warm-200 bg-warm-50 py-1 pl-7 pr-7 text-[11px] font-medium text-warm-600 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:w-40 sm:text-[13px]"
+					class="w-28 rounded-lg border border-warm-200 bg-warm-50 py-1 pl-7 pr-7 text-xs font-medium text-warm-600 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:w-40 sm:text-sm"
 				/>
 				{#if search}
 					<button
@@ -499,7 +567,7 @@
 			</div>
 			<select
 				bind:value={sortBy}
-				class="rounded-md border border-warm-200 bg-white px-1.5 py-1 text-[11px] font-semibold text-warm-600 focus:border-brand-400 focus:outline-none sm:text-[13px]"
+				class="rounded-md border border-warm-200 bg-white px-1.5 py-1 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none sm:text-sm"
 			>
 				<option value="newest">Recent</option>
 				<option value="az">A–Z</option>
@@ -537,13 +605,13 @@
 			<svg class="mx-auto h-12 w-12 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
 				<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
 			</svg>
-			<p class="mt-3 text-[15px] text-warm-500">
+			<p class="mt-3 text-base text-warm-500">
 				{places.length === 0 ? 'This collection is empty' : 'No places match your search'}
 			</p>
 			{#if places.length === 0}
 				<button
 					onclick={() => { showAddModal = true; }}
-					class="mt-2 text-[15px] font-semibold text-brand-600 hover:text-brand-700"
+					class="mt-2 text-base font-semibold text-brand-600 hover:text-brand-700"
 				>
 					Add some places
 				</button>
@@ -600,7 +668,7 @@
 {#if showAddModal}
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="fixed inset-0 z-50 flex items-end justify-center sm:items-center" onclick={() => { showAddModal = false; addSearch = ''; addTagFilter = {}; }}>
+	<div class="fixed inset-0 z-50 flex items-end justify-center sm:items-center" onclick={() => { showAddModal = false; addSearch = ''; addTagFilter = {}; resetUrl(); }}>
 		<div class="absolute inset-0 bg-warm-900/40 backdrop-blur-sm"></div>
 		<div
 			class="relative z-10 flex max-h-[85dvh] w-full flex-col rounded-t-2xl border border-warm-200 bg-white shadow-xl sm:max-w-lg sm:rounded-2xl"
@@ -608,58 +676,114 @@
 		>
 			<div class="flex items-center justify-between border-b border-warm-100 px-4 py-3 sm:px-5">
 				<h2 class="text-sm font-bold text-warm-800 sm:text-base">Add places to {collection.name}</h2>
-				<button onclick={() => { showAddModal = false; addSearch = ''; addTagFilter = {}; }} class="rounded-lg p-1.5 text-warm-400 hover:bg-warm-100 hover:text-warm-600" aria-label="Close">
+				<button onclick={() => { showAddModal = false; addSearch = ''; addTagFilter = {}; resetUrl(); }} class="rounded-lg p-1.5 text-warm-400 hover:bg-warm-100 hover:text-warm-600" aria-label="Close">
 					<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
 					</svg>
 				</button>
 			</div>
 
-			<!-- Search bar -->
-			<div class="border-b border-warm-100 px-4 py-2">
-				<div class="relative">
-					<svg class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+		<!-- Smart search / URL input -->
+		<div class="border-b border-warm-100 px-4 py-2">
+			{#if urlStatus === 'loading'}
+				<div class="flex items-center gap-2 rounded-lg bg-warm-50 px-3 py-2">
+					<svg class="h-4 w-4 animate-spin text-brand-500" viewBox="0 0 24 24" fill="none">
+						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
 					</svg>
+					<span class="text-sm font-medium text-warm-500">Looking up place...</span>
+				</div>
+			{:else if (urlStatus === 'success' || urlStatus === 'duplicate') && urlResultPlace}
+				<div class="flex items-center gap-2 rounded-lg {urlStatus === 'duplicate' ? 'bg-amber-50' : 'bg-sage-50'} px-3 py-2">
+					{#if urlStatus === 'duplicate'}
+						<svg class="h-4 w-4 shrink-0 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+						</svg>
+					{:else}
+						<svg class="h-4 w-4 shrink-0 text-sage-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
+						</svg>
+					{/if}
+					<div class="min-w-0 flex-1">
+						<p class="truncate text-xs font-bold {urlStatus === 'duplicate' ? 'text-amber-800' : 'text-sage-800'}">
+							{urlStatus === 'duplicate' ? 'Already in library — ' : ''}Added {urlResultPlace.title}
+						</p>
+						{#if urlResultPlace.address}
+							<p class="truncate text-xs text-warm-400">{urlResultPlace.address}</p>
+						{/if}
+					</div>
+					<button
+						onclick={resetUrl}
+						class="shrink-0 rounded-md px-2 py-1 text-xs font-bold transition-colors {urlStatus === 'duplicate' ? 'text-amber-600 hover:bg-amber-100' : 'text-sage-600 hover:bg-sage-100'}"
+					>
+						Add another
+					</button>
+				</div>
+			{:else}
+				<div class="relative">
+					{#if isUrlMode}
+						<svg class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-brand-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+							<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+						</svg>
+					{:else}
+						<svg class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+						</svg>
+					{/if}
 					<input
 						type="text"
 						bind:value={addSearch}
-						placeholder="Search your places..."
-						class="w-full rounded-lg border border-warm-200 bg-warm-50 py-1.5 pl-8 pr-3 text-sm font-medium text-warm-700 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20"
+						placeholder="Search places or paste a Google Maps URL..."
+						class="w-full rounded-lg border bg-warm-50 py-1.5 pl-8 text-sm font-medium text-warm-700 placeholder:text-warm-300 focus:outline-none focus:ring-1 focus:ring-brand-400/20
+							{isUrlMode ? 'border-brand-300 pr-16 focus:border-brand-400' : 'border-warm-200 pr-3 focus:border-brand-400'}"
+						onkeydown={(e) => { if (e.key === 'Enter' && isUrlMode) handleAddByUrl(); }}
 						autofocus
 					/>
+					{#if isUrlMode}
+						<button
+							onclick={handleAddByUrl}
+							class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md bg-brand-600 px-2.5 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700"
+						>
+							Add
+						</button>
+					{/if}
 				</div>
-
-				<!-- Tag filter pills -->
-				{#if userTags.length > 0}
-					<div class="mt-2 flex flex-wrap items-center gap-1.5">
-						<span class="text-[10px] font-semibold text-warm-400">Tags:</span>
-						{#each userTags as tag (tag.id)}
-							<button
-								onclick={() => toggleAddTagFilter(tag.id)}
-							class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold transition-all
-								{addTagFilter[tag.id]
-									? 'shadow-sm ring-1 ring-offset-1'
-									: 'opacity-60 hover:opacity-90'}"
-							style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}; {addTagFilter[tag.id] ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
-							>
-								{tag.name}
-								{#if addTagFilter[tag.id]}
-									<svg class="h-2 w-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-										<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-									</svg>
-								{/if}
-							</button>
-						{/each}
-						{#if addSelectedTagIds.length > 0}
-							<button
-								onclick={() => { addTagFilter = {}; }}
-								class="text-[10px] font-medium text-warm-400 hover:text-warm-600"
-							>Clear</button>
-						{/if}
-					</div>
+				{#if urlStatus === 'error'}
+					<p class="mt-1.5 text-xs font-medium text-red-500">{urlErrorMessage}</p>
 				{/if}
-			</div>
+			{/if}
+
+			<!-- Tag filter pills -->
+			{#if userTags.length > 0 && !isUrlMode && urlStatus === 'idle'}
+				<div class="mt-2 flex flex-wrap items-center gap-1.5">
+					<span class="text-xs font-semibold text-warm-400">Tags:</span>
+					{#each userTags as tag (tag.id)}
+						<button
+							onclick={() => toggleAddTagFilter(tag.id)}
+						class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold transition-all
+							{addTagFilter[tag.id]
+								? 'shadow-sm ring-1 ring-offset-1'
+								: 'opacity-60 hover:opacity-90'}"
+						style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}; {addTagFilter[tag.id] ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
+						>
+							{tag.name}
+							{#if addTagFilter[tag.id]}
+								<svg class="h-2 w-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+									<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+								</svg>
+							{/if}
+						</button>
+					{/each}
+					{#if addSelectedTagIds.length > 0}
+						<button
+							onclick={() => { addTagFilter = {}; }}
+							class="text-xs font-medium text-warm-400 hover:text-warm-600"
+						>Clear</button>
+					{/if}
+				</div>
+			{/if}
+		</div>
 
 			<div class="flex-1 overflow-y-auto px-2 py-2 sm:px-3">
 				{#each nonMemberPlaces as p (p.id)}
@@ -674,17 +798,17 @@
 						<div class="min-w-0 flex-1">
 							<p class="truncate text-sm font-semibold text-warm-800">{p.title}</p>
 							<div class="flex items-center gap-1.5">
-								<span class="shrink-0 truncate text-[11px] text-warm-400">{p.area ? `${p.area} · ` : ''}{p.category ?? ''}</span>
-								{#if pTags.length > 0}
-									<span class="text-warm-300">·</span>
-									{#each pTags.slice(0, 2) as tag (tag.id)}
-									<span
-										class="shrink-0 rounded-full px-1.5 py-px text-[9px] font-semibold"
-										style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
-										>{tag.name}</span>
-									{/each}
-									{#if pTags.length > 2}
-										<span class="text-[9px] font-bold text-warm-400">+{pTags.length - 2}</span>
+							<span class="shrink-0 truncate text-xs text-warm-400">{p.area ? `${p.area} · ` : ''}{p.category ?? ''}</span>
+							{#if pTags.length > 0}
+								<span class="text-warm-300">·</span>
+								{#each pTags.slice(0, 2) as tag (tag.id)}
+								<span
+									class="shrink-0 rounded-full px-1.5 py-px text-xs font-semibold"
+									style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
+									>{tag.name}</span>
+								{/each}
+								{#if pTags.length > 2}
+									<span class="text-xs font-bold text-warm-400">+{pTags.length - 2}</span>
 									{/if}
 								{/if}
 							</div>
@@ -719,11 +843,11 @@
 					{#each toast.actions as action}
 						<button
 							onclick={() => { action.handler(); dismissToast(toast.id); }}
-							class="text-[10px] font-bold underline sm:text-xs"
-						>{action.label}</button>
-					{/each}
-				{/if}
-			</div>
-		{/each}
-	</div>
+						class="text-xs font-bold underline"
+					>{action.label}</button>
+				{/each}
+			{/if}
+		</div>
+	{/each}
+</div>
 {/if}

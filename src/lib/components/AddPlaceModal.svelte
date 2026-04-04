@@ -184,10 +184,10 @@
 						{/if}
 						<div class="mt-2 flex flex-wrap items-center gap-1.5">
 							{#if resultPlace.category}
-								<span class="rounded-full bg-warm-200 px-2 py-0.5 text-[10px] font-bold text-warm-600">{resultPlace.category}</span>
+								<span class="rounded-full bg-warm-200 px-2 py-0.5 text-xs font-bold text-warm-600">{resultPlace.category}</span>
 							{/if}
 							{#if resultPlace.area}
-								<span class="rounded-full bg-sage-200 px-2 py-0.5 text-[10px] font-bold text-sage-700">{resultPlace.area}</span>
+								<span class="rounded-full bg-sage-200 px-2 py-0.5 text-xs font-bold text-sage-700">{resultPlace.area}</span>
 							{/if}
 							{#if resultPlace.rating}
 								<span class="text-xs font-bold text-warm-700">{resultPlace.rating.toFixed(1)}<span class="text-brand-500">★</span></span>
@@ -210,10 +210,10 @@
 							</div>
 							<div class="flex flex-wrap gap-1.5">
 								{#each intelSuggestions.suggested_tags as tag}
-									<span class="rounded-full bg-brand-100 px-2.5 py-0.5 text-[10px] font-bold text-brand-700">{tag}</span>
+									<span class="rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-bold text-brand-700">{tag}</span>
 								{/each}
 							</div>
-							<div class="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-warm-400">
+							<div class="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-warm-400">
 								<span>{intelSuggestions.primary_category}</span>
 								<span class="text-warm-200">·</span>
 								<span>{intelSuggestions.market_niche}</span>

@@ -198,14 +198,14 @@
 					bind:value={editingName}
 					onkeydown={handleRenameKeydown}
 					onblur={handleRename}
-					class="shrink-0 rounded-lg border border-brand-400 bg-white px-2.5 py-1 text-xs font-semibold text-warm-800 outline-none ring-2 ring-brand-400/20 sm:px-3 sm:text-[13px]"
+					class="shrink-0 rounded-lg border border-brand-400 bg-white px-2.5 py-1 text-xs font-semibold text-warm-800 outline-none ring-2 ring-brand-400/20 sm:px-3 sm:text-sm"
 					style="width: {Math.max(editingName.length * 7.5 + 24, 72)}px"
 				/>
 			{:else}
 				<div class="group relative shrink-0" data-sv-menu>
 					<button
 						onclick={() => onApply(view)}
-						class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold transition-all sm:px-3 sm:text-[13px]
+						class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold transition-all sm:px-3 sm:text-sm
 							{activeSavedViewId === view.id
 								? viewIsDirty
 									? 'border-brand-400 bg-brand-50 text-brand-700 shadow-sm ring-1 ring-brand-400/30 border-dashed'
@@ -246,20 +246,20 @@
 					onkeydown={handleCreateKeydown}
 					onblur={handleCreateBlur}
 					placeholder="View name…"
-					class="w-28 rounded-lg border border-brand-300 bg-white px-2.5 py-1 text-xs font-medium text-warm-800 placeholder:text-warm-400 outline-none ring-2 ring-brand-400/20 focus:border-brand-400 sm:w-32 sm:text-[13px]"
+					class="w-28 rounded-lg border border-brand-300 bg-white px-2.5 py-1 text-xs font-medium text-warm-800 placeholder:text-warm-400 outline-none ring-2 ring-brand-400/20 focus:border-brand-400 sm:w-32 sm:text-sm"
 				/>
 				<button
 					onmousedown={(e) => e.preventDefault()}
 					onclick={handleCreate}
 					disabled={!newViewName.trim()}
-					class="rounded-md bg-brand-500 px-2 py-1 text-[11px] font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40 sm:text-xs"
+					class="rounded-md bg-brand-500 px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
 				>
 					Save
 				</button>
 				<button
 					onmousedown={(e) => e.preventDefault()}
 					onclick={cancelCreate}
-					class="rounded-md px-1.5 py-1 text-[11px] font-medium text-warm-400 transition-colors hover:text-warm-600 sm:text-xs"
+					class="rounded-md px-1.5 py-1 text-xs font-medium text-warm-400 transition-colors hover:text-warm-600"
 				>
 					Cancel
 				</button>
@@ -267,7 +267,7 @@
 		{:else}
 			<button
 				onclick={openCreate}
-				class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-dashed border-warm-300 px-2 py-1 text-xs font-bold text-warm-400 transition-colors hover:border-brand-400 hover:bg-brand-50/60 hover:text-brand-600 sm:px-2.5 sm:text-[13px]"
+				class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-dashed border-warm-300 px-2 py-1 text-xs font-bold text-warm-400 transition-colors hover:border-brand-400 hover:bg-brand-50/60 hover:text-brand-600 sm:px-2.5 sm:text-sm"
 				title={hasFilters ? 'Save current filters as a view' : 'Save a view'}
 			>
 				<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -351,7 +351,7 @@
 						<svg class="h-3.5 w-3.5 text-brand-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
 						</svg>
-						<span class="text-xs font-bold text-warm-800 sm:text-[13px]">{view.name}</span>
+						<span class="text-xs font-bold text-warm-800 sm:text-sm">{view.name}</span>
 					</div>
 					<button onclick={() => { menuOpenId = null; }} class="rounded-lg p-1.5 text-warm-400 hover:bg-warm-100" aria-label="Close">
 						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

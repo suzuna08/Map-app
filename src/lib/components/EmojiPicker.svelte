@@ -144,7 +144,7 @@
 			type="text"
 			bind:value={search}
 			placeholder="Search emoji..."
-			class="w-full rounded-md border border-warm-200 bg-warm-50 py-1 pl-7 pr-2 text-[11px] font-medium text-warm-600 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20"
+			class="w-full rounded-md border border-warm-200 bg-warm-50 py-1 pl-7 pr-2 text-xs font-medium text-warm-600 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20"
 		/>
 	</div>
 
@@ -154,7 +154,7 @@
 			<button
 				type="button"
 				onclick={() => onSelect(null)}
-				class="shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium text-warm-400 transition-all {selected === null ? 'bg-warm-200 ring-1 ring-warm-400' : 'hover:bg-warm-100'}"
+				class="shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium text-warm-400 transition-all {selected === null ? 'bg-warm-200 ring-1 ring-warm-400' : 'hover:bg-warm-100'}"
 				aria-label="No icon"
 			>--</button>
 			<div class="mx-0.5 h-4 w-px bg-warm-200"></div>
@@ -183,14 +183,14 @@
 					>{emoji}</button>
 				{/each}
 				{#if filtered.length === 0}
-					<p class="py-3 text-center text-[11px] text-warm-400 w-full">No emoji found</p>
+					<p class="py-3 text-center text-xs text-warm-400 w-full">No emoji found</p>
 				{/if}
 			</div>
 		{:else}
 			<!-- Categorized view -->
 			{#each categories as cat, idx}
 				<div data-category-idx={idx} class="mb-1.5">
-					<p class="sticky top-0 z-[1] bg-white/95 py-0.5 text-[10px] font-bold text-warm-400 backdrop-blur-sm">{cat.name}</p>
+					<p class="sticky top-0 z-[1] bg-white/95 py-0.5 text-xs font-bold text-warm-400 backdrop-blur-sm">{cat.name}</p>
 					<div class="flex flex-wrap gap-0.5">
 						{#each cat.emojis as emoji}
 							<button

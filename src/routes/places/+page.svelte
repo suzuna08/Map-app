@@ -743,13 +743,13 @@
 								<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
 								<line x1="7" y1="7" x2="7.01" y2="7" />
 							</svg>
-							<span class="truncate text-[10px] font-medium text-brand-700 sm:text-xs">
+							<span class="truncate text-xs font-medium text-brand-700">
 								Adding into: <span class="font-bold">{selectedCustomTagNames.join(' + ')}</span>
 							</span>
 						</div>
 						<button
 							onclick={() => { autoApplyCurrentViewTags = !autoApplyCurrentViewTags; }}
-							class="flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold transition-colors sm:text-[11px]
+							class="flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold transition-colors
 								{autoApplyCurrentViewTags
 									? 'bg-brand-500 text-white'
 									: 'bg-warm-200 text-warm-500'}"
@@ -796,7 +796,7 @@
 			<!-- Reserved filter summary area (always present to prevent layout shift) -->
 			<div class="mb-1 flex min-h-[28px] flex-wrap items-center gap-1.5 sm:mb-3 sm:min-h-[32px] sm:gap-2">
 				{#if hasActiveFilters || selectedSource !== 'all'}
-				<span class="text-xs font-bold text-warm-400 sm:text-[13px]">Filtered by:</span>
+				<span class="text-xs font-bold text-warm-400 sm:text-sm">Filtered by:</span>
 				{#if activeSearchTerms.length > 0}
 					{#each activeSearchTerms as term, i (i)}
 						<button
@@ -804,7 +804,7 @@
 								const remaining = activeSearchTerms.filter((_, idx) => idx !== i);
 								search = remaining.join(', ');
 							}}
-							class="inline-flex items-center gap-1 rounded-full border border-warm-200 bg-warm-50 px-2 py-0.5 text-xs font-medium text-warm-600 transition-colors hover:bg-warm-100 sm:px-2.5 sm:text-[13px]"
+							class="inline-flex items-center gap-1 rounded-full border border-warm-200 bg-warm-50 px-2 py-0.5 text-xs font-medium text-warm-600 transition-colors hover:bg-warm-100 sm:px-2.5 sm:text-sm"
 						>
 							<svg class="h-2.5 w-2.5 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 								<circle cx="11" cy="11" r="8" />
@@ -819,7 +819,7 @@
 					{/each}
 				{/if}
 				{#if selectedCustomIds.length >= 2}
-					<div class="inline-flex overflow-hidden rounded-full border border-warm-200 text-[11px] font-bold sm:text-xs">
+					<div class="inline-flex overflow-hidden rounded-full border border-warm-200 text-xs font-bold">
 						<button
 							onclick={() => { filterMode = 'all'; }}
 							class="px-2 py-0.5 transition-colors {filterMode === 'all'
@@ -839,8 +839,8 @@
 					{#if tag}
 						<button
 							onclick={() => toggleTag(tagId)}
-							class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium sm:px-2.5 sm:text-[13px]"
-							style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
+						class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium sm:px-2.5 sm:text-sm"
+						style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
 						>
 							{tag.name}
 							<svg class="h-2 w-2 sm:h-2.5 sm:w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
@@ -853,7 +853,7 @@
 				{#if selectedSource !== 'all'}
 						<button
 							onclick={() => { selectedSource = 'all'; }}
-							class="inline-flex items-center gap-1 rounded-full bg-warm-200 px-2 py-0.5 text-xs font-medium text-warm-700 sm:px-2.5 sm:text-[13px]"
+							class="inline-flex items-center gap-1 rounded-full bg-warm-200 px-2 py-0.5 text-xs font-medium text-warm-700 sm:px-2.5 sm:text-sm"
 						>
 							{selectedSource}
 							<svg class="h-2 w-2 sm:h-2.5 sm:w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
@@ -864,15 +864,15 @@
 					{/if}
 					<button
 						onclick={clearAllFilters}
-						class="text-xs text-warm-400 hover:text-warm-600 sm:text-[13px]"
-					>
-						Clear
+					class="text-xs text-warm-400 hover:text-warm-600 sm:text-sm"
+				>
+					Clear
 					</button>
 					{#if viewIsDirty}
 						<span class="mx-0.5 text-warm-200">|</span>
 						<button
 							onclick={quickUpdateView}
-							class="inline-flex items-center gap-1 rounded-full border border-brand-300 bg-brand-50 px-2 py-0.5 text-xs font-bold text-brand-700 transition-colors hover:bg-brand-100 sm:px-2.5 sm:text-[13px]"
+							class="inline-flex items-center gap-1 rounded-full border border-brand-300 bg-brand-50 px-2 py-0.5 text-xs font-bold text-brand-700 transition-colors hover:bg-brand-100 sm:px-2.5 sm:text-sm"
 						>
 							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 								<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
@@ -882,9 +882,9 @@
 						</button>
 						<button
 							onclick={discardViewChanges}
-							class="text-xs text-warm-400 hover:text-warm-600 sm:text-[13px]"
-						>
-							Discard
+						class="text-xs text-warm-400 hover:text-warm-600 sm:text-sm"
+					>
+						Discard
 						</button>
 					{/if}
 				{/if}
@@ -899,7 +899,7 @@
 					<button
 						onclick={enrichBatch}
 						disabled={enriching}
-						class="rounded-md bg-amber-600 px-2.5 py-1 text-[10px] font-medium text-white hover:bg-amber-700 disabled:opacity-50 sm:rounded-lg sm:px-3 sm:py-1.5 sm:text-xs"
+						class="rounded-md bg-amber-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50 sm:rounded-lg sm:px-3 sm:py-1.5"
 					>
 						{enriching ? 'Fetching...' : 'Fetch Details'}
 					</button>
@@ -961,7 +961,7 @@
 			<!-- ======== DESKTOP tag filter (md+) ======== -->
 			<div class="relative z-10 mb-4 hidden space-y-1.5 md:block">
 				<div class="flex items-baseline gap-2.5">
-					<span class="w-16 shrink-0 text-[13px] font-bold text-warm-400">Custom</span>
+					<span class="w-16 shrink-0 text-sm font-bold text-warm-400">Custom</span>
 					<div
 						class="flex flex-wrap items-center gap-1.5"
 						use:sortable={{
@@ -977,9 +977,9 @@
 							<button
 								data-tag-id={tag.id}
 								onclick={() => toggleTag(tag.id)}
-								class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[13px] font-bold transition-all {isSelected
-									? 'shadow-sm ring-2 ring-offset-1'
-									: 'opacity-80 hover:opacity-100'}"
+							class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-sm font-bold transition-all {isSelected
+								? 'shadow-sm ring-2 ring-offset-1'
+								: 'opacity-80 hover:opacity-100'}"
 								style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}; {isSelected ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
 							>
 								{tag.name}
@@ -993,8 +993,8 @@
 						{/each}
 						<button
 							onclick={() => { showTagManager = true; }}
-							class="inline-flex items-center gap-1 rounded-full border border-dashed border-warm-300 px-2 py-0.5 text-[13px] text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
-							aria-label="Manage tags"
+						class="inline-flex items-center gap-1 rounded-full border border-dashed border-warm-300 px-2 py-0.5 text-sm text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
+						aria-label="Manage tags"
 						>
 							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 								<line x1="12" y1="5" x2="12" y2="19" />
@@ -1029,13 +1029,13 @@
 					<span class="flex-1 truncate text-xs font-bold text-brand-700 sm:text-sm">{activeCollectionName}</span>
 					<button
 						onclick={() => { showAddToCollection = true; }}
-						class="shrink-0 rounded-md bg-brand-500 px-2 py-0.5 text-[10px] font-bold text-white transition-colors hover:bg-brand-600 sm:text-xs"
+						class="shrink-0 rounded-md bg-brand-500 px-2 py-0.5 text-xs font-bold text-white transition-colors hover:bg-brand-600"
 					>
 						+ Add places
 					</button>
 					<button
 						onclick={() => { browseScope = { type: 'all' }; }}
-						class="shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold text-brand-500 transition-colors hover:bg-brand-100 sm:text-xs"
+						class="shrink-0 rounded-md px-2 py-0.5 text-xs font-bold text-brand-500 transition-colors hover:bg-brand-100"
 					>
 						Show all
 					</button>
@@ -1044,7 +1044,7 @@
 
 			<!-- Results count + search + sort + view toggle -->
 			<div class="mb-1.5 flex items-center gap-2 sm:mb-4 sm:gap-3">
-				<p class="shrink-0 text-xs font-semibold text-warm-500 sm:text-[13px]">{filteredPlaces.length} places</p>
+				<p class="shrink-0 text-xs font-semibold text-warm-500 sm:text-sm">{filteredPlaces.length} places</p>
 				<div class="relative min-w-0 flex-1">
 					<svg
 						class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-warm-400 sm:left-3 sm:h-4 sm:w-4"
@@ -1062,7 +1062,7 @@
 						bind:value={search}
 						onkeydown={handleSearchKeydown}
 						placeholder="Search..."
-						class="w-full rounded-lg border border-warm-200 bg-warm-50 py-1.5 pl-8 pr-8 text-xs font-medium shadow-sm transition-colors focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:rounded-xl sm:py-2 sm:pl-10 sm:pr-10 sm:text-[13px]"
+						class="w-full rounded-lg border border-warm-200 bg-warm-50 py-1.5 pl-8 pr-8 text-xs font-medium shadow-sm transition-colors focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:rounded-xl sm:py-2 sm:pl-10 sm:pr-10 sm:text-sm"
 					/>
 					{#if urlAdding}
 						<svg class="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-brand-500 sm:right-3 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none">
@@ -1070,7 +1070,7 @@
 							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
 						</svg>
 					{:else if detectedUrl}
-						<span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-medium text-brand-500 sm:right-3 sm:text-xs">Enter to add</span>
+						<span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-brand-500 sm:right-3">Enter to add</span>
 					{:else if search}
 						<button
 							onclick={() => { search = ''; searchInputEl?.focus(); }}
@@ -1087,7 +1087,7 @@
 				<div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
 					<select
 						bind:value={sortBy}
-						class="rounded-md border border-warm-200 bg-white px-1.5 py-1 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:rounded-lg sm:px-2.5 sm:py-1.5 sm:text-[13px]"
+						class="rounded-md border border-warm-200 bg-white px-1.5 py-1 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:rounded-lg sm:px-2.5 sm:py-1.5 sm:text-sm"
 					>
 						<option value="newest">Recent</option>
 						<option value="oldest">Oldest</option>
@@ -1142,11 +1142,11 @@
 						<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
 						<circle cx="12" cy="10" r="3" />
 					</svg>
-					<p class="mt-3 text-[15px] text-warm-500">
+					<p class="mt-3 text-base text-warm-500">
 						{places.length === 0 ? 'No places yet' : 'No places match your filters'}
 					</p>
 					{#if places.length === 0}
-						<a href="/upload" class="mt-2 inline-block text-[15px] text-brand-600 hover:text-brand-700">
+						<a href="/upload" class="mt-2 inline-block text-base text-brand-600 hover:text-brand-700">
 							Upload some CSV files to get started
 						</a>
 					{/if}
@@ -1239,7 +1239,7 @@
 							</svg>
 							<div class="min-w-0 flex-1">
 								<p class="truncate text-sm font-semibold text-warm-800">{p.title}</p>
-								<p class="truncate text-[11px] text-warm-400">{p.area ? `${p.area} · ` : ''}{p.category ?? ''}</p>
+								<p class="truncate text-xs text-warm-400">{p.area ? `${p.area} · ` : ''}{p.category ?? ''}</p>
 							</div>
 					{#if p.user_rating}
 							<span class="shrink-0 text-xs font-bold text-warm-500"><span class="text-brand-500">★</span> {p.user_rating.toFixed(1)}</span>
@@ -1315,7 +1315,7 @@
 					<div class="flex items-center gap-2">
 						{#if toast.title}
 							<span class="max-w-[200px] truncate text-xs font-bold sm:max-w-[280px] sm:text-sm">{toast.title}</span>
-							<span class="text-[10px] font-medium opacity-70 sm:text-xs">{toast.message}</span>
+							<span class="text-xs font-medium opacity-70">{toast.message}</span>
 						{:else}
 							<span class="text-xs font-medium sm:text-sm">{toast.message}</span>
 						{/if}
@@ -1324,7 +1324,7 @@
 							{#each toast.actions as action}
 								<button
 									onclick={() => { action.handler(); dismissToast(toast.id); }}
-									class="text-[10px] font-bold underline decoration-current/40 underline-offset-2 transition-colors hover:opacity-80 sm:text-xs"
+									class="text-xs font-bold underline decoration-current/40 underline-offset-2 transition-colors hover:opacity-80"
 								>
 									{action.label}
 								</button>

@@ -229,7 +229,7 @@
 					<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 						<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
 					</svg>
-					<span class="text-[10px] font-bold">Confirm?</span>
+					<span class="text-xs font-bold">Confirm?</span>
 				{:else}
 					<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -259,10 +259,10 @@
 						<polyline points="9 18 15 12 9 6" />
 					</svg>
 
-					<h3 class="min-w-0 flex-1 text-[15px] font-extrabold text-warm-800 {expanded ? '' : 'truncate'}">{place.title}</h3>
+					<h3 class="min-w-0 flex-1 text-base font-extrabold text-warm-800 {expanded ? '' : 'truncate'}">{place.title}</h3>
 
 					{#if selected && !expanded}
-						<span class="shrink-0 text-[9px] font-medium text-brand-400 animate-pulse">Tap to expand</span>
+						<span class="shrink-0 text-xs font-medium text-brand-400 animate-pulse">Tap to expand</span>
 					{/if}
 
 					<div class="w-14 shrink-0 text-right">
@@ -308,7 +308,7 @@
 						aria-hidden="true"
 					>
 						{#each userTags.slice(0, 3) as tag (tag.id)}
-							<span class="shrink-0 whitespace-nowrap rounded-full px-1.5 py-px text-[10px] font-semibold">{tag.name}</span>
+							<span class="shrink-0 whitespace-nowrap rounded-full px-1.5 py-px text-xs font-semibold">{tag.name}</span>
 						{/each}
 					</div>
 
@@ -319,15 +319,15 @@
 								<button
 									onclick={() => onTagClick(tag.id)}
 									oncontextmenu={(e) => { e.preventDefault(); e.stopPropagation(); onTagContextMenu?.(tag, e.clientX, e.clientY); }}
-								class="max-w-[72px] shrink-0 truncate rounded-full px-1.5 py-px text-[10px] font-semibold hover:opacity-80"
+								class="max-w-[72px] shrink-0 truncate rounded-full px-1.5 py-px text-xs font-semibold hover:opacity-80"
 								style="background-color: {tag.color ?? '#8a7e72'}; color: {textColorForBg(tag.color ?? '#8a7e72')}"
 								>{tag.name}</button>
 							{/each}
 							{#if mobileHiddenCount > 0}
-								<span class="shrink-0 text-[10px] font-bold text-warm-400">+{mobileHiddenCount}</span>
+								<span class="shrink-0 text-xs font-bold text-warm-400">+{mobileHiddenCount}</span>
 							{/if}
 						{:else}
-							<span class="text-[10px] text-warm-300">—</span>
+							<span class="text-xs text-warm-300">—</span>
 						{/if}
 					</div>
 				</div>
@@ -347,7 +347,7 @@
 			<polyline points="9 18 15 12 9 6" />
 		</svg>
 
-		<h3 class="min-w-0 flex-[2] truncate text-[15px] font-extrabold text-warm-800">{place.title}</h3>
+		<h3 class="min-w-0 flex-[2] truncate text-base font-extrabold text-warm-800">{place.title}</h3>
 
 		<div class="flex w-44 shrink-0 items-center gap-1 text-xs lg:w-52">
 			{#if place.area}
@@ -376,14 +376,14 @@
 				<button
 					onclick={() => onTagClick(firstTag.id)}
 					oncontextmenu={(e) => { e.preventDefault(); e.stopPropagation(); onTagContextMenu?.(firstTag, e.clientX, e.clientY); }}
-				class="max-w-[88px] truncate rounded-full px-2 py-0.5 text-[10px] font-semibold hover:opacity-80"
+				class="max-w-[88px] truncate rounded-full px-2 py-0.5 text-xs font-semibold hover:opacity-80"
 				style="background-color: {firstTag.color ?? '#8a7e72'}; color: {textColorForBg(firstTag.color ?? '#8a7e72')}"
 				>{firstTag.name}</button>
 				{#if extraCount > 0}
-					<span class="text-[10px] font-bold text-warm-400">+{extraCount}</span>
+					<span class="text-xs font-bold text-warm-400">+{extraCount}</span>
 				{/if}
 			{:else}
-				<span class="text-[10px] text-warm-300">—</span>
+				<span class="text-xs text-warm-300">—</span>
 			{/if}
 		</div>
 
@@ -425,9 +425,9 @@
 				{:else if confirmDelete}
 					<button
 						onclick={() => { onDelete(place.id); confirmDelete = false; }}
-						class="rounded px-1 py-0.5 text-[9px] font-bold text-danger-600 hover:bg-danger-50"
+						class="rounded px-1 py-0.5 text-xs font-bold text-danger-600 hover:bg-danger-50"
 					>Yes</button>
-					<button onclick={() => { confirmDelete = false; }} class="rounded px-0.5 py-0.5 text-[9px] text-warm-400 hover:text-warm-600">No</button>
+					<button onclick={() => { confirmDelete = false; }} class="rounded px-0.5 py-0.5 text-xs text-warm-400 hover:text-warm-600">No</button>
 				{:else}
 					<button
 						onclick={() => { confirmDelete = true; }}
@@ -450,11 +450,11 @@
 				<!-- Notes -->
 				<div class="flex-1">
 					<div class="mb-0.5 flex items-center gap-2">
-						<p class="text-[11px] font-bold uppercase tracking-wide text-warm-400">Notes</p>
+						<p class="text-xs font-bold uppercase tracking-wide text-warm-400">Notes</p>
 						{#if saving}
-							<span class="text-[9px] text-warm-400">Saving...</span>
+							<span class="text-xs text-warm-400">Saving...</span>
 						{:else if saved}
-							<span class="text-[9px] text-sage-600">Saved</span>
+							<span class="text-xs text-sage-600">Saved</span>
 						{/if}
 					</div>
 					<textarea
@@ -463,13 +463,13 @@
 						onclick={(e) => e.stopPropagation()}
 						placeholder="Add a note..."
 						rows="2"
-						class="w-full resize-none rounded-lg border border-warm-200 bg-white px-2.5 py-1.5 text-[13px] leading-relaxed text-warm-700 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/30"
+						class="w-full resize-none rounded-lg border border-warm-200 bg-white px-2.5 py-1.5 text-sm leading-relaxed text-warm-700 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/30"
 					></textarea>
 				</div>
 
 				<!-- Tags -->
 				<div class="flex-1">
-					<p class="mb-1 text-[11px] font-bold uppercase tracking-wide text-warm-400">Tags</p>
+					<p class="mb-1 text-xs font-bold uppercase tracking-wide text-warm-400">Tags</p>
 					<TagInput
 						{supabase}
 						placeId={place.id}

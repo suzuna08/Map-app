@@ -151,13 +151,13 @@
 			oninput={() => { showSuggestions = true; }}
 			onkeydown={handleKeydown}
 			placeholder="Tag name..."
-			class="w-24 rounded-full border border-brand-300 bg-white px-2.5 py-0.5 text-xs font-medium text-warm-700 placeholder-warm-400 shadow-sm focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/30 sm:w-28 {compact ? 'py-0.5 text-[11px]' : 'py-1 text-xs'}"
+			class="w-24 rounded-full border border-brand-300 bg-white px-2.5 py-0.5 text-xs font-medium text-warm-700 placeholder-warm-400 shadow-sm focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/30 sm:w-28 {compact ? 'py-0.5 text-xs' : 'py-1 text-xs'}"
 		/>
 	</div>
 {:else}
 	<button
 		onclick={openInput}
-		class="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-warm-300 text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600 {compact ? 'px-2 py-0.5 text-[11px]' : 'px-2 py-1 text-[10px]'}"
+		class="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-warm-300 text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600 {compact ? 'px-2 py-0.5 text-xs' : 'px-2 py-1 text-xs'}"
 		aria-label="Add tag"
 	>
 		<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
