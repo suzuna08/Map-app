@@ -139,7 +139,7 @@ A seventh migration file, `add_intel_tag_system.sql`, creates three tables for t
 
 An eighth migration file, `add_user_rating.sql`, adds `user_rating` (numeric(2,1)) and `user_rated_at` (timestamptz) columns to `places` with a CHECK constraint enforcing 0.5–5.0 half-star values.
 
-A ninth migration file, `fix_rls_data_isolation.sql`, enables RLS on the `tags` and `place_tags` tables (which were previously missing it) and creates full CRUD policies scoped to the owning user. Additional read-only policies allow anonymous SELECT on tags and place_tags for places that belong to a `link_access` collection, enabling shared collection pages to display tags.
+A ninth migration file, `fix_rls_data_isolation.sql`, enables RLS on the `tags` and `place_tags` tables (which were previously missing it) and creates full CRUD policies scoped to the owning user. Additional read-only policies allow anonymous SELECT on tags and place_tags for places that belong to a `link_access` collection (currently unused by the public share page, but available for future tag display).
 
 A tenth migration file, `add_emoji_column.sql`, adds an optional `emoji` text column to the `lists` table. It stores a single emoji character (e.g. a food emoji) as the collection icon; `NULL` means no emoji is set and the UI falls back to the default color-circle icon.
 
@@ -423,7 +423,7 @@ Clip path IDs are scoped per star index (`star-left-0`, `star-right-0`, etc.) to
 - **PlaceCard** and **PlaceListItem**: Both components accept an `onRatingChanged?: (placeId: string, rating: number | null) => void` prop. The `RatingDisplay` is placed in the same visual position as the former Google rating — top-right of the header row on cards, inline in the data row on list items.
 - **MapView popup**: Shows `My rating: 4.5 ★` as display-only text. No editor inside the popup to keep it lightweight.
 - **Sorting**: The `rating` sort option now sorts by `user_rating` (descending, nulls last) and the dropdown label reads "My Rating".
-- **Collection pages**: Both `/collections/[id]` and `/c/[slug]` use `user_rating` for display and sorting. The public share page shows the owner's personal rating read-only.
+- **Collection pages**: `/collections/[id]` uses `user_rating` for display and sorting. The public share page (`/c/[slug]`) shows the owner's personal rating read-only (no sort controls).
 - **Server queries**: All `+page.server.ts` files and the `PLACES_COLUMNS` constant in `places.svelte.ts` include `user_rating` and `user_rated_at` in their SELECT lists.
 
 ### Click Isolation
@@ -549,7 +549,7 @@ The collections index page (`/collections`) includes a one-time client-side colo
 - "+ Add Places" modal with search over all user places not in the collection
 - Share toggle (private ↔ link_access) with copy-link button
 
-**`/c/[slug]`** — Public read-only share page. Accessed without authentication. Shows a clean layout with the collection name, description, place count, and all places in grid or list view. Each place shows category, area, user rating, user tags (colored pills), and links to Google Maps/website. Search includes tag name matching. No editing capabilities. The server load function (`c/[slug]/+page.server.ts`) uses a single deep nested join (`list_places(place_id, places(...))`) to fetch the collection and all its place data in one query. Tags and place_tags for display are fetched from the user's data.
+**`/c/[slug]`** — Public read-only share page. Accessed without authentication. Shows a clean layout with the collection name, description, and all places in grid or list view. Each place shows category, area, price level, the owner's personal rating, note preview, and a link to Google Maps. Search filters by title, address, category, and area. No tag display or editing capabilities. The server load function (`c/[slug]/+page.server.ts`) uses a single deep nested join (`list_places(place_id, places(...))`) to fetch the collection and all its place data in one query — no tags or place_tags are fetched.
 
 ### Store Architecture
 

@@ -27,12 +27,16 @@ Detailed documentation of MapOrganizer's visual design system, page layouts, com
 
 **Primary font**: Nunito (Google Fonts), weights 400–800. Loaded via `<link>` tags in the root layout with `display=swap` for fast text rendering. Registered as `--font-sans` in the Tailwind theme.
 
-**Scale**:
+**Scale** (standard Tailwind classes only — no arbitrary values):
+- Hero title: `text-4xl`, `font-bold`
 - Page titles: `text-xl`/`text-2xl`, `font-extrabold`
 - Section headings: `text-base`/`text-lg`, `font-extrabold`
-- Body text: `text-sm`/`text-[13px]`, `font-medium`
-- Captions & metadata: `text-xs`/`text-[11px]`, `font-medium` or `font-bold`
-- Micro labels: `text-[10px]`/`text-[9px]`, `font-bold`
+- Card titles: mobile `text-base`, desktop `text-lg`, `font-extrabold`
+- Body text / notes: `text-sm`, `font-medium`
+- Captions, metadata, micro labels: `text-xs`, `font-medium` or `font-bold`
+
+Mobile (< sm) uses `text-xs` → `text-sm` → `text-base` for a clear 3-level hierarchy.
+Desktop (sm+) adds `text-lg`, `text-xl`, `text-2xl` via responsive prefixes.
 
 ### Color Palettes
 
@@ -152,7 +156,7 @@ A single `AddPlaceModal` instance lives in the root layout, triggered by the nav
 - **Paste URL**: Text input with loading/success/error state machine
 - **Upload CSV**: Link to the `/upload` page
 
-The modal uses a dark backdrop (`bg-warm-900/40 backdrop-blur-sm`) and appears as a centered card on desktop, bottom-sheet on mobile.
+The modal uses a dark backdrop (`bg-black/40 backdrop-blur-sm`) and appears near the top of the viewport (`pt-[12vh]`), centered horizontally.
 
 ---
 
@@ -360,31 +364,30 @@ Bottom-sheet on mobile, centered on desktop:
 
 **Route**: `/c/[slug]`
 
-Read-only page accessible without authentication. Centered layout (`max-w-3xl`):
+Read-only page accessible without authentication. Sticky top panel layout (`max-w-4xl`):
 
 ### Header
-- Centered emoji/color circle (larger: `h-11 w-11`/`h-14 w-14`)
-- Collection name in `text-xl`/`text-2xl font-extrabold`
-- Optional description
-- Place count pill
+- Left-aligned `CollectionAvatar` (lg size: `h-8 w-8`/`sm:h-9 sm:w-9`) alongside collection name and description inline
+- Collection name in `text-base`/`sm:text-lg font-extrabold`
+- Optional description below name (`text-xs`/`sm:text-sm text-warm-400`)
 
 ### Collapsible Map
 Same toggle pattern as collection detail — expandable MapView with place markers. Height: 180px mobile, 220px desktop.
 
 ### Controls
-- Search input (searches title, address, category, area, tag names)
+- Search input (searches title, address, category, area)
 - Grid/list view toggle
+- Place count shown in controls bar
 
 ### Place Cards (Grid)
 Simplified read-only cards:
 - Category pill (`bg-warm-200`), area pill (`bg-sage-200`), price level
 - Rating display (owner's personal rating, display-only)
-- Title, note/description preview (2-line clamp)
-- User tag pills (colored, filtered to `source === 'user'`)
-- Footer: "Maps" and "Website" external links
+- Title, note preview (2-line clamp, italic `text-brand-500`)
+- Footer: "Maps" external link (no Website link)
 
 ### Place List (List)
-Compact rows with title, area/category, tag preview (max 2 user tags + "+N" overflow count), rating, Maps link.
+Compact rows with title, area/category metadata, rating, Maps link.
 
 ### Footer
 "Shared via MapOrganizer" branding with link to home page.
@@ -502,8 +505,8 @@ Collection picker modal supporting single-place and batch modes:
 
 Ringed circle avatar for collections:
 - Displays emoji character or accent-color dot
-- 5 size variants: `xs` (20×20), `sm` (24×24), `md` (32×32), `lg` (40×40), `xl` (56×56)
-- Ring border in `warm-200`; emoji centered within ring; color dot fills the circle interior
+- 5 size variants: `xs` (28×28), `sm` (36×36), `md` (40×40), `lg` (32×32 → sm:36×36, responsive), `xl` (44×44 → sm:56×56, responsive)
+- Ring border via inset `box-shadow` in accent color; emoji centered within ring; color dot fills the circle interior
 - Used in collection cards, `AddToCollectionModal`, and collection detail headers
 
 ### EmojiPicker
