@@ -27,7 +27,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	if (placeIds.length > 0) {
 		const { data } = await supabase
 			.from('places')
-			.select('id, title, note, url, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, user_rating')
+			.select('id, title, note, url, category, primary_type, rating, rating_count, price_level, address, area, lat, lng, phone, user_rating')
 			.in('id', placeIds);
 		places = data ?? [];
 	}

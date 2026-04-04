@@ -196,17 +196,13 @@
 
 					<h3 class="mb-1 line-clamp-1 text-sm font-extrabold leading-snug text-warm-800 sm:text-lg">{place.title}</h3>
 
-					<div class="min-h-0 flex-1">
-						{#if place.note?.trim()}
-							<p class="line-clamp-2 text-xs font-medium italic leading-[1.4em] text-brand-500 sm:text-[13px]">
-								{place.note.trim()}
-							</p>
-						{:else if place.description}
-							<p class="line-clamp-2 text-xs text-warm-400 sm:text-[13px]">{place.description}</p>
-						{/if}
-					</div>
+					{#if place.note?.trim()}
+						<p class="line-clamp-2 text-xs font-medium italic leading-[1.4em] text-brand-500 sm:text-[13px]">
+							{place.note.trim()}
+						</p>
+					{/if}
 
-					<div class="mt-auto flex items-center gap-1 border-t border-warm-100 pt-2 sm:pt-2.5">
+					<div class="mt-auto flex items-center gap-1 pt-2 sm:pt-2.5">
 						{#if place.url}
 							<a
 								href={place.url}
@@ -218,19 +214,6 @@
 									<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
 								</svg>
 								Maps
-							</a>
-						{/if}
-						{#if place.website}
-							<a
-								href={place.website}
-								target="_blank"
-								class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
-								onclick={(e) => e.stopPropagation()}
-							>
-								<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-									<circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-								</svg>
-								Website
 							</a>
 						{/if}
 					</div>
