@@ -709,266 +709,303 @@
 	});
 </script>
 
-<div class="min-h-[calc(100dvh-3rem)] sm:min-h-[calc(100dvh-3.5rem)]">
-	<!-- Split layout: content + map -->
-	<div class={isMobile
-		? 'flex h-[calc(100dvh-3rem)] flex-col overflow-hidden sm:h-[calc(100dvh-3.5rem)]'
-		: 'flex flex-col lg:flex-row'}>
-
-		{#if isMobile}
-			<MobileMapShell
-				places={filteredPlaces}
-				{selectedPlaceId}
-				onPlaceSelect={handleMapPlaceSelect}
-				maptilerKey={data.maptilerKey}
-			/>
-		{:else}
-			<!-- Map panel: top on mobile, sticky right on desktop -->
-			<div class="relative z-0 h-[35vh] shrink-0 border-b border-warm-200 sm:h-[38vh] lg:order-2 lg:sticky lg:top-14 lg:h-[calc(100dvh-3.5rem)] lg:w-[42%] lg:self-start lg:border-b-0 lg:border-l">
-				<MapView places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} maptilerKey={data.maptilerKey} />
-			</div>
-		{/if}
-
-		<!-- Content panel -->
-		<div class={isMobile
-			? 'flex-1 min-h-0 overflow-y-auto'
-			: 'min-w-0 flex-1 lg:order-1'}>
-		<div class="mx-auto px-2.5 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 lg:px-4">
-			<!-- Contextual capture banner (sticky when URL detected) -->
-			{#if hasCustomContext && (detectedUrl || urlAdding)}
-			<div class="sticky {isMobile ? 'top-0' : 'top-12'} z-20 -mx-2.5 mb-1 bg-sage-100 px-2.5 py-1.5 sm:static sm:top-14 sm:mx-0 sm:mb-2 sm:bg-transparent sm:px-0 sm:py-0">
-					<div class="flex items-center gap-2 rounded-lg border border-brand-200/60 bg-brand-50/80 px-2.5 py-1.5 sm:px-3 sm:py-2">
-						<div class="flex min-w-0 flex-1 items-center gap-1.5">
-							<svg class="h-3 w-3 shrink-0 text-brand-500 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
-								<line x1="7" y1="7" x2="7.01" y2="7" />
-							</svg>
-							<span class="truncate text-xs font-medium text-brand-700">
-								Adding into: <span class="font-bold">{selectedCustomTagNames.join(' + ')}</span>
-							</span>
-						</div>
-						<button
-							onclick={() => { autoApplyCurrentViewTags = !autoApplyCurrentViewTags; }}
-							class="flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold transition-colors
-								{autoApplyCurrentViewTags
-									? 'bg-brand-500 text-white'
-									: 'bg-warm-200 text-warm-500'}"
-							aria-label="Toggle auto-apply current view tags"
+{#snippet placesSearchBlock()}
+				<!-- Search (top) -->
+				<div class="mb-3 sm:mb-4">
+					<div class="relative">
+						<svg
+							class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-warm-400 sm:left-4 sm:h-[1.125rem] sm:w-[1.125rem]"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
 						>
-							{#if autoApplyCurrentViewTags}
-								<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-									<rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-									<path d="M7 11V7a5 5 0 0 1 10 0v4" />
-								</svg>
-								Auto-tag ON
-							{:else}
-								<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-									<rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-									<path d="M7 11V7a5 5 0 0 1 9.9-1" />
-								</svg>
-								Auto-tag OFF
-							{/if}
-						</button>
-					</div>
-			</div>
-			{/if}
-
-			<!-- Saved Views bar -->
-			<SavedViewsBar
-				{supabase}
-				userId={session?.user?.id ?? ''}
-				{savedViews}
-				{activeSavedViewId}
-				{viewIsDirty}
-				{selectedCustomIds}
-				{filterMode}
-				{selectedSource}
-				{sortBy}
-				{viewMode}
-				{search}
-				onApply={applySavedView}
-				onViewsChanged={refreshSavedViews}
-				onQuickUpdate={quickUpdateView}
-				onCreateCollection={createCollectionFromView}
-				onAddToCollection={addToCollectionFromView}
-			/>
-
-			<!-- Reserved filter summary area (always present to prevent layout shift) -->
-			<div class="mb-1 flex min-h-[28px] flex-wrap items-center gap-1.5 sm:mb-3 sm:min-h-[32px] sm:gap-2">
-				{#if hasActiveFilters || selectedSource !== 'all'}
-				<span class="text-xs font-bold text-warm-400 sm:text-sm">Filtered by:</span>
-				{#if activeSearchTerms.length > 0}
-					{#each activeSearchTerms as term, i (i)}
-						<button
-							onclick={() => {
-								const remaining = activeSearchTerms.filter((_, idx) => idx !== i);
-								search = remaining.join(', ');
-							}}
-							class="inline-flex items-center gap-1 rounded-full border border-warm-200 bg-warm-50 px-2 py-0.5 text-xs font-medium text-warm-600 transition-colors hover:bg-warm-100 sm:px-2.5 sm:text-sm"
-						>
-							<svg class="h-2.5 w-2.5 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-								<circle cx="11" cy="11" r="8" />
-								<line x1="21" y1="21" x2="16.65" y2="16.65" />
+							<circle cx="11" cy="11" r="8" />
+							<line x1="21" y1="21" x2="16.65" y2="16.65" />
+						</svg>
+						<input
+							bind:this={searchInputEl}
+							type="text"
+							bind:value={search}
+							onkeydown={handleSearchKeydown}
+							placeholder="Search places, tags, areas, or paste a link..."
+							class="w-full rounded-full border border-warm-200/90 bg-warm-50 py-2.5 pl-10 pr-9 text-sm font-medium text-warm-800 shadow-sm transition-colors placeholder:text-warm-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:py-3 sm:pl-11 sm:pr-11 sm:text-[15px]"
+						/>
+						{#if urlAdding}
+							<svg class="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-brand-500 sm:right-4" viewBox="0 0 24 24" fill="none">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
 							</svg>
-							{term}
-							<svg class="h-2 w-2 sm:h-2.5 sm:w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-								<line x1="18" y1="6" x2="6" y2="18" />
-								<line x1="6" y1="6" x2="18" y2="18" />
-							</svg>
-						</button>
-					{/each}
-				{/if}
-				{#if selectedCustomIds.length >= 2}
-					<div class="inline-flex overflow-hidden rounded-full border border-warm-200 text-xs font-bold">
-						<button
-							onclick={() => { filterMode = 'all'; }}
-							class="px-2 py-0.5 transition-colors {filterMode === 'all'
-								? 'bg-warm-700 text-white'
-								: 'bg-white text-warm-400 hover:bg-warm-50 hover:text-warm-600'}"
-						>and</button>
-						<button
-							onclick={() => { filterMode = 'any'; }}
-							class="px-2 py-0.5 transition-colors {filterMode === 'any'
-								? 'bg-warm-700 text-white'
-								: 'bg-white text-warm-400 hover:bg-warm-50 hover:text-warm-600'}"
-						>or</button>
-					</div>
-				{/if}
-				{#each selectedCustomIds as tagId (tagId)}
-					{@const tag = allTags.find((t) => t.id === tagId)}
-					{#if tag}
-						<button
-							onclick={() => toggleTag(tagId)}
-						class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium sm:px-2.5 sm:text-sm"
-						style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
-						>
-							{tag.name}
-							<svg class="h-2 w-2 sm:h-2.5 sm:w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-								<line x1="18" y1="6" x2="6" y2="18" />
-								<line x1="6" y1="6" x2="18" y2="18" />
-							</svg>
-						</button>
-					{/if}
-				{/each}
-				{#if selectedSource !== 'all'}
-						<button
-							onclick={() => { selectedSource = 'all'; }}
-							class="inline-flex items-center gap-1 rounded-full bg-warm-200 px-2 py-0.5 text-xs font-medium text-warm-700 sm:px-2.5 sm:text-sm"
-						>
-							{selectedSource}
-							<svg class="h-2 w-2 sm:h-2.5 sm:w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-								<line x1="18" y1="6" x2="6" y2="18" />
-								<line x1="6" y1="6" x2="18" y2="18" />
-							</svg>
-						</button>
-					{/if}
-					<button
-						onclick={clearAllFilters}
-					class="text-xs text-warm-400 hover:text-warm-600 sm:text-sm"
-				>
-					Clear
-					</button>
-					{#if viewIsDirty}
-						<span class="mx-0.5 text-warm-200">|</span>
-						<button
-							onclick={quickUpdateView}
-							class="inline-flex items-center gap-1 rounded-full border border-brand-300 bg-brand-50 px-2 py-0.5 text-xs font-bold text-brand-700 transition-colors hover:bg-brand-100 sm:px-2.5 sm:text-sm"
-						>
-							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-								<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-								<polyline points="22 4 12 14.01 9 11.01" />
-							</svg>
-							Update View
-						</button>
-						<button
-							onclick={discardViewChanges}
-						class="text-xs text-warm-400 hover:text-warm-600 sm:text-sm"
-					>
-						Discard
-						</button>
-					{/if}
-				{/if}
-			</div>
-
-			<!-- Enrich banner -->
-			{#if unenrichedCount > 0}
-				<div class="mb-1.5 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 sm:mb-4 sm:rounded-xl sm:p-3">
-					<span class="text-xs text-amber-700 sm:text-sm">
-						{unenrichedCount} missing details
-					</span>
-					<button
-						onclick={enrichBatch}
-						disabled={enriching}
-						class="rounded-md bg-amber-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50 sm:rounded-lg sm:px-3 sm:py-1.5"
-					>
-						{enriching ? 'Fetching...' : 'Fetch Details'}
-					</button>
-				</div>
-			{/if}
-
-			{#if enrichResult}
-				<div class="mb-1.5 rounded-lg bg-sage-50 p-2 text-xs text-sage-700 sm:mb-4 sm:rounded-xl sm:p-3 sm:text-sm">
-					Fetched details for {enrichResult.enriched} of {enrichResult.total} places.
-				</div>
-			{/if}
-
-			<!-- ======== MOBILE tag filter (< md) ======== -->
-			<div class="mb-1.5 md:hidden">
-				<div
-					class="flex items-center gap-1.5 overflow-x-auto py-0.5 pr-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-					use:sortable={{
-						onReorder: handleTagReorder,
-						itemSelector: '[data-tag-id]',
-						idAttribute: 'data-tag-id',
-						longPressMs: 500,
-						disabled: false
-					}}
-				>
-					{#each userTags as tag (tag.id)}
-						{@const isSelected = selectedTagIds.includes(tag.id)}
-						<button
-							data-tag-id={tag.id}
-							onclick={() => toggleTag(tag.id)}
-							class="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold transition-all {isSelected ? 'shadow-sm ring-2 ring-offset-1' : 'opacity-80'}"
-							style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}; {isSelected ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
-						>
-							{tag.name}
-							{#if isSelected}
-								<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+						{:else if detectedUrl}
+							<span class="pointer-events-none absolute right-3 top-1/2 max-w-[38%] -translate-y-1/2 truncate text-right text-[10px] font-semibold text-brand-600 sm:right-4 sm:max-w-[45%] sm:text-xs">Enter to add</span>
+						{:else if search}
+							<button
+								onclick={() => { search = ''; searchInputEl?.focus(); }}
+								class="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600 sm:right-2.5"
+								aria-label="Clear search"
+							>
+								<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 									<line x1="18" y1="6" x2="6" y2="18" />
 									<line x1="6" y1="6" x2="18" y2="18" />
 								</svg>
+							</button>
+						{/if}
+					</div>
+				</div>
+
+{/snippet}
+
+{#snippet placesContextualBlock()}
+				<!-- Contextual capture banner (sticky when URL detected) -->
+				{#if hasCustomContext && (detectedUrl || urlAdding)}
+				<div class="sticky top-0 z-20 -mx-2.5 mb-1 bg-sage-100 px-2.5 py-1.5 max-lg:relative max-lg:top-auto max-lg:z-10 max-lg:mx-0 max-lg:mb-2 max-lg:bg-transparent max-lg:px-0 sm:static sm:mx-0 sm:mb-2 sm:bg-transparent sm:px-0 sm:py-0">
+						<div class="flex items-center gap-2 rounded-lg border border-brand-200/60 bg-brand-50/80 px-2.5 py-1.5 sm:px-3 sm:py-2">
+							<div class="flex min-w-0 flex-1 items-center gap-1.5">
+								<svg class="h-3 w-3 shrink-0 text-brand-500 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+									<line x1="7" y1="7" x2="7.01" y2="7" />
+								</svg>
+								<span class="truncate text-xs font-medium text-brand-700">
+									Adding into: <span class="font-bold">{selectedCustomTagNames.join(' + ')}</span>
+								</span>
+							</div>
+							<button
+								onclick={() => { autoApplyCurrentViewTags = !autoApplyCurrentViewTags; }}
+								class="flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold transition-colors
+									{autoApplyCurrentViewTags
+										? 'bg-brand-500 text-white'
+										: 'bg-warm-200 text-warm-500'}"
+								aria-label="Toggle auto-apply current view tags"
+							>
+								{#if autoApplyCurrentViewTags}
+									<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+										<rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+										<path d="M7 11V7a5 5 0 0 1 10 0v4" />
+									</svg>
+									Auto-tag ON
+								{:else}
+									<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+										<rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+										<path d="M7 11V7a5 5 0 0 1 9.9-1" />
+									</svg>
+									Auto-tag OFF
+								{/if}
+							</button>
+						</div>
+				</div>
+				{/if}
+{/snippet}
+
+{#snippet placesSavedViewsBlock()}
+				<!-- Saved Views bar -->
+				<SavedViewsBar
+					{supabase}
+					userId={session?.user?.id ?? ''}
+					{savedViews}
+					{activeSavedViewId}
+					{viewIsDirty}
+					{selectedCustomIds}
+					{filterMode}
+					{selectedSource}
+					{sortBy}
+					{viewMode}
+					{search}
+					onApply={applySavedView}
+					onViewsChanged={refreshSavedViews}
+					onQuickUpdate={quickUpdateView}
+					onCreateCollection={createCollectionFromView}
+					onAddToCollection={addToCollectionFromView}
+				/>
+{/snippet}
+
+{#snippet placesFiltersAndListBlock()}
+				<!-- Reserved filter summary area (always present to prevent layout shift) -->
+				<div class="mb-1 min-h-[28px] sm:mb-3 sm:min-h-[32px]">
+					{#if hasActiveFilters || selectedSource !== 'all' || (activeSavedViewId && viewIsDirty)}
+						{@const showChipsRow = hasActiveFilters || selectedSource !== 'all'}
+						{@const isEditingSavedView = !!(activeSavedViewId && viewIsDirty)}
+						<div
+							class="flex flex-col gap-1 sm:gap-1.5 {isEditingSavedView
+								? 'rounded-lg border border-brand-200/50 bg-brand-50/70 px-2 py-1.5 sm:px-2.5 sm:py-2'
+								: ''}"
+						>
+							{#if showChipsRow}
+								<div class="flex min-w-0 items-center gap-2">
+									<div
+										class="-mx-0.5 flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto px-0.5 py-0.5 [scrollbar-width:none] sm:mx-0 sm:px-0 md:flex-wrap md:overflow-x-visible [&::-webkit-scrollbar]:hidden"
+									>
+										{#if isEditingSavedView}
+											<span
+												class="mr-0.5 shrink-0 whitespace-nowrap text-[10px] font-semibold leading-tight text-brand-600 sm:mr-1 sm:text-xs"
+											>
+												Editing<span class="hidden sm:inline">{' view'}</span>
+											</span>
+										{/if}
+										<span class="shrink-0 text-xs font-bold text-warm-400 sm:text-sm">Filtered by:</span>
+										{#if activeSearchTerms.length > 0}
+											{#each activeSearchTerms as term, i (i)}
+												<button
+													onclick={() => {
+														const remaining = activeSearchTerms.filter((_, idx) => idx !== i);
+														search = remaining.join(', ');
+													}}
+													class="inline-flex shrink-0 items-center gap-1 rounded-full border border-warm-200 bg-warm-50 px-2 py-0.5 text-xs font-medium text-warm-600 transition-colors hover:bg-warm-100 sm:px-2.5 sm:text-sm"
+												>
+													<svg class="h-2.5 w-2.5 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+														<circle cx="11" cy="11" r="8" />
+														<line x1="21" y1="21" x2="16.65" y2="16.65" />
+													</svg>
+													{term}
+													<svg class="h-2 w-2 sm:h-2.5 sm:w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+														<line x1="18" y1="6" x2="6" y2="18" />
+														<line x1="6" y1="6" x2="18" y2="18" />
+													</svg>
+												</button>
+											{/each}
+										{/if}
+										{#if selectedCustomIds.length >= 2}
+											<div class="inline-flex shrink-0 overflow-hidden rounded-full border border-warm-200 text-xs font-bold">
+												<button
+													onclick={() => { filterMode = 'all'; }}
+													class="px-2 py-0.5 transition-colors {filterMode === 'all'
+														? 'bg-warm-700 text-white'
+														: 'bg-white text-warm-400 hover:bg-warm-50 hover:text-warm-600'}"
+												>and</button>
+												<button
+													onclick={() => { filterMode = 'any'; }}
+													class="px-2 py-0.5 transition-colors {filterMode === 'any'
+														? 'bg-warm-700 text-white'
+														: 'bg-white text-warm-400 hover:bg-warm-50 hover:text-warm-600'}"
+												>or</button>
+											</div>
+										{/if}
+										{#each selectedCustomIds as tagId (tagId)}
+											{@const tag = allTags.find((t) => t.id === tagId)}
+											{#if tag}
+												<button
+													onclick={() => toggleTag(tagId)}
+													class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium sm:px-2.5 sm:text-sm"
+													style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
+												>
+													{tag.name}
+													<svg class="h-2 w-2 sm:h-2.5 sm:w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+														<line x1="18" y1="6" x2="6" y2="18" />
+														<line x1="6" y1="6" x2="18" y2="18" />
+													</svg>
+												</button>
+											{/if}
+										{/each}
+										{#if selectedSource !== 'all'}
+											<button
+												onclick={() => { selectedSource = 'all'; }}
+												class="inline-flex shrink-0 items-center gap-1 rounded-full bg-warm-200 px-2 py-0.5 text-xs font-medium text-warm-700 sm:px-2.5 sm:text-sm"
+											>
+												{selectedSource}
+												<svg class="h-2 w-2 sm:h-2.5 sm:w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+													<line x1="18" y1="6" x2="6" y2="18" />
+													<line x1="6" y1="6" x2="18" y2="18" />
+												</svg>
+											</button>
+										{/if}
+									</div>
+									<div
+										class="flex shrink-0 items-center py-0.5 {isEditingSavedView
+											? 'gap-2 pl-2 sm:gap-2.5 sm:pl-2.5'
+											: 'gap-1.5 border-l border-warm-200/70 pl-2 sm:gap-2 sm:pl-2.5'}"
+									>
+										{#if isEditingSavedView}
+											<div class="flex items-center gap-2 sm:gap-2.5" role="group" aria-label="Save or cancel view edits">
+												<button
+													type="button"
+													onclick={discardViewChanges}
+													class="whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-semibold text-warm-500 transition-colors hover:bg-warm-100/80 hover:text-warm-800 sm:text-sm"
+												>
+													Cancel
+												</button>
+												<button
+													type="button"
+													onclick={quickUpdateView}
+													class="inline-flex shrink-0 items-center rounded-full bg-brand-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm transition-colors hover:bg-brand-700 sm:px-3 sm:text-sm"
+												>
+													Save
+												</button>
+											</div>
+										{:else}
+											<button
+												type="button"
+												onclick={clearAllFilters}
+												class="whitespace-nowrap text-xs font-medium text-warm-400 transition-colors hover:text-warm-600 sm:text-sm"
+												aria-label="Clear all filters"
+											>
+												Clear
+											</button>
+										{/if}
+									</div>
+								</div>
+							{:else if isEditingSavedView}
+								<div class="flex min-w-0 items-center gap-2 sm:gap-3">
+									<p
+										class="min-w-0 flex-1 truncate text-[10px] font-semibold leading-tight text-brand-600 sm:text-xs"
+									>
+										Editing<span class="hidden sm:inline">{' view'}</span>
+									</p>
+									<div
+										class="flex shrink-0 items-center gap-2 sm:gap-2.5"
+										role="group"
+										aria-label="Save or cancel view edits"
+									>
+										<button
+											type="button"
+											onclick={discardViewChanges}
+											class="whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-semibold text-warm-500 transition-colors hover:bg-warm-100/80 hover:text-warm-800 sm:text-sm"
+										>
+											Cancel
+										</button>
+										<button
+											type="button"
+											onclick={quickUpdateView}
+											class="inline-flex shrink-0 items-center rounded-full bg-brand-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm transition-colors hover:bg-brand-700 sm:px-3 sm:text-sm"
+										>
+											Save
+										</button>
+									</div>
+								</div>
 							{/if}
-						</button>
-					{/each}
-					<button
-						onclick={() => { showTagManager = true; }}
-						class="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-warm-300 px-2 py-1 text-xs text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
-						aria-label="Manage tags"
-					>
-						<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<line x1="12" y1="5" x2="12" y2="19" />
-							<line x1="5" y1="12" x2="19" y2="12" />
-						</svg>
-						Manage
-					</button>
-					{#if userTags.length === 0}
-						<span class="text-xs text-warm-400">No custom tags yet</span>
+						</div>
 					{/if}
 				</div>
-			</div>
 
-			<!-- ======== DESKTOP tag filter (md+) ======== -->
-			<div class="relative z-10 mb-4 hidden space-y-1.5 md:block">
-				<div class="flex items-baseline gap-2.5">
-					<span class="w-16 shrink-0 text-sm font-bold text-warm-400">Custom</span>
+				<!-- Enrich banner -->
+				{#if unenrichedCount > 0}
+					<div class="mb-1.5 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 sm:mb-4 sm:rounded-xl sm:p-3">
+						<span class="text-xs text-amber-700 sm:text-sm">
+							{unenrichedCount} missing details
+						</span>
+						<button
+							onclick={enrichBatch}
+							disabled={enriching}
+							class="rounded-md bg-amber-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50 sm:rounded-lg sm:px-3 sm:py-1.5"
+						>
+							{enriching ? 'Fetching...' : 'Fetch Details'}
+						</button>
+					</div>
+				{/if}
+
+				{#if enrichResult}
+					<div class="mb-1.5 rounded-lg bg-sage-50 p-2 text-xs text-sage-700 sm:mb-4 sm:rounded-xl sm:p-3 sm:text-sm">
+						Fetched details for {enrichResult.enriched} of {enrichResult.total} places.
+					</div>
+				{/if}
+
+				<!-- ======== MOBILE tag filter (< md) ======== -->
+				<div class="mb-1.5 md:hidden">
 					<div
-						class="flex flex-wrap items-center gap-1.5"
+						class="flex items-center gap-1.5 overflow-x-auto py-0.5 pr-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
 						use:sortable={{
 							onReorder: handleTagReorder,
 							itemSelector: '[data-tag-id]',
 							idAttribute: 'data-tag-id',
-							longPressMs: 400,
+							longPressMs: 500,
 							disabled: false
 						}}
 					>
@@ -977,9 +1014,7 @@
 							<button
 								data-tag-id={tag.id}
 								onclick={() => toggleTag(tag.id)}
-							class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-sm font-bold transition-all {isSelected
-								? 'shadow-sm ring-2 ring-offset-1'
-								: 'opacity-80 hover:opacity-100'}"
+								class="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold transition-all {isSelected ? 'shadow-sm ring-2 ring-offset-1' : 'opacity-80'}"
 								style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}; {isSelected ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
 							>
 								{tag.name}
@@ -993,10 +1028,10 @@
 						{/each}
 						<button
 							onclick={() => { showTagManager = true; }}
-						class="inline-flex items-center gap-1 rounded-full border border-dashed border-warm-300 px-2 py-0.5 text-sm text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
-						aria-label="Manage tags"
+							class="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-warm-300 px-2 py-1 text-xs text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
+							aria-label="Manage tags"
 						>
-							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 								<line x1="12" y1="5" x2="12" y2="19" />
 								<line x1="5" y1="12" x2="19" y2="12" />
 							</svg>
@@ -1007,206 +1042,254 @@
 						{/if}
 					</div>
 				</div>
-			</div>
 
-			<!-- Tag manager modal -->
-			{#if showTagManager}
-				<TagManager
-					{supabase}
-					userId={session?.user?.id ?? ''}
-					allTags={userTags}
-					onClose={() => { showTagManager = false; }}
-					onTagsChanged={refreshTags}
-				/>
-			{/if}
-
-			<!-- Collection scope banner -->
-			{#if browseScope.type === 'collection' && activeCollectionName}
-				<div class="mb-1.5 flex items-center gap-2 rounded-lg border border-brand-200/60 bg-brand-50/60 px-2.5 py-1.5 sm:mb-3 sm:rounded-xl sm:px-3 sm:py-2">
-					<svg class="h-3.5 w-3.5 shrink-0 text-brand-500 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-					</svg>
-					<span class="flex-1 truncate text-xs font-bold text-brand-700 sm:text-sm">{activeCollectionName}</span>
-					<button
-						onclick={() => { showAddToCollection = true; }}
-						class="shrink-0 rounded-md bg-brand-500 px-2 py-0.5 text-xs font-bold text-white transition-colors hover:bg-brand-600"
-					>
-						+ Add places
-					</button>
-					<button
-						onclick={() => { browseScope = { type: 'all' }; }}
-						class="shrink-0 rounded-md px-2 py-0.5 text-xs font-bold text-brand-500 transition-colors hover:bg-brand-100"
-					>
-						Show all
-					</button>
+				<!-- ======== DESKTOP tag filter (md+) ======== -->
+				<div class="relative z-10 mb-4 hidden space-y-1.5 md:block">
+					<div class="flex items-baseline gap-2.5">
+						<span class="w-16 shrink-0 text-sm font-bold text-warm-400">Custom</span>
+						<div
+							class="flex flex-wrap items-center gap-1.5"
+							use:sortable={{
+								onReorder: handleTagReorder,
+								itemSelector: '[data-tag-id]',
+								idAttribute: 'data-tag-id',
+								longPressMs: 400,
+								disabled: false
+							}}
+						>
+							{#each userTags as tag (tag.id)}
+								{@const isSelected = selectedTagIds.includes(tag.id)}
+								<button
+									data-tag-id={tag.id}
+									onclick={() => toggleTag(tag.id)}
+								class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-sm font-bold transition-all {isSelected
+									? 'shadow-sm ring-2 ring-offset-1'
+									: 'opacity-80 hover:opacity-100'}"
+									style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}; {isSelected ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
+								>
+									{tag.name}
+									{#if isSelected}
+										<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+											<line x1="18" y1="6" x2="6" y2="18" />
+											<line x1="6" y1="6" x2="18" y2="18" />
+										</svg>
+									{/if}
+								</button>
+							{/each}
+							<button
+								onclick={() => { showTagManager = true; }}
+							class="inline-flex items-center gap-1 rounded-full border border-dashed border-warm-300 px-2 py-0.5 text-sm text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
+							aria-label="Manage tags"
+							>
+								<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<line x1="12" y1="5" x2="12" y2="19" />
+									<line x1="5" y1="12" x2="19" y2="12" />
+								</svg>
+								Manage
+							</button>
+							{#if userTags.length === 0}
+								<span class="text-xs text-warm-400">No custom tags yet</span>
+							{/if}
+						</div>
+					</div>
 				</div>
-			{/if}
 
-			<!-- Results count + search + sort + view toggle -->
-			<div class="mb-1.5 flex items-center gap-2 sm:mb-4 sm:gap-3">
-				<p class="shrink-0 text-xs font-semibold text-warm-500 sm:text-sm">{filteredPlaces.length} places</p>
-				<div class="relative min-w-0 flex-1">
-					<svg
-						class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-warm-400 sm:left-3 sm:h-4 sm:w-4"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-					>
-						<circle cx="11" cy="11" r="8" />
-						<line x1="21" y1="21" x2="16.65" y2="16.65" />
-					</svg>
-					<input
-						bind:this={searchInputEl}
-						type="text"
-						bind:value={search}
-						onkeydown={handleSearchKeydown}
-						placeholder="Search..."
-						class="w-full rounded-lg border border-warm-200 bg-warm-50 py-1.5 pl-8 pr-8 text-xs font-medium shadow-sm transition-colors focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:rounded-xl sm:py-2 sm:pl-10 sm:pr-10 sm:text-sm"
+				<!-- Tag manager modal -->
+				{#if showTagManager}
+					<TagManager
+						{supabase}
+						userId={session?.user?.id ?? ''}
+						allTags={userTags}
+						onClose={() => { showTagManager = false; }}
+						onTagsChanged={refreshTags}
 					/>
-					{#if urlAdding}
-						<svg class="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-brand-500 sm:right-3 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none">
+				{/if}
+
+				<!-- Collection scope banner -->
+				{#if browseScope.type === 'collection' && activeCollectionName}
+					<div class="mb-1.5 flex items-center gap-2 rounded-lg border border-brand-200/60 bg-brand-50/60 px-2.5 py-1.5 sm:mb-3 sm:rounded-xl sm:px-3 sm:py-2">
+						<svg class="h-3.5 w-3.5 shrink-0 text-brand-500 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+						</svg>
+						<span class="flex-1 truncate text-xs font-bold text-brand-700 sm:text-sm">{activeCollectionName}</span>
+						<button
+							onclick={() => { showAddToCollection = true; }}
+							class="shrink-0 rounded-md bg-brand-500 px-2 py-0.5 text-xs font-bold text-white transition-colors hover:bg-brand-600"
+						>
+							+ Add places
+						</button>
+						<button
+							onclick={() => { browseScope = { type: 'all' }; }}
+							class="shrink-0 rounded-md px-2 py-0.5 text-xs font-bold text-brand-500 transition-colors hover:bg-brand-100"
+						>
+							Show all
+						</button>
+					</div>
+				{/if}
+
+				<!-- Results count + sort + view toggle -->
+				<div class="mb-1.5 flex flex-wrap items-center justify-between gap-2 sm:mb-4">
+					<p class="shrink-0 text-xs font-semibold text-warm-500 sm:text-sm">{filteredPlaces.length} places</p>
+					<div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
+						<select
+							bind:value={sortBy}
+							class="rounded-md border border-warm-200 bg-white px-1.5 py-1 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:rounded-lg sm:px-2.5 sm:py-1.5 sm:text-sm"
+						>
+							<option value="newest">Recent</option>
+							<option value="oldest">Oldest</option>
+							<option value="az">A–Z</option>
+							<option value="za">Z–A</option>
+							<option value="rating">Rating</option>
+							<option value="most-tags">Most tagged</option>
+							<option value="tag-group">Tag group</option>
+						</select>
+					<div class="flex items-center gap-0.5 rounded-md border border-warm-200 bg-white p-0.5 sm:gap-1 sm:rounded-lg">
+						<button
+							onclick={() => { viewMode = 'grid'; }}
+							class="rounded p-1.5 transition-colors sm:rounded-md sm:p-2 {viewMode === 'grid' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
+							aria-label="Grid view"
+						>
+							<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<rect x="3" y="3" width="7" height="7" />
+								<rect x="14" y="3" width="7" height="7" />
+								<rect x="3" y="14" width="7" height="7" />
+								<rect x="14" y="14" width="7" height="7" />
+							</svg>
+						</button>
+						<button
+							onclick={() => { viewMode = 'list'; }}
+							class="rounded p-1.5 transition-colors sm:rounded-md sm:p-2 {viewMode === 'list' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
+							aria-label="List view"
+						>
+							<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<line x1="8" y1="6" x2="21" y2="6" />
+								<line x1="8" y1="12" x2="21" y2="12" />
+								<line x1="8" y1="18" x2="21" y2="18" />
+								<line x1="3" y1="6" x2="3.01" y2="6" />
+								<line x1="3" y1="12" x2="3.01" y2="12" />
+								<line x1="3" y1="18" x2="3.01" y2="18" />
+							</svg>
+						</button>
+					</div>
+					</div>
+				</div>
+
+				<!-- Places -->
+				{#if loading}
+					<div class="flex items-center justify-center py-20">
+						<svg class="h-8 w-8 animate-spin text-brand-500" viewBox="0 0 24 24" fill="none">
 							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
 							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
 						</svg>
-					{:else if detectedUrl}
-						<span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-brand-500 sm:right-3">Enter to add</span>
-					{:else if search}
-						<button
-							onclick={() => { search = ''; searchInputEl?.focus(); }}
-							class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600 sm:right-2"
-							aria-label="Clear search"
-						>
-							<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-								<line x1="18" y1="6" x2="6" y2="18" />
-								<line x1="6" y1="6" x2="18" y2="18" />
-							</svg>
-						</button>
-					{/if}
-				</div>
-				<div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
-					<select
-						bind:value={sortBy}
-						class="rounded-md border border-warm-200 bg-white px-1.5 py-1 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:rounded-lg sm:px-2.5 sm:py-1.5 sm:text-sm"
-					>
-						<option value="newest">Recent</option>
-						<option value="oldest">Oldest</option>
-						<option value="az">A–Z</option>
-						<option value="za">Z–A</option>
-						<option value="rating">Rating</option>
-						<option value="most-tags">Most tagged</option>
-						<option value="tag-group">Tag group</option>
-					</select>
-				<div class="flex items-center gap-0.5 rounded-md border border-warm-200 bg-white p-0.5 sm:gap-1 sm:rounded-lg">
-					<button
-						onclick={() => { viewMode = 'grid'; }}
-						class="rounded p-1.5 transition-colors sm:rounded-md sm:p-2 {viewMode === 'grid' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
-						aria-label="Grid view"
-					>
-						<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<rect x="3" y="3" width="7" height="7" />
-							<rect x="14" y="3" width="7" height="7" />
-							<rect x="3" y="14" width="7" height="7" />
-							<rect x="14" y="14" width="7" height="7" />
+					</div>
+				{:else if sortedPlaces.length === 0}
+					<div class="py-20 text-center">
+						<svg class="mx-auto h-12 w-12 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+							<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+							<circle cx="12" cy="10" r="3" />
 						</svg>
-					</button>
-					<button
-						onclick={() => { viewMode = 'list'; }}
-						class="rounded p-1.5 transition-colors sm:rounded-md sm:p-2 {viewMode === 'list' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
-						aria-label="List view"
-					>
-						<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<line x1="8" y1="6" x2="21" y2="6" />
-							<line x1="8" y1="12" x2="21" y2="12" />
-							<line x1="8" y1="18" x2="21" y2="18" />
-							<line x1="3" y1="6" x2="3.01" y2="6" />
-							<line x1="3" y1="12" x2="3.01" y2="12" />
-							<line x1="3" y1="18" x2="3.01" y2="18" />
-						</svg>
-					</button>
-				</div>
-				</div>
-			</div>
+						<p class="mt-3 text-base text-warm-500">
+							{places.length === 0 ? 'No places yet' : 'No places match your filters'}
+						</p>
+						{#if places.length === 0}
+							<a href="/upload" class="mt-2 inline-block text-base text-brand-600 hover:text-brand-700">
+								Upload some CSV files to get started
+							</a>
+						{/if}
+					</div>
+				{:else if viewMode === 'grid'}
+					<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4">
+						{#each sortedPlaces as place (place.id)}
+							<PlaceCard
+								{place}
+								placeTags={placeTagsMap[place.id] ?? []}
+								{allTags}
+								{supabase}
+								userId={session?.user?.id ?? ''}
+								{enrichingId}
+								onEnrich={enrichSingle}
+								onDelete={deletePlace}
+								onTagClick={toggleTag}
+								onTagsChanged={refreshTags}
+								onNoteChanged={updateNote}
+								onRatingChanged={updateRating}
+								onTagContextMenu={handleTagContextMenu}
+								selected={selectedPlaceId === place.id}
+								onSelect={handleCardSelect}
+								{collections}
+								{collectionPlacesMap}
+								collectionPickerOpen={collectionPickerPlaceId === place.id}
+								onCollectionPickerToggle={openCollectionPicker}
+								onCollectionPickerClose={closeCollectionPicker}
+								onToggleCollection={togglePlaceInCollection}
+							/>
+						{/each}
+					</div>
+				{:else}
+					<div class="overflow-hidden rounded-2xl border border-warm-200 bg-white divide-y divide-warm-100 sm:rounded-xl sm:overflow-visible">
+						{#each sortedPlaces as place (place.id)}
+							<PlaceListItem
+								{place}
+								placeTags={placeTagsMap[place.id] ?? []}
+								{allTags}
+								{supabase}
+								userId={session?.user?.id ?? ''}
+								onTagClick={toggleTag}
+								onTagContextMenu={handleTagContextMenu}
+								onTagsChanged={refreshTags}
+								onNoteChanged={updateNote}
+								onRatingChanged={updateRating}
+								onDelete={deletePlace}
+								selected={selectedPlaceId === place.id}
+								onSelect={handleCardSelect}
+								{collections}
+								{collectionPlacesMap}
+								onToggleCollection={togglePlaceInCollection}
+							/>
+						{/each}
+					</div>
+				{/if}
+{/snippet}
 
-			<!-- Places -->
-			{#if loading}
-				<div class="flex items-center justify-center py-20">
-					<svg class="h-8 w-8 animate-spin text-brand-500" viewBox="0 0 24 24" fill="none">
-						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-					</svg>
-				</div>
-			{:else if sortedPlaces.length === 0}
-				<div class="py-20 text-center">
-					<svg class="mx-auto h-12 w-12 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-						<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-						<circle cx="12" cy="10" r="3" />
-					</svg>
-					<p class="mt-3 text-base text-warm-500">
-						{places.length === 0 ? 'No places yet' : 'No places match your filters'}
-					</p>
-					{#if places.length === 0}
-						<a href="/upload" class="mt-2 inline-block text-base text-brand-600 hover:text-brand-700">
-							Upload some CSV files to get started
-						</a>
-					{/if}
-				</div>
-			{:else if viewMode === 'grid'}
-			<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4">
-				{#each sortedPlaces as place (place.id)}
-					<PlaceCard
-						{place}
-						placeTags={placeTagsMap[place.id] ?? []}
-						{allTags}
-						{supabase}
-						userId={session?.user?.id ?? ''}
-						{enrichingId}
-						onEnrich={enrichSingle}
-						onDelete={deletePlace}
-						onTagClick={toggleTag}
-						onTagsChanged={refreshTags}
-						onNoteChanged={updateNote}
-						onRatingChanged={updateRating}
-						onTagContextMenu={handleTagContextMenu}
-						selected={selectedPlaceId === place.id}
-						onSelect={handleCardSelect}
-						{collections}
-						{collectionPlacesMap}
-						collectionPickerOpen={collectionPickerPlaceId === place.id}
-						onCollectionPickerToggle={openCollectionPicker}
-						onCollectionPickerClose={closeCollectionPicker}
-						onToggleCollection={togglePlaceInCollection}
-					/>
-				{/each}
+<div class="min-h-[100dvh]">
+	{#if isMobile}
+		<div class="flex h-[100dvh] flex-col overflow-hidden">
+			<div class="shrink-0 border-b border-warm-200/80 bg-sage-100 px-2.5 pt-2 pb-2">
+				{@render placesSearchBlock()}
+				{@render placesContextualBlock()}
+				{@render placesSavedViewsBlock()}
 			</div>
-		{:else}
-			<div class="overflow-hidden rounded-2xl border border-warm-200 bg-white divide-y divide-warm-100 sm:rounded-xl sm:overflow-visible">
-				{#each sortedPlaces as place (place.id)}
-					<PlaceListItem
-						{place}
-						placeTags={placeTagsMap[place.id] ?? []}
-						{allTags}
-						{supabase}
-						userId={session?.user?.id ?? ''}
-						onTagClick={toggleTag}
-						onTagContextMenu={handleTagContextMenu}
-						onTagsChanged={refreshTags}
-						onNoteChanged={updateNote}
-						onRatingChanged={updateRating}
-						onDelete={deletePlace}
-						selected={selectedPlaceId === place.id}
-						onSelect={handleCardSelect}
-						{collections}
-						{collectionPlacesMap}
-						onToggleCollection={togglePlaceInCollection}
-					/>
-				{/each}
+			<MobileMapShell
+				places={filteredPlaces}
+				{selectedPlaceId}
+				onPlaceSelect={handleMapPlaceSelect}
+				maptilerKey={data.maptilerKey}
+			/>
+			<div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
+				<div
+					class="mx-auto px-2.5 pt-1 pb-[max(2.5rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+0.25rem))]"
+				>
+					{@render placesFiltersAndListBlock()}
+				</div>
 			</div>
-		{/if}
-	</div>
-	</div>
-</div>
-
+		</div>
+	{:else}
+		<div class="flex flex-col lg:flex-row">
+			<div class="relative z-0 h-[35vh] shrink-0 border-b border-warm-200 sm:h-[38vh] lg:order-2 lg:sticky lg:top-0 lg:h-[100dvh] lg:w-[42%] lg:self-start lg:border-b-0 lg:border-l">
+				<MapView places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} maptilerKey={data.maptilerKey} />
+			</div>
+			<div class="min-w-0 flex-1 lg:order-1">
+				<div
+					class="mx-auto px-2.5 sm:px-6 sm:py-6 lg:px-4 pb-[max(2.5rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+0.25rem))]"
+				>
+					{@render placesSearchBlock()}
+					{@render placesContextualBlock()}
+					{@render placesSavedViewsBlock()}
+					{@render placesFiltersAndListBlock()}
+				</div>
+			</div>
+		</div>
+	{/if}
 
 	<!-- Add existing places to collection modal -->
 	{#if showAddToCollection && browseScope.type === 'collection'}
@@ -1279,7 +1362,7 @@
 
 	<!-- Lightweight toasts for URL add feedback -->
 	{#if toasts.length > 0}
-		<div class="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2 sm:bottom-8">
+		<div class="fixed bottom-[calc(var(--app-dock-reserve,0px)+0.75rem)] left-1/2 z-[55] flex -translate-x-1/2 flex-col items-center gap-2">
 			{#each toasts as toast (toast.id)}
 				<div
 					class="flex items-center gap-2 rounded-xl px-4 py-2.5 shadow-lg backdrop-blur-sm animate-in

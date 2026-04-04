@@ -210,7 +210,9 @@
 	<title>My Collections — MapOrganizer</title>
 </svelte:head>
 
-<div class="mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-8">
+<div
+	class="mx-auto max-w-3xl px-3 pt-4 sm:px-6 sm:pt-8 pb-[max(5rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+1.5rem))] sm:pb-[max(6rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+2rem))]"
+>
 	<div class="mb-5 flex items-start justify-between gap-3 sm:mb-8 sm:items-center">
 		<h1 class="text-xl font-extrabold text-warm-800 sm:text-2xl">Collections</h1>
 		<button

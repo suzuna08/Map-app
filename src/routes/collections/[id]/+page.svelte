@@ -376,7 +376,7 @@
 
 <!-- Sticky top panel: header + map -->
 {#if collection}
-<div class="sticky top-12 z-10 border-b border-warm-200/80 bg-[#faf7f2] shadow-sm sm:top-14">
+<div class="sticky top-0 z-10 border-b border-warm-200/80 bg-[#faf7f2] shadow-sm">
 	<div class="mx-auto max-w-4xl px-3 sm:px-6">
 		<!-- Breadcrumb + Header combined -->
 		<div class="flex items-center gap-1.5 pt-2 text-xs text-warm-400 sm:pt-2.5 sm:text-sm">
@@ -598,7 +598,9 @@
 	</div>
 </div>
 
-<div class="mx-auto max-w-4xl px-3 pb-8 pt-3 sm:px-6 sm:pb-12 sm:pt-4">
+<div
+	class="mx-auto max-w-4xl px-3 pt-3 sm:px-6 sm:pt-4 pb-[max(5rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+2rem))] sm:pb-[max(7rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+3rem))]"
+>
 	<!-- Places -->
 	{#if sortedPlaces.length === 0}
 		<div class="py-16 text-center">
