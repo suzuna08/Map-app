@@ -223,7 +223,7 @@
 		try {
 			const [placeResult, colResult] = await Promise.all([
 				loadPlacesData(supabase, userId),
-				loadCollections(supabase).catch((err) => {
+				loadCollections(supabase, userId).catch((err) => {
 					console.warn('[loadData] collections failed:', err);
 					return { collections: [] as Collection[], collectionPlacesMap: {} as CollectionMemberMap };
 				})
@@ -240,13 +240,13 @@
 	}
 
 	async function refreshCollections() {
-		const result = await loadCollections(supabase);
+		const result = await loadCollections(supabase, session?.user?.id);
 		collections = result.collections;
 		collectionPlacesMap = result.collectionPlacesMap;
 	}
 
 	async function refreshSavedViews() {
-		savedViews = await loadSavedViews(supabase);
+		savedViews = await loadSavedViews(supabase, session?.user?.id);
 	}
 
 	function applySavedView(view: SavedView) {

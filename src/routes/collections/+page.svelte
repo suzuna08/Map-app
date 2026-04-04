@@ -98,7 +98,7 @@
 	});
 
 	async function refresh() {
-		const result = await loadCollections(supabase);
+		const result = await loadCollections(supabase, session?.user?.id);
 		collections = result.collections;
 		collectionPlacesMap = result.collectionPlacesMap;
 	}

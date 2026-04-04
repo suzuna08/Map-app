@@ -57,22 +57,17 @@ async function applyContextTags(
 	const validIds = (validTags ?? []).map((t: { id: string }) => t.id);
 	if (validIds.length === 0) return 0;
 
-	const { data: existing } = await supabase
+	const rows = validIds.map((tagId: string) => ({ place_id: placeId, tag_id: tagId }));
+	const { error } = await supabase
 		.from('place_tags')
-		.select('tag_id')
-		.eq('place_id', placeId)
-		.in('tag_id', validIds);
+		.upsert(rows, { onConflict: 'place_id,tag_id', ignoreDuplicates: true });
 
-	const existingIds = new Set((existing ?? []).map((pt: { tag_id: string }) => pt.tag_id));
-	const missing = validIds.filter((id: string) => !existingIds.has(id));
-
-	if (missing.length > 0) {
-		await supabase
-			.from('place_tags')
-			.insert(missing.map((tagId: string) => ({ place_id: placeId, tag_id: tagId })));
+	if (error) {
+		console.error('[applyContextTags] upsert error:', error);
+		return 0;
 	}
 
-	return missing.length;
+	return validIds.length;
 }
 
 export const POST: RequestHandler = async ({ request, locals }) => {

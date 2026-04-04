@@ -5,14 +5,17 @@ export type CollectionMemberMap = Record<string, string[]>;
 
 const LISTS_COLUMNS = 'id, user_id, name, description, color, emoji, visibility, share_slug, created_at, updated_at';
 
-export async function loadCollections(supabase: SupabaseClient<Database>): Promise<{
+export async function loadCollections(supabase: SupabaseClient<Database>, userId?: string): Promise<{
 	collections: Collection[];
 	collectionPlacesMap: CollectionMemberMap;
 }> {
-	const { data, error } = await supabase
+	let query = supabase
 		.from('lists')
 		.select(`${LISTS_COLUMNS}, list_places(place_id)`)
 		.order('created_at', { ascending: false });
+	if (userId) query = query.eq('user_id', userId);
+
+	const { data, error } = await query;
 
 	if (error) console.error('[loadCollections] error:', error);
 
@@ -209,23 +212,18 @@ export async function loadCollectionBySlug(
 	supabase: SupabaseClient<Database>,
 	slug: string
 ): Promise<{ collection: Collection; placeIds: string[] } | null> {
-	const { data: col, error } = await supabase
+	const { data: raw, error } = await supabase
 		.from('lists')
-		.select(LISTS_COLUMNS)
+		.select(`${LISTS_COLUMNS}, list_places(place_id)`)
 		.eq('share_slug', slug)
 		.eq('visibility', 'link_access')
 		.single();
 
-	if (error || !col) return null;
+	if (error || !raw) return null;
 
-	const collection = col as Collection;
-	const { data: members } = await supabase
-		.from('list_places')
-		.select('place_id')
-		.eq('list_id', collection.id);
-
+	const { list_places, ...col } = raw as any;
 	return {
-		collection,
-		placeIds: (members ?? []).map((m) => m.place_id)
+		collection: col as Collection,
+		placeIds: (list_places as { place_id: string }[]).map((lp) => lp.place_id)
 	};
 }

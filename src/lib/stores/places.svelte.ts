@@ -5,36 +5,56 @@ const PLACES_COLUMNS = 'id, user_id, title, note, url, source_list, created_at, 
 const TAGS_COLUMNS = 'id, user_id, name, color, source, created_at, order_index';
 
 export async function loadPlacesData(supabase: SupabaseClient<Database>, userId?: string) {
-	let placesQuery = supabase.from('places').select(PLACES_COLUMNS);
+	let placesQuery = supabase.from('places').select(`${PLACES_COLUMNS}, place_tags(tag_id)`);
 	let tagsQuery = supabase.from('tags').select(TAGS_COLUMNS);
 	if (userId) {
 		placesQuery = placesQuery.eq('user_id', userId);
 		tagsQuery = tagsQuery.eq('user_id', userId);
 	}
-	const [placesRes, tagsRes, placeTagsRes] = await Promise.all([
+	const [placesRes, tagsRes] = await Promise.all([
 		placesQuery.order('created_at', { ascending: false }),
-		tagsQuery.order('name'),
-		supabase.from('place_tags').select('place_id, tag_id')
+		tagsQuery.order('name')
 	]);
+
+	const placeTags: { place_id: string; tag_id: string }[] = [];
+	const places = ((placesRes.data ?? []) as (Place & { place_tags: { tag_id: string }[] })[]).map(
+		({ place_tags, ...p }) => {
+			for (const pt of place_tags) {
+				placeTags.push({ place_id: p.id, tag_id: pt.tag_id });
+			}
+			return p as Place;
+		}
+	);
+
 	return {
-		places: (placesRes.data ?? []) as Place[],
+		places,
 		tags: (tagsRes.data ?? []) as Tag[],
-		placeTags: (placeTagsRes.data ?? []) as { place_id: string; tag_id: string }[]
+		placeTags
 	};
 }
 
 export async function refreshTagsData(supabase: SupabaseClient<Database>, userId?: string) {
 	let tagsQuery = supabase.from('tags').select(TAGS_COLUMNS);
+	let placesQuery = supabase.from('places').select('id, place_tags(tag_id)');
 	if (userId) {
 		tagsQuery = tagsQuery.eq('user_id', userId);
+		placesQuery = placesQuery.eq('user_id', userId);
 	}
-	const [tagsRes, placeTagsRes] = await Promise.all([
+	const [tagsRes, placesRes] = await Promise.all([
 		tagsQuery.order('name'),
-		supabase.from('place_tags').select('place_id, tag_id')
+		placesQuery
 	]);
+
+	const placeTags: { place_id: string; tag_id: string }[] = [];
+	for (const row of (placesRes.data ?? []) as { id: string; place_tags: { tag_id: string }[] }[]) {
+		for (const pt of row.place_tags) {
+			placeTags.push({ place_id: row.id, tag_id: pt.tag_id });
+		}
+	}
+
 	return {
 		tags: (tagsRes.data ?? []) as Tag[],
-		placeTags: (placeTagsRes.data ?? []) as { place_id: string; tag_id: string }[]
+		placeTags
 	};
 }
 
@@ -73,17 +93,10 @@ export async function applyTagsToPlace(
 	placeId: string,
 	tagIds: string[]
 ) {
-	await Promise.all(
-		tagIds.map(async (tagId) => {
-			const { data: existing } = await supabase
-				.from('place_tags')
-				.select('id')
-				.eq('place_id', placeId)
-				.eq('tag_id', tagId)
-				.single();
-			if (!existing) {
-				await supabase.from('place_tags').insert({ place_id: placeId, tag_id: tagId });
-			}
-		})
-	);
+	if (tagIds.length === 0) return;
+	const rows = tagIds.map((tag_id) => ({ place_id: placeId, tag_id }));
+	const { error } = await supabase
+		.from('place_tags')
+		.upsert(rows, { onConflict: 'place_id,tag_id', ignoreDuplicates: true });
+	if (error) console.error('[applyTagsToPlace]', error);
 }

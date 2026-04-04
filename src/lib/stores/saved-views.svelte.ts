@@ -3,11 +3,13 @@ import type { Database, SavedView, SavedViewFilters, TagGroup } from '$lib/types
 
 const SAVED_VIEWS_COLUMNS = 'id, user_id, name, filters_json, sort_by, layout_mode, created_at, updated_at';
 
-export async function loadSavedViews(supabase: SupabaseClient<Database>): Promise<SavedView[]> {
-	const { data, error } = await supabase
+export async function loadSavedViews(supabase: SupabaseClient<Database>, userId?: string): Promise<SavedView[]> {
+	let query = supabase
 		.from('saved_views')
 		.select(SAVED_VIEWS_COLUMNS)
 		.order('created_at', { ascending: true });
+	if (userId) query = query.eq('user_id', userId);
+	const { data, error } = await query;
 	if (error) console.error('[loadSavedViews]', error);
 	return (data ?? []) as SavedView[];
 }
