@@ -9,7 +9,7 @@
 		userId,
 		savedViews = [],
 		activeSavedViewId = null,
-		editingViewId = null,
+		viewIsDirty = false,
 		selectedCustomIds = [],
 		filterMode = 'all',
 		selectedSource = 'all',
@@ -18,9 +18,7 @@
 		search = '',
 		onApply,
 		onViewsChanged,
-		onEditView,
-		onSaveEdit,
-		onCancelEdit,
+		onQuickUpdate,
 		onCreateCollection,
 		onAddToCollection
 	}: {
@@ -28,7 +26,7 @@
 		userId: string;
 		savedViews: SavedView[];
 		activeSavedViewId: string | null;
-		editingViewId: string | null;
+		viewIsDirty: boolean;
 		selectedCustomIds: string[];
 		filterMode: 'all' | 'any';
 		selectedSource: string;
@@ -37,9 +35,7 @@
 		search: string;
 		onApply: (view: SavedView) => void;
 		onViewsChanged: () => void;
-		onEditView: (view: SavedView) => void;
-		onSaveEdit: () => void;
-		onCancelEdit: () => void;
+		onQuickUpdate: () => void;
 		onCreateCollection?: (view: SavedView) => void;
 		onAddToCollection?: (view: SavedView) => void;
 	} = $props();
@@ -211,22 +207,19 @@
 						onclick={() => onApply(view)}
 						class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold transition-all sm:px-3 sm:text-[13px]
 							{activeSavedViewId === view.id
-								? editingViewId === view.id
-									? 'border-amber-400 bg-amber-50 text-amber-700 shadow-sm ring-1 ring-amber-400/30'
+								? viewIsDirty
+									? 'border-brand-400 bg-brand-50 text-brand-700 shadow-sm ring-1 ring-brand-400/30 border-dashed'
 									: 'border-brand-400 bg-brand-50 text-brand-700 shadow-sm ring-1 ring-brand-400/30'
 								: 'border-warm-200 bg-white text-warm-600 hover:border-warm-300 hover:bg-warm-50'}"
 					>
-						<svg class="h-3 w-3 shrink-0 {activeSavedViewId === view.id ? editingViewId === view.id ? 'text-amber-500' : 'text-brand-500' : 'text-warm-400'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							{#if editingViewId === view.id}
-								<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-								<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-							{:else}
-								<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-							{/if}
+						<svg class="h-3 w-3 shrink-0 {activeSavedViewId === view.id ? 'text-brand-500' : 'text-warm-400'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
 						</svg>
 						{view.name}
+						{#if activeSavedViewId === view.id && viewIsDirty}
+							<span class="h-1.5 w-1.5 rounded-full bg-brand-500"></span>
+						{/if}
 					</button>
-					{#if editingViewId !== view.id}
 						<button
 							onclick={(e) => { e.stopPropagation(); toggleMenu(view.id, e); }}
 							class="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-warm-200 text-warm-500 transition-opacity hover:bg-warm-300 hover:text-warm-700 sm:h-[18px] sm:w-[18px]
@@ -241,28 +234,11 @@
 								<circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" />
 							</svg>
 						</button>
-					{/if}
 				</div>
 			{/if}
 		{/each}
 
-		<!-- Edit mode: Save / Cancel buttons -->
-		{#if editingViewId}
-			<div class="flex shrink-0 items-center gap-1">
-				<button
-					onclick={onSaveEdit}
-					class="rounded-md bg-amber-500 px-2.5 py-1 text-[11px] font-bold text-white transition-colors hover:bg-amber-600 sm:text-xs"
-				>
-					Save
-				</button>
-				<button
-					onclick={onCancelEdit}
-					class="rounded-md px-2 py-1 text-[11px] font-medium text-warm-400 transition-colors hover:text-warm-600 sm:text-xs"
-				>
-					Cancel
-				</button>
-			</div>
-		{:else if showCreateInput}
+		{#if showCreateInput}
 			<div class="flex shrink-0 items-center gap-1">
 				<input
 					bind:this={createInputEl}
@@ -313,16 +289,6 @@
 			class="fixed z-50 hidden w-44 rounded-lg border border-warm-200 bg-white py-1 shadow-lg sm:block"
 			style="left: {menuPos.x}px; top: {menuPos.y}px;"
 		>
-			<button
-				onclick={() => { const v = view; menuOpenId = null; onEditView(v); }}
-				class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-warm-600 hover:bg-warm-50 hover:text-warm-800"
-			>
-				<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-					<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-				</svg>
-				Edit View
-			</button>
 			<button
 				onclick={() => startRename(view)}
 				class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-warm-600 hover:bg-warm-50 hover:text-warm-800"
@@ -395,16 +361,6 @@
 				</div>
 
 				<div class="px-2 pt-2">
-					<button
-						onclick={() => { const v = view; menuOpenId = null; onEditView(v); }}
-						class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium text-warm-700 active:bg-warm-50"
-					>
-						<svg class="h-4 w-4 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-							<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-						</svg>
-						Edit View
-					</button>
 					<button
 						onclick={() => startRename(view)}
 						class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium text-warm-700 active:bg-warm-50"

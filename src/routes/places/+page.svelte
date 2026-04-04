@@ -78,8 +78,6 @@
 
 	let savedViews = $state<SavedView[]>([]);
 	let activeSavedViewId = $state<string | null>(null);
-	let editingViewId = $state<string | null>(null);
-	let editingSnapshot = $state<{ selectedTagMap: Record<string, boolean>; filterMode: 'all' | 'any'; source: string; sortBy: string; layoutMode: string; searchText: string } | null>(null);
 	let appliedSnapshot = $state<{ tagMapKey: string; source: string; searchText: string } | null>(null);
 	let suppressDeactivate = $state(false);
 
@@ -252,8 +250,6 @@
 	function applySavedView(view: SavedView) {
 		if (activeSavedViewId === view.id) {
 			activeSavedViewId = null;
-			editingViewId = null;
-			editingSnapshot = null;
 			appliedSnapshot = null;
 			selectedTagMap = {};
 			filterMode = 'all';
@@ -279,8 +275,6 @@
 		sortBy = (view.sort_by ?? 'newest') as typeof sortBy;
 		viewMode = (view.layout_mode ?? 'grid') as typeof viewMode;
 		activeSavedViewId = view.id;
-		editingViewId = null;
-		editingSnapshot = null;
 		appliedSnapshot = {
 			tagMapKey: JSON.stringify(Object.keys(tagMap).sort()),
 			source: f.source ?? 'all',
@@ -289,7 +283,39 @@
 		requestAnimationFrame(() => { suppressDeactivate = false; });
 	}
 
-	function startEditView(view: SavedView) {
+	async function quickUpdateView() {
+		if (!activeSavedViewId) return;
+		const tg: TagGroup[] = selectedCustomIds.length > 0
+			? [{ id: '0', tagIds: [...selectedCustomIds], mode: filterMode }]
+			: [];
+		const searchText = (!detectedUrl && search.trim()) ? search.trim() : undefined;
+		const filters = buildFiltersSnapshot(selectedCustomIds, selectedSource, tg, searchText);
+		const ok = await updateSavedView(supabase, activeSavedViewId, {
+			filtersJson: filters,
+			sortBy,
+			layoutMode: viewMode
+		});
+		if (ok) {
+			const viewName = savedViews.find((v) => v.id === activeSavedViewId)?.name ?? 'View';
+			showToast('success', '', `"${viewName}" updated`);
+			await refreshSavedViews();
+			appliedSnapshot = {
+				tagMapKey: JSON.stringify([...selectedCustomIds].sort()),
+				source: selectedSource,
+				searchText: searchText ?? ''
+			};
+		} else {
+			showToast('error', '', 'Could not update view');
+		}
+	}
+
+	function discardViewChanges() {
+		const view = savedViews.find((v) => v.id === activeSavedViewId);
+		if (!view) {
+			activeSavedViewId = null;
+			appliedSnapshot = null;
+			return;
+		}
 		suppressDeactivate = true;
 		const f = (view.filters_json ?? {}) as SavedViewFilters;
 		const tagMap: Record<string, boolean> = {};
@@ -306,71 +332,11 @@
 		search = f.searchText ?? '';
 		sortBy = (view.sort_by ?? 'newest') as typeof sortBy;
 		viewMode = (view.layout_mode ?? 'grid') as typeof viewMode;
-		activeSavedViewId = view.id;
 		appliedSnapshot = {
 			tagMapKey: JSON.stringify(Object.keys(tagMap).sort()),
 			source: f.source ?? 'all',
 			searchText: f.searchText ?? ''
 		};
-		editingViewId = view.id;
-		editingSnapshot = {
-			selectedTagMap: { ...tagMap },
-			filterMode: mode,
-			source: f.source ?? 'all',
-			sortBy: view.sort_by ?? 'newest',
-			layoutMode: view.layout_mode ?? 'grid',
-			searchText: f.searchText ?? ''
-		};
-		requestAnimationFrame(() => { suppressDeactivate = false; });
-	}
-
-	async function saveEditView() {
-		if (!editingViewId) return;
-		const tg: TagGroup[] = selectedCustomIds.length > 0
-			? [{ id: '0', tagIds: [...selectedCustomIds], mode: filterMode }]
-			: [];
-		const searchText = (!detectedUrl && search.trim()) ? search.trim() : undefined;
-		const filters = buildFiltersSnapshot(selectedCustomIds, selectedSource, tg, searchText);
-		const ok = await updateSavedView(supabase, editingViewId, {
-			filtersJson: filters,
-			sortBy,
-			layoutMode: viewMode
-		});
-		if (ok) {
-			const viewName = savedViews.find((v) => v.id === editingViewId)?.name ?? 'View';
-			showToast('success', '', `"${viewName}" updated`);
-			await refreshSavedViews();
-			appliedSnapshot = {
-				tagMapKey: JSON.stringify([...selectedCustomIds].sort()),
-				source: selectedSource,
-				searchText: searchText ?? ''
-			};
-		} else {
-			showToast('error', '', 'Could not update view');
-		}
-		editingViewId = null;
-		editingSnapshot = null;
-	}
-
-	function cancelEditView() {
-		if (!editingSnapshot) {
-			editingViewId = null;
-			return;
-		}
-		suppressDeactivate = true;
-		selectedTagMap = { ...editingSnapshot.selectedTagMap };
-		filterMode = editingSnapshot.filterMode;
-		selectedSource = editingSnapshot.source;
-		sortBy = editingSnapshot.sortBy as typeof sortBy;
-		viewMode = editingSnapshot.layoutMode as typeof viewMode;
-		search = editingSnapshot.searchText ?? '';
-		appliedSnapshot = {
-			tagMapKey: JSON.stringify(Object.keys(editingSnapshot.selectedTagMap).sort()),
-			source: editingSnapshot.source,
-			searchText: editingSnapshot.searchText ?? ''
-		};
-		editingViewId = null;
-		editingSnapshot = null;
 		requestAnimationFrame(() => { suppressDeactivate = false; });
 	}
 
@@ -424,18 +390,14 @@
 
 	let selectedCustomIds = $derived(selectedTagIds.filter((id) => userTags.some((t) => t.id === id)));
 
-	// Auto-deactivate saved view when user changes filters away from the snapshot
-	// (but NOT when in edit mode — editing keeps the view active)
-	$effect(() => {
-		if (!activeSavedViewId || !appliedSnapshot || suppressDeactivate || editingViewId) return;
+	let viewIsDirty = $derived.by(() => {
+		if (!activeSavedViewId || !appliedSnapshot) return false;
 		const currentTagKey = JSON.stringify([...selectedCustomIds].sort());
-		const tagsMatch = currentTagKey === appliedSnapshot.tagMapKey;
-		const sourceMatch = selectedSource === appliedSnapshot.source;
-		const searchMatch = search === (appliedSnapshot.searchText ?? '');
-		if (!tagsMatch || !sourceMatch || !searchMatch) {
-			activeSavedViewId = null;
-			appliedSnapshot = null;
-		}
+		return (
+			currentTagKey !== appliedSnapshot.tagMapKey ||
+			selectedSource !== appliedSnapshot.source ||
+			search !== (appliedSnapshot.searchText ?? '')
+		);
 	});
 
 	let selectedCustomTagNames = $derived(
@@ -619,6 +581,10 @@
 		filterMode = 'all';
 		selectedSource = 'all';
 		search = '';
+		if (activeSavedViewId) {
+			activeSavedViewId = null;
+			appliedSnapshot = null;
+		}
 	}
 
 	async function enrichSingle(placeId: string) {
@@ -813,7 +779,7 @@
 				userId={session?.user?.id ?? ''}
 				{savedViews}
 				{activeSavedViewId}
-				{editingViewId}
+				{viewIsDirty}
 				{selectedCustomIds}
 				{filterMode}
 				{selectedSource}
@@ -822,9 +788,7 @@
 				{search}
 				onApply={applySavedView}
 				onViewsChanged={refreshSavedViews}
-				onEditView={startEditView}
-				onSaveEdit={saveEditView}
-				onCancelEdit={cancelEditView}
+				onQuickUpdate={quickUpdateView}
 				onCreateCollection={createCollectionFromView}
 				onAddToCollection={addToCollectionFromView}
 			/>
@@ -904,6 +868,25 @@
 					>
 						Clear
 					</button>
+					{#if viewIsDirty}
+						<span class="mx-0.5 text-warm-200">|</span>
+						<button
+							onclick={quickUpdateView}
+							class="inline-flex items-center gap-1 rounded-full border border-brand-300 bg-brand-50 px-2 py-0.5 text-xs font-bold text-brand-700 transition-colors hover:bg-brand-100 sm:px-2.5 sm:text-[13px]"
+						>
+							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+								<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+								<polyline points="22 4 12 14.01 9 11.01" />
+							</svg>
+							Update View
+						</button>
+						<button
+							onclick={discardViewChanges}
+							class="text-xs text-warm-400 hover:text-warm-600 sm:text-[13px]"
+						>
+							Discard
+						</button>
+					{/if}
 				{/if}
 			</div>
 
