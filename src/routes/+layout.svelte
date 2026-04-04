@@ -5,6 +5,7 @@
 	import { onMount } from 'svelte';
 	import AddPlaceModal from '$lib/components/AddPlaceModal.svelte';
 	import AppBottomDock from '$lib/components/AppBottomDock.svelte';
+	import { bottomDockSuppressed } from '$lib/stores/bottom-dock-suppressed';
 
 	let { data, children } = $props();
 
@@ -21,7 +22,8 @@
 		return false;
 	}
 
-	let showDock = $derived(!!session && appShellRoute(pathname));
+	let showDockBase = $derived(!!session && appShellRoute(pathname));
+	let showDock = $derived(showDockBase && !$bottomDockSuppressed);
 
 	const REFRESH_MARGIN_MS = 5 * 60 * 1000; // refresh 5 min before expiry
 

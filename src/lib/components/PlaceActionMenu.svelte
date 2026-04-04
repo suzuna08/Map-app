@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { browser } from '$app/environment';
+	import { bottomDockSuppressed } from '$lib/stores/bottom-dock-suppressed';
+
 	interface Props {
 		anchorX: number;
 		anchorY: number;
@@ -56,6 +59,12 @@
 	function handleCancelDelete() {
 		confirmingDelete = false;
 	}
+
+	$effect(() => {
+		if (!browser) return;
+		bottomDockSuppressed.set(true);
+		return () => bottomDockSuppressed.set(false);
+	});
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
