@@ -5,6 +5,7 @@
 	import TagInput from './TagInput.svelte';
 	import AddToCollectionModal from './AddToCollectionModal.svelte';
 	import RatingDisplay from './RatingDisplay.svelte';
+	import PlaceActionMenu from './PlaceActionMenu.svelte';
 
 	interface Props {
 		place: Place;
@@ -28,6 +29,8 @@
 		onCollectionPickerToggle?: (placeId: string) => void;
 		onCollectionPickerClose?: () => void;
 		onToggleCollection?: (placeId: string, collectionId: string) => void;
+		onRemoveFromCollection?: (placeId: string) => void;
+		onDeletePlace?: (placeId: string) => void;
 	}
 
 	let {
@@ -52,9 +55,14 @@
 		onCollectionPickerToggle,
 		onCollectionPickerClose,
 		onToggleCollection,
+		onRemoveFromCollection,
+		onDeletePlace,
 	}: Props = $props();
 
+	let isCollectionContext = $derived(!!onRemoveFromCollection && !!onDeletePlace);
 	let confirmDelete = $state(false);
+	let actionMenuOpen = $state(false);
+	let actionMenuAnchor = $state({ x: 0, y: 0 });
 
 	// Swipe-to-delete state (mobile)
 	let swipeX = $state(0);
@@ -100,6 +108,13 @@
 	}
 
 	function handleSwipeDelete() {
+		if (isCollectionContext) {
+			swipeX = 0;
+			swipeConfirm = false;
+			actionMenuAnchor = { x: window.innerWidth - 72, y: window.innerHeight / 2 };
+			actionMenuOpen = true;
+			return;
+		}
 		if (!swipeConfirm) {
 			swipeConfirm = true;
 			return;
@@ -474,7 +489,18 @@
 						</button>
 					{/if}
 					<div class="ml-auto">
-						{#if confirmDelete}
+						{#if isCollectionContext}
+							<button
+								onclick={(e) => { e.stopPropagation(); const rect = e.currentTarget.getBoundingClientRect(); actionMenuAnchor = { x: rect.right - 224, y: rect.bottom }; actionMenuOpen = true; }}
+								class="rounded-md p-2 text-warm-300 opacity-0 transition-opacity hover:bg-warm-100 hover:text-warm-500 group-hover:opacity-100"
+								aria-label="Place actions"
+							>
+								<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<polyline points="3 6 5 6 21 6" />
+									<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+								</svg>
+							</button>
+						{:else if confirmDelete}
 							<button
 								onclick={() => { onDelete(place.id); confirmDelete = false; }}
 								class="rounded-md bg-danger-100 px-2 py-1 text-xs font-medium text-danger-700 hover:bg-danger-200"
@@ -548,5 +574,15 @@
 		collectionPlacesMap={collectionPlacesMap}
 		onToggle={(ids, colId) => onToggleCollection(ids[0], colId)}
 		onClose={onCollectionPickerClose}
+	/>
+{/if}
+
+{#if actionMenuOpen && isCollectionContext}
+	<PlaceActionMenu
+		anchorX={actionMenuAnchor.x}
+		anchorY={actionMenuAnchor.y}
+		onRemoveFromCollection={() => onRemoveFromCollection!(place.id)}
+		onDeletePlace={() => onDeletePlace!(place.id)}
+		onClose={() => { actionMenuOpen = false; }}
 	/>
 {/if}

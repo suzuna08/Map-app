@@ -177,10 +177,28 @@
 	}
 
 	async function handleRemovePlace(placeId: string) {
+		const removedPlace = places.find((p) => p.id === placeId);
 		await removePlaceFromCollection(supabase, collection.id, placeId);
 		placeIds = placeIds.filter((id) => id !== placeId);
 		places = places.filter((p) => p.id !== placeId);
-		showToast('info', '', 'Removed from collection');
+		showToast('info', '', 'Removed from collection', [
+			{
+				label: 'Undo',
+				handler: async () => {
+					await addPlacesToCollection(supabase, collection.id, [placeId]);
+					placeIds = [...placeIds, placeId];
+					if (removedPlace) places = [...places, removedPlace];
+				}
+			}
+		]);
+	}
+
+	async function handleDeletePlace(placeId: string) {
+		await supabase.from('places').delete().eq('id', placeId);
+		placeIds = placeIds.filter((id) => id !== placeId);
+		places = places.filter((p) => p.id !== placeId);
+		allPlaces = allPlaces.filter((p) => p.id !== placeId);
+		showToast('info', '', 'Place deleted');
 	}
 
 	async function handleAddPlace(placeId: string) {
@@ -549,6 +567,8 @@
 					onRatingChanged={updateRating}
 					selected={selectedPlaceId === place.id}
 					onSelect={handleCardSelect}
+					onRemoveFromCollection={(id) => handleRemovePlace(id)}
+					onDeletePlace={(id) => handleDeletePlace(id)}
 				/>
 			{/each}
 		</div>
@@ -568,6 +588,8 @@
 					onDelete={() => handleRemovePlace(place.id)}
 					selected={selectedPlaceId === place.id}
 					onSelect={handleCardSelect}
+					onRemoveFromCollection={(id) => handleRemovePlace(id)}
+					onDeletePlace={(id) => handleDeletePlace(id)}
 				/>
 			{/each}
 		</div>
@@ -693,6 +715,14 @@
 					{toast.type === 'info' ? 'border border-blue-200/60 bg-blue-50/95 text-blue-800' : ''}"
 			>
 				<span class="text-xs font-medium sm:text-sm">{toast.message}</span>
+				{#if toast.actions}
+					{#each toast.actions as action}
+						<button
+							onclick={() => { action.handler(); dismissToast(toast.id); }}
+							class="text-[10px] font-bold underline sm:text-xs"
+						>{action.label}</button>
+					{/each}
+				{/if}
 			</div>
 		{/each}
 	</div>
