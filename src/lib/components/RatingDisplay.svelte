@@ -69,7 +69,7 @@
 	{#if userRating != null}
 		<span class="font-extrabold text-warm-700">{userRating.toFixed(1)}</span><span class="text-brand-500 {compact ? 'text-xs' : 'text-xs'}">★</span>
 	{:else}
-		<span class="font-medium text-warm-300 {compact ? 'text-xs' : 'text-xs'}">Not rated</span>
+		<span class="whitespace-nowrap font-medium text-warm-300 {compact ? 'text-xs' : 'text-xs'}">Not rated</span>
 	{/if}
 </button>
 

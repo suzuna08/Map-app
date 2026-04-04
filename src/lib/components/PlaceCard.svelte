@@ -241,14 +241,14 @@
 			>
 				<!-- MOBILE FRONT -->
 				<div class="[backface-visibility:hidden]">
-					<article class="flex h-[180px] cursor-pointer flex-col border bg-white p-2.5 transition-all hover:shadow-sm {selected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}">
-				<div class="flex items-center justify-between">
+					<article class="flex h-[190px] cursor-pointer flex-col border bg-white p-3.5 transition-all hover:shadow-sm {selected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}">
+				<div class="mb-1 flex items-center justify-between">
 					<div class="flex items-center gap-1">
 						{#if place.category}
-							<span class="rounded-full bg-warm-200 px-1.5 py-px text-xs font-bold text-warm-600">{place.category}</span>
+							<span class="rounded-full bg-warm-200 px-2 py-0.5 text-xs font-bold text-warm-600">{place.category}</span>
 						{/if}
 						{#if place.area}
-							<span class="rounded-full bg-sage-200 px-1.5 py-px text-xs font-bold text-sage-700">{place.area}</span>
+							<span class="rounded-full bg-sage-200 px-2 py-0.5 text-xs font-bold text-sage-700">{place.area}</span>
 						{/if}
 					</div>
 					<RatingDisplay
@@ -341,7 +341,7 @@
 
 		<!-- MOBILE BACK (Notes) -->
 		<div class="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-			<article class="flex h-[180px] flex-col border border-warm-200 bg-white p-2.5">
+			<article class="flex h-[190px] flex-col border border-warm-200 bg-white p-3.5">
 				<div class="mb-1.5 flex items-center justify-between">
 					<h3 class="line-clamp-1 flex-1 text-base font-extrabold text-warm-800">{place.title}</h3>
 					<div class="ml-2 flex items-center gap-1.5">

@@ -265,7 +265,7 @@
 						<span class="shrink-0 text-xs font-medium text-brand-400 animate-pulse">Tap to expand</span>
 					{/if}
 
-					<div class="w-14 shrink-0 text-right">
+					<div class="w-16 shrink-0 text-right">
 						<RatingDisplay
 							placeId={place.id}
 							userRating={place.user_rating}
