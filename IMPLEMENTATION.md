@@ -24,6 +24,7 @@ Detailed documentation of the architecture, design decisions, trade-offs, and bu
 - [Root Layout & Global Concerns](#root-layout--global-concerns)
 - [Responsive Design](#responsive-design)
 - [Configuration & Tooling](#configuration--tooling)
+- [Performance Optimization](#performance-optimization)
 - [Trade-offs](#trade-offs)
 - [Bugs & Fixes](#bugs--fixes)
 - [Known Inconsistencies](#known-inconsistencies)
@@ -45,7 +46,7 @@ The app follows SvelteKit's file-based routing with a clear separation:
 
 All data fetching on the places page happens client-side via the Supabase JS client, while enrichment and URL import go through server-side API routes because they need the private `GOOGLE_PLACES_API_KEY`. The map view uses MapLibre GL JS with MapTiler tiles, loaded client-side only via dynamic import to avoid SSR issues.
 
-**Server-side data preloading**: Pages with heavy data requirements (`places`, `collections`, `collections/[id]`, `c/[slug]`) use `+page.server.ts` files to preload data in parallel on the server before hydration. For example, `places/+page.server.ts` fetches places, tags, place_tags, lists, and list_places concurrently. `collections/[id]/+page.server.ts` preloads the collection's member places alongside all user tags, a lightweight all-places list, and place_tags for the "Add Places" modal tag filtering. `c/[slug]/+page.server.ts` loads the collection, its member places, and their associated tags and place_tags for tag display on the public page. This reduces the initial client-side waterfall while keeping subsequent interactions client-side only.
+**Server-side data preloading**: Pages with heavy data requirements (`places`, `collections`, `collections/[id]`, `c/[slug]`) use `+page.server.ts` files to preload data on the server before hydration. All server loads use Supabase's embedded resource syntax (e.g., `places.select('..., place_tags(tag_id)')`) to fetch parent rows and their related junction data in a single query, eliminating sequential round-trips. Independent queries are wrapped in `Promise.all()` for parallel execution. For example, `places/+page.server.ts` runs three parallel queries — places (with embedded place_tags), tags, and lists (with embedded list_places) — in a single wall-clock round-trip. `collections/[id]/+page.server.ts` uses a deep nested join (`list_places(place_id, places(...))`) to fetch the collection, its member place IDs, and full place details in one query, alongside parallel queries for tags and lightweight all-places data for the "Add Places" modal. `c/[slug]/+page.server.ts` uses the same deep nested join pattern to load the public collection and all its places in a single query. See [PERFORMANCE-AUDIT.md](./PERFORMANCE-AUDIT.md) for the full optimization history.
 
 State management uses Svelte 5 runes throughout:
 - `$state` for mutable reactive variables
@@ -54,7 +55,7 @@ State management uses Svelte 5 runes throughout:
 - `$props` for component inputs (replaces Svelte 4's `export let`)
 
 Shared state is extracted into `.svelte.ts` modules in `src/lib/stores/`:
-- **`places.svelte.ts`**: Data-access functions (`loadPlacesData`, `refreshTagsData`, `buildPlaceTagsMap`, `removeTagsFromPlace`, `applyTagsToPlace`) that encapsulate Supabase queries and the placeTagsMap join logic. These are plain async functions, not Svelte stores -- the reactive state lives in the page components that call them.
+- **`places.svelte.ts`**: Data-access functions (`loadPlacesData`, `refreshTagsData`, `buildPlaceTagsMap`, `removeTagsFromPlace`, `applyTagsToPlace`) that encapsulate Supabase queries and the placeTagsMap join logic. Queries use embedded joins (e.g., `places.select('..., place_tags(tag_id)')`) to fetch junction data through user-scoped parent rows rather than scanning unfiltered junction tables. `applyTagsToPlace` uses a single `.upsert()` call with `ignoreDuplicates: true` instead of per-tag check-then-insert. These are plain async functions, not Svelte stores -- the reactive state lives in the page components that call them.
 - **`toasts.svelte.ts`**: A module-level `$state` array of toast notifications with `showToast()`, `getToasts()`, and `dismissToast()` exports. This enables toasts to be triggered from any component (page, API callback, undo handler) without prop-drilling.
 
 Runes are enabled project-wide via `svelte.config.js` with `dynamicCompileOptions` -- all non-`node_modules` files are compiled in runes mode. There is no per-file `<svelte:options runes />` needed.
@@ -69,7 +70,7 @@ Auth is handled through `@supabase/ssr` with a server hook (`hooks.server.ts`) a
 
 **Server hook** (`hooks.server.ts`): Creates a server-side Supabase client that reads/writes cookies for session persistence. It exposes a `safeGetSession` helper on `event.locals`. Cookie options include `httpOnly: false` (required for the Supabase browser client to manage sessions), `sameSite: 'lax'`, and a 30-day `maxAge` for session persistence across browser restarts.
 
-**The `safeGetSession` pattern**: `getSession()` reads the session from the JWT in the cookie, but the JWT could be tampered with. So after getting the session, it calls `getUser()` which makes an actual request to Supabase Auth to validate the token. If `getUser()` succeeds, the validated user is returned. If `getUser()` fails (error response or network exception), the function falls back to `session.user` from the JWT rather than rejecting the session entirely. This keeps the app functional when Supabase Auth is temporarily unreachable, while RLS policies still enforce row-level access control as a second layer of defense.
+**The `safeGetSession` pattern**: `getSession()` reads the session from the JWT in the cookie locally with zero network cost — the JWT is cryptographically signed so it can be trusted for read operations. If there's no session, it returns null. If there is, it returns `{ session, user: session.user }` directly from the JWT without calling `getUser()`. This eliminates the network round-trip to Supabase Auth that previously occurred on every request. The trade-off is that a revoked session won't be detected until the JWT expires, but RLS policies enforce row-level access control as a second layer of defense. `getUser()` (which makes a network call to validate the token server-side) is reserved for sensitive write operations, not routine page loads.
 
 **Universal layout** (`+layout.ts`): Creates a browser or server Supabase client depending on context. On the browser side, it uses `createBrowserClient`; on the server, `createServerClient` with empty cookie stubs (the real cookie handling happens in the hook).
 
@@ -265,9 +266,8 @@ When the user has custom tag filters active (e.g., viewing places tagged "Date N
 
 The endpoint validates context tag IDs before applying them:
 1. Queries the `tags` table to confirm each ID belongs to the current user and has `source: 'user'` (prevents linking to other users' tags or system tags)
-2. Checks `place_tags` for existing links to avoid duplicates
-3. Inserts only the missing tag links
-4. Returns the count of newly applied tags
+2. Uses a single `.upsert()` with `onConflict: 'place_id,tag_id'` and `ignoreDuplicates: true` to link all valid tags in one round-trip, skipping any that already exist
+3. Returns the count of newly applied tags
 
 ### Toast Feedback
 
@@ -535,7 +535,7 @@ A separate migration (`supabase/add_emoji_column.sql`) adds the `emoji` column t
 
 ### Color Auto-Migration
 
-The collections index page (`/collections`) includes a one-time client-side color migration that maps old palette colors to the curated 6-color palette. An `OLD_TO_NEW` dictionary (40+ entries) maps previous colors (Tailwind defaults, earlier custom palettes) to their closest match in the new set (`#A5834F`, `#8C8B82`, `#7489A6`, `#936756`, `#5B7D8A`, `#6A6196`). The migration runs once via `$effect` when collections load, batch-updating affected collections with `Promise.all`. A `migrated` flag prevents re-execution.
+The collections index page (`/collections`) includes a one-time client-side color migration that maps old palette colors to the curated 6-color palette. An `OLD_TO_NEW` dictionary (40+ entries) maps previous colors (Tailwind defaults, earlier custom palettes) to their closest match in the new set (`#A5834F`, `#8C8B82`, `#7489A6`, `#936756`, `#5B7D8A`, `#6A6196`). The migration runs once via `$effect` when collections load. It updates local state optimistically (immediate UI update) and fires the database writes as fire-and-forget `Promise.all` (not awaited, no re-fetch). A `migrated` flag prevents re-execution.
 
 ### Routes
 
@@ -549,20 +549,20 @@ The collections index page (`/collections`) includes a one-time client-side colo
 - "+ Add Places" modal with search over all user places not in the collection
 - Share toggle (private ↔ link_access) with copy-link button
 
-**`/c/[slug]`** — Public read-only share page. Accessed without authentication. Shows a clean layout with the collection name, description, place count, and all places in grid or list view. Each place shows category, area, user rating, user tags (colored pills), and links to Google Maps/website. Search includes tag name matching. No editing capabilities. The server load function (`c/[slug]/+page.server.ts`) now fetches `place_tags` for all collection places and the corresponding `tags` by ID, passing them to the page for display.
+**`/c/[slug]`** — Public read-only share page. Accessed without authentication. Shows a clean layout with the collection name, description, place count, and all places in grid or list view. Each place shows category, area, user rating, user tags (colored pills), and links to Google Maps/website. Search includes tag name matching. No editing capabilities. The server load function (`c/[slug]/+page.server.ts`) uses a single deep nested join (`list_places(place_id, places(...))`) to fetch the collection and all its place data in one query. Tags and place_tags for display are fetched from the user's data.
 
 ### Store Architecture
 
 `src/lib/stores/collections.svelte.ts` follows the same async-helper pattern as `places.svelte.ts` and `saved-views.svelte.ts`:
 
-- **`loadCollections()`**: Fetches all user collections and builds the `CollectionMemberMap` (record of collection ID → place ID arrays)
+- **`loadCollections()`**: Fetches all user collections with embedded `list_places(place_id)` join in a single query (scoped by `user_id`), then builds the `CollectionMemberMap` from the join result
 - **`createCollection()`**: Creates a collection, optionally bulk-inserting place IDs
 - **`updateCollection()`**: Updates name, description, color, visibility, or share_slug
 - **`deleteCollection()`**: Deletes a collection (cascade removes `list_places` rows)
-- **`addPlaceToCollection()` / `addPlacesToCollection()`**: Single or batch membership insert
+- **`addPlaceToCollection()` / `addPlacesToCollection()`**: Single or batch membership insert using `.upsert()` with `onConflict: 'list_id,place_id'` and `ignoreDuplicates: true`
 - **`removePlaceFromCollection()`**: Removes a place from a collection
 - **`enableSharing()` / `disableSharing()`**: Toggles visibility and generates/clears the share slug
-- **`loadCollectionBySlug()`**: Loads a collection by slug for the public share page
+- **`loadCollectionBySlug()`**: Loads a collection by slug with embedded `list_places(place_id)` join in a single query
 - **`optimisticAdd()` / `optimisticRemove()`**: Pure functions for optimistic UI updates on the `CollectionMemberMap`
 
 ### Adding Places
@@ -588,7 +588,7 @@ Simple MVP sharing:
 3. **Copy**: The "Copy Link" button copies `{origin}/c/{slug}` to clipboard
 4. **Disable**: Sets `visibility = 'private'`, nullifies the slug
 
-The public page (`/c/[slug]`) loads data via a server load function that queries `lists` filtered by `share_slug` and `visibility = 'link_access'`. RLS policies allow anonymous SELECT on collections and their places when visibility is `link_access`.
+The public page (`/c/[slug]`) loads data via a server load function that uses a single deep nested join query (`lists.select('..., list_places(place_id, places(...))')`) filtered by `share_slug` and `visibility = 'link_access'`. This fetches the collection and all its place data in one round-trip. RLS policies allow anonymous SELECT on collections and their places when visibility is `link_access`.
 
 ### Navigation
 
@@ -929,6 +929,36 @@ Public vars (prefixed `PUBLIC_`) are safe to expose to the browser. The Google A
 
 ---
 
+## Performance Optimization
+
+A comprehensive query optimization pass was performed across all server loads, client-side stores, and API routes. The audit identified and fixed five classes of performance issues. See [PERFORMANCE-AUDIT.md](./PERFORMANCE-AUDIT.md) for the full analysis and prevention guidelines.
+
+### Optimized Query Patterns
+
+**Embedded joins instead of sequential queries**: All server loads and store functions now use Supabase's embedded resource syntax to fetch parent rows and related junction data in a single query. For example, `places.select('..., place_tags(tag_id)')` fetches places with their tag associations in one round-trip, replacing the previous pattern of fetching places first, extracting IDs, then querying `place_tags` with `.in('id', ids)`.
+
+**Deep nested joins**: Collection detail and public share pages use two-level nested joins: `list_places(place_id, places(...))` fetches the collection, its member place IDs, and full place details all in one query. This collapsed the collection detail load from 4 sequential round-trips to 1.
+
+**Parallel independent queries**: Where multiple independent queries are needed (e.g., places + tags + lists on the places page), they're wrapped in `Promise.all()` to execute in parallel. The wall-clock time equals the slowest single query rather than the sum of all queries.
+
+**User-scoped junction table access**: Junction tables (`place_tags`, `list_places`) are no longer queried directly without filters. They're accessed through embedded joins on user-scoped parent tables (e.g., `places.select('..., place_tags(tag_id)').eq('user_id', userId)`), which automatically scopes the junction data to the current user.
+
+**Upsert instead of check-then-insert**: Tag application (`applyTagsToPlace`, `applyContextTags`) uses `.upsert()` with `onConflict` and `ignoreDuplicates: true` instead of per-row SELECT + conditional INSERT. This collapses N tag applications from 2N round-trips to 1.
+
+### Round-Trip Summary
+
+| Route / Function | Before | After |
+|---|:-:|:-:|
+| Any route (auth hook) | 1 network call (`getUser()`) | 0 (`getSession()` only) |
+| `/collections` server load | 2 sequential | 1 (embedded join) |
+| `/places` server load | 2 sequential | 1 (`Promise.all` with 3 joined queries) |
+| `/collections/[id]` server load | 4 sequential | 1 (`Promise.all` with 3 joined queries) |
+| `/c/[slug]` server load | 3 sequential | 1 (deep nested join) |
+| `applyTagsToPlace` | 2N per action | 1 (upsert) |
+| `applyContextTags` | 2 + N | 2 (validate + upsert) |
+
+---
+
 ## Trade-offs
 
 ### 1. Client-Side Filtering vs. Server-Side Queries
@@ -987,13 +1017,13 @@ Public vars (prefixed `PUBLIC_`) are safe to expose to the browser. The Google A
 
 **Downside**: Users might not like the auto-assigned color. Two semantically different tags could hash to the same color. The 6-color palette limits variety.
 
-### 8. Resilient Auth Fallback vs. Strict Validation
+### 8. JWT-Only Auth for Reads vs. Server-Side Validation
 
-**Chose**: When `getUser()` fails (network error or error response), fall back to `session.user` from the JWT instead of rejecting the session.
+**Chose**: Use `getSession()` only (zero network cost — reads JWT from cookies locally) for all route-level auth checks. No `getUser()` call on every request.
 
-**Why**: The strict version (return null on any `getUser()` failure) caused users to be logged out during transient Supabase Auth outages or slow network conditions. For a personal tool, availability matters more than guarding against JWT forgery on every request.
+**Why**: `getUser()` makes a network round-trip to Supabase Auth on every request, adding significant latency to every page navigation. The JWT is cryptographically signed, so `getSession()` can be trusted for read operations. RLS policies at the database level validate `auth.uid()` from the JWT on every query, providing a second layer of defense.
 
-**Downside**: During an Auth service outage, a forged JWT would be trusted. This is mitigated by RLS policies (which validate `auth.uid()` at the database level using the JWT), but it's theoretically weaker than server-side validation on every request. Additionally, session cookies use `httpOnly: false` (required for the Supabase browser client to manage sessions), which means the token is accessible to client-side JavaScript and therefore vulnerable to XSS. The combination of non-httpOnly cookies and lenient server validation means the auth security relies heavily on RLS as the final enforcement layer.
+**Downside**: A revoked session won't be detected until the JWT expires (typically 1 hour). During that window, a revoked user can still access data — but only their own data, since RLS policies enforce ownership. Session cookies use `httpOnly: false` (required for the Supabase browser client), so the token is accessible to client-side JavaScript and vulnerable to XSS. The security model relies on RLS as the final enforcement layer.
 
 ### 9. MapLibre + MapTiler vs. Google Maps Display API
 
@@ -1107,9 +1137,9 @@ Public vars (prefixed `PUBLIC_`) are safe to expose to the browser. The Google A
 
 **Problem**: The Supabase `getSession()` method reads the JWT from the cookie without validating it against the server. A malicious user could forge a JWT with a different `user_id` and access another user's data.
 
-**Fix**: The `safeGetSession` pattern in `hooks.server.ts` calls `getUser()` after `getSession()`. `getUser()` makes a server-side call to Supabase Auth, which validates the JWT signature. RLS policies provide a second layer of defense since they check `auth.uid()`.
+**Mitigation**: RLS policies provide the primary defense since they check `auth.uid()` at the database level using the cryptographically signed JWT. The `safeGetSession` pattern in `hooks.server.ts` uses `getSession()` only (no `getUser()` call) to avoid the per-request network round-trip to Supabase Auth. This trusts the JWT's cryptographic signature for read operations while relying on RLS for data isolation. `getUser()` (which makes a server-side validation call) is reserved for sensitive write operations where stronger token validation is needed.
 
-**Iteration**: The initial implementation returned `{ session: null, user: null }` whenever `getUser()` failed, which was overly strict -- a transient network issue contacting Supabase Auth would log users out. This was revised to fall back to `session.user` (from the JWT) when `getUser()` returns an error or throws a network exception. The session is still validated on most requests, but temporary Auth outages no longer break the app. The trade-off is slightly weaker forgery protection during outages, mitigated by RLS.
+**History**: The initial implementation called `getUser()` on every request, which was later found to add significant latency to every page navigation. An intermediate version fell back to `session.user` when `getUser()` failed, to avoid logging users out during transient Auth outages. The current version skips `getUser()` entirely for page loads, trusting the signed JWT and RLS.
 
 ### 10. `onAuthStateChange` Triggering Unnecessary Reloads
 

@@ -224,6 +224,7 @@ Set the following environment variables in your Vercel project settings:
 
 - [IMPLEMENTATION.md](./IMPLEMENTATION.md) — Detailed documentation of architecture decisions, trade-offs, and bugs encountered during development.
 - [UI-DESIGN.md](./UI-DESIGN.md) — Visual design specification covering color palettes, component anatomy, page layouts, responsive behavior, and interaction patterns.
+- [PERFORMANCE-AUDIT.md](./PERFORMANCE-AUDIT.md) — Supabase query optimization audit documenting the elimination of sequential round-trips, unfiltered junction scans, and N+1 patterns across all server loads and stores.
 
 ## License
 
