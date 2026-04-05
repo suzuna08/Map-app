@@ -3,7 +3,7 @@ import type { Database, Collection, Place, Tag } from '$lib/types/database';
 
 export type CollectionMemberMap = Record<string, string[]>;
 
-const LISTS_COLUMNS = 'id, user_id, name, description, color, emoji, visibility, share_slug, created_at, updated_at';
+const LISTS_COLUMNS = 'id, user_id, name, description, color, emoji, visibility, share_slug, sort_order, created_at, updated_at';
 
 export async function loadCollections(supabase: SupabaseClient<Database>, userId?: string): Promise<{
 	collections: Collection[];
@@ -12,7 +12,7 @@ export async function loadCollections(supabase: SupabaseClient<Database>, userId
 	let query = supabase
 		.from('lists')
 		.select(`${LISTS_COLUMNS}, list_places(place_id)`)
-		.order('created_at', { ascending: false });
+		.order('sort_order', { ascending: true });
 	if (userId) query = query.eq('user_id', userId);
 
 	const { data, error } = await query;
@@ -69,7 +69,7 @@ export async function createCollection(
 export async function updateCollection(
 	supabase: SupabaseClient<Database>,
 	collectionId: string,
-	updates: { name?: string; description?: string | null; color?: string; emoji?: string | null; visibility?: string; share_slug?: string | null }
+	updates: { name?: string; description?: string | null; color?: string; emoji?: string | null; visibility?: string; share_slug?: string | null; sort_order?: number }
 ): Promise<boolean> {
 	const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
 	if (updates.name !== undefined) payload.name = updates.name;
@@ -78,6 +78,7 @@ export async function updateCollection(
 	if (updates.emoji !== undefined) payload.emoji = updates.emoji;
 	if (updates.visibility !== undefined) payload.visibility = updates.visibility;
 	if (updates.share_slug !== undefined) payload.share_slug = updates.share_slug;
+	if (updates.sort_order !== undefined) payload.sort_order = updates.sort_order;
 
 	const { error } = await supabase.from('lists').update(payload).eq('id', collectionId);
 	if (error) {
@@ -97,6 +98,19 @@ export async function deleteCollection(
 		return false;
 	}
 	return true;
+}
+
+export async function reorderCollections(
+	supabase: SupabaseClient<Database>,
+	orderedIds: string[]
+): Promise<boolean> {
+	const updates = orderedIds.map((id, i) =>
+		supabase.from('lists').update({ sort_order: i }).eq('id', id)
+	);
+	const results = await Promise.all(updates);
+	const hasError = results.some((r) => r.error);
+	if (hasError) console.error('[reorderCollections] some updates failed');
+	return !hasError;
 }
 
 export async function addPlaceToCollection(

@@ -1,8 +1,9 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
-	import type { Database, SavedView, TagGroup } from '$lib/types/database';
-	import { createSavedView, updateSavedView, deleteSavedView, buildFiltersSnapshot } from '$lib/stores/saved-views.svelte';
+	import type { Database, SavedView } from '$lib/types/database';
+	import { updateSavedView, deleteSavedView } from '$lib/stores/saved-views.svelte';
 	import { showToast } from '$lib/stores/toasts.svelte';
+	import { sortable } from '$lib/actions/sortable';
 
 	let {
 		supabase,
@@ -10,39 +11,25 @@
 		savedViews = [],
 		activeSavedViewId = null,
 		viewIsDirty = false,
-		selectedCustomIds = [],
-		filterMode = 'all',
-		selectedSource = 'all',
-		sortBy = 'newest',
-		viewMode = 'grid',
-		search = '',
 		onApply,
 		onViewsChanged,
 		onQuickUpdate,
 		onCreateCollection,
-		onAddToCollection
+		onAddToCollection,
+		onReorder
 	}: {
 		supabase: SupabaseClient<Database>;
 		userId: string;
 		savedViews: SavedView[];
 		activeSavedViewId: string | null;
 		viewIsDirty: boolean;
-		selectedCustomIds: string[];
-		filterMode: 'all' | 'any';
-		selectedSource: string;
-		sortBy: string;
-		viewMode: string;
-		search: string;
 		onApply: (view: SavedView) => void;
 		onViewsChanged: () => void;
 		onQuickUpdate: () => void;
 		onCreateCollection?: (view: SavedView) => void;
 		onAddToCollection?: (view: SavedView) => void;
+		onReorder?: (orderedIds: string[]) => void;
 	} = $props();
-
-	let showCreateInput = $state(false);
-	let newViewName = $state('');
-	let createInputEl = $state<HTMLInputElement | null>(null);
 
 	let editingId = $state<string | null>(null);
 	let editingName = $state('');
@@ -50,70 +37,6 @@
 
 	let menuOpenId = $state<string | null>(null);
 	let menuPos = $state({ x: 0, y: 0 });
-
-	let hasFilters = $derived(
-		selectedCustomIds.length > 0 ||
-		selectedSource !== 'all' ||
-		(search.trim() !== '' && !isGoogleMapsUrl(search))
-	);
-
-	function isGoogleMapsUrl(text: string): boolean {
-		const t = text.trim();
-		return /^https?:\/\/(maps\.google\.|www\.google\.\w+\/maps|maps\.app\.goo\.gl|goo\.gl\/maps|share\.google\/)/i.test(t);
-	}
-
-	function getSearchTextForSnapshot(): string | undefined {
-		const trimmed = search.trim();
-		return (trimmed && !isGoogleMapsUrl(trimmed)) ? trimmed : undefined;
-	}
-
-	function openCreate() {
-		showCreateInput = true;
-		newViewName = '';
-		menuOpenId = null;
-		requestAnimationFrame(() => createInputEl?.focus());
-	}
-
-	function cancelCreate() {
-		showCreateInput = false;
-		newViewName = '';
-	}
-
-	function handleCreateBlur() {
-		setTimeout(() => {
-			if (!newViewName.trim()) {
-				cancelCreate();
-			}
-		}, 150);
-	}
-
-	async function handleCreate() {
-		const name = newViewName.trim();
-		if (!name) { cancelCreate(); return; }
-		const tg: TagGroup[] = selectedCustomIds.length > 0
-			? [{ id: '0', tagIds: [...selectedCustomIds], mode: filterMode }]
-			: [];
-		const searchText = getSearchTextForSnapshot();
-		const filters = buildFiltersSnapshot(selectedCustomIds, selectedSource, tg, searchText);
-		const result = await createSavedView(supabase, userId, name, filters, sortBy, viewMode);
-		if (result) {
-			showToast('success', '', `Saved view "${name}" created`);
-			onViewsChanged();
-		} else {
-			showToast('error', '', 'Could not save view. Make sure the saved_views table exists.');
-		}
-		showCreateInput = false;
-		newViewName = '';
-	}
-
-	function handleCreateKeydown(e: KeyboardEvent) {
-		if (e.key === 'Enter') {
-			e.preventDefault();
-			handleCreate();
-		} else if (e.key === 'Escape') {
-			cancelCreate();
-		}
-	}
 
 	function startRename(view: SavedView) {
 		editingId = view.id;
@@ -190,7 +113,17 @@
 <svelte:window onclick={handleWindowClick} onkeydown={handleWindowKeydown} />
 
 <div class="mb-1.5 sm:mb-3">
-	<div class="flex items-center gap-1.5 overflow-x-auto py-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+	<div
+		class="flex items-center gap-1.5 overflow-x-auto py-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+		use:sortable={{
+			onReorder: (ids) => onReorder?.(ids),
+			itemSelector: '[data-view-id]',
+			idAttribute: 'data-view-id',
+			longPressMs: 500,
+			disabled: !onReorder,
+			ignoreDragFrom: '[data-sv-menu-btn]'
+		}}
+	>
 		{#each savedViews as view (view.id)}
 			{#if editingId === view.id}
 				<input
@@ -202,7 +135,7 @@
 					style="width: {Math.max(editingName.length * 7.5 + 24, 72)}px"
 				/>
 			{:else}
-				<div class="group relative shrink-0" data-sv-menu>
+				<div class="group relative shrink-0" data-sv-menu data-view-id={view.id}>
 					<button
 						onclick={() => onApply(view)}
 						class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold transition-all sm:px-3 sm:text-sm
@@ -220,8 +153,9 @@
 							<span class="h-1.5 w-1.5 rounded-full bg-brand-500"></span>
 						{/if}
 					</button>
-						<button
-							onclick={(e) => { e.stopPropagation(); toggleMenu(view.id, e); }}
+					<button
+						data-sv-menu-btn
+						onclick={(e) => { e.stopPropagation(); toggleMenu(view.id, e); }}
 							class="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-warm-200 text-warm-500 transition-opacity hover:bg-warm-300 hover:text-warm-700 sm:h-[18px] sm:w-[18px]
 								{menuOpenId === view.id
 									? 'opacity-100'
@@ -238,45 +172,6 @@
 			{/if}
 		{/each}
 
-		{#if showCreateInput}
-			<div class="flex shrink-0 items-center gap-1">
-				<input
-					bind:this={createInputEl}
-					bind:value={newViewName}
-					onkeydown={handleCreateKeydown}
-					onblur={handleCreateBlur}
-					placeholder="View name…"
-					class="w-28 rounded-lg border border-brand-300 bg-white px-2.5 py-1 text-xs font-medium text-warm-800 placeholder:text-warm-400 outline-none ring-2 ring-brand-400/20 focus:border-brand-400 sm:w-32 sm:text-sm"
-				/>
-				<button
-					onmousedown={(e) => e.preventDefault()}
-					onclick={handleCreate}
-					disabled={!newViewName.trim()}
-					class="rounded-md bg-brand-500 px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
-				>
-					Save
-				</button>
-				<button
-					onmousedown={(e) => e.preventDefault()}
-					onclick={cancelCreate}
-					class="rounded-md px-1.5 py-1 text-xs font-medium text-warm-400 transition-colors hover:text-warm-600"
-				>
-					Cancel
-				</button>
-			</div>
-		{:else}
-			<button
-				onclick={openCreate}
-				class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-dashed border-warm-300 px-2 py-1 text-xs font-bold text-warm-400 transition-colors hover:border-brand-400 hover:bg-brand-50/60 hover:text-brand-600 sm:px-2.5 sm:text-sm"
-				title={hasFilters ? 'Save current filters as a view' : 'Save a view'}
-			>
-				<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-				</svg>
-				<span class="sm:hidden">+</span>
-				<span class="hidden sm:inline">Save View</span>
-			</button>
-		{/if}
 	</div>
 </div>
 
@@ -286,7 +181,7 @@
 	{#if view}
 		<div
 			data-sv-menu
-			class="fixed z-50 hidden w-44 rounded-lg border border-warm-200 bg-white py-1 shadow-lg sm:block"
+			class="fixed z-[60] hidden w-44 rounded-lg border border-warm-200 bg-white py-1 shadow-lg sm:block"
 			style="left: {menuPos.x}px; top: {menuPos.y}px;"
 		>
 			<button
@@ -336,7 +231,7 @@
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
-			class="fixed inset-0 z-50 flex items-end sm:hidden"
+			class="fixed inset-0 z-[60] flex items-end sm:hidden"
 			onclick={() => { menuOpenId = null; }}
 			data-sv-menu
 		>

@@ -95,6 +95,7 @@ export interface Database {
 			emoji: string | null;
 			visibility: string;
 				share_slug: string | null;
+				sort_order: number;
 				created_at: string;
 				updated_at: string;
 			};
@@ -107,6 +108,7 @@ export interface Database {
 			emoji?: string | null;
 			visibility?: string;
 				share_slug?: string | null;
+				sort_order?: number;
 				created_at?: string;
 				updated_at?: string;
 			};
@@ -119,6 +121,7 @@ export interface Database {
 			emoji?: string | null;
 			visibility?: string;
 				share_slug?: string | null;
+				sort_order?: number;
 				created_at?: string;
 				updated_at?: string;
 			};
@@ -392,6 +395,7 @@ export interface Database {
 					filters_json: SavedViewFilters;
 					sort_by: string;
 					layout_mode: string;
+					order_index: number;
 					created_at: string;
 					updated_at: string;
 				};
@@ -402,6 +406,7 @@ export interface Database {
 					filters_json?: SavedViewFilters;
 					sort_by?: string;
 					layout_mode?: string;
+					order_index?: number;
 					created_at?: string;
 					updated_at?: string;
 				};
@@ -412,6 +417,7 @@ export interface Database {
 					filters_json?: SavedViewFilters;
 					sort_by?: string;
 					layout_mode?: string;
+					order_index?: number;
 					created_at?: string;
 					updated_at?: string;
 				};

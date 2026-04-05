@@ -8,14 +8,7 @@
 		collection: Collection;
 		collections: Collection[];
 		collectionPlacesMap: CollectionMemberMap;
-		filteredCount: number;
 		totalCount: number;
-		search: string;
-		sortBy: string;
-		viewMode: 'grid' | 'list';
-		onSearchChange: (value: string) => void;
-		onSortChange: (value: string) => void;
-		onViewModeChange: (value: 'grid' | 'list') => void;
 		onAddPlaces: () => void;
 		onColorChange?: (color: string) => void;
 		onEmojiChange?: (emoji: string | null) => void;
@@ -30,14 +23,7 @@
 		collection,
 		collections,
 		collectionPlacesMap,
-		filteredCount,
 		totalCount,
-		search,
-		sortBy,
-		viewMode,
-		onSearchChange,
-		onSortChange,
-		onViewModeChange,
 		onAddPlaces,
 		onColorChange,
 		onEmojiChange,
@@ -205,66 +191,6 @@
 						</div>
 					{/if}
 				</div>
-			</div>
-		</div>
-	</div>
-
-	<!-- Controls bar -->
-	<div class="flex items-center justify-between border-t border-warm-200/60 px-3 py-1.5 sm:px-5 sm:py-2 lg:px-6">
-		<span class="text-xs font-semibold text-warm-400">{totalCount} {totalCount === 1 ? 'place' : 'places'}</span>
-		<div class="flex items-center gap-1.5 sm:gap-2">
-			<div class="relative">
-				<svg class="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-				</svg>
-				<input
-					type="text"
-					value={search}
-					oninput={(e) => onSearchChange((e.currentTarget as HTMLInputElement).value)}
-					placeholder="Search..."
-					class="w-28 rounded-lg border border-warm-200 bg-warm-50 py-1 pl-7 pr-7 text-xs font-medium text-warm-600 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:w-40 sm:text-sm"
-				/>
-				{#if search}
-					<button
-						onclick={() => onSearchChange('')}
-						class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600"
-						aria-label="Clear search"
-					>
-						<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-							<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-						</svg>
-					</button>
-				{/if}
-			</div>
-			<select
-				value={sortBy}
-				onchange={(e) => onSortChange((e.currentTarget as HTMLSelectElement).value)}
-				class="rounded-md border border-warm-200 bg-white px-1.5 py-1 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none sm:text-sm"
-			>
-				<option value="newest">Recent</option>
-				<option value="az">A–Z</option>
-				<option value="rating">My Rating</option>
-			</select>
-			<div class="flex items-center gap-0.5 rounded-md border border-warm-200 bg-white p-0.5">
-				<button
-					onclick={() => onViewModeChange('grid')}
-					class="rounded p-1.5 transition-colors {viewMode === 'grid' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
-					aria-label="Grid view"
-				>
-					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
-					</svg>
-				</button>
-				<button
-					onclick={() => onViewModeChange('list')}
-					class="rounded p-1.5 transition-colors {viewMode === 'list' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
-					aria-label="List view"
-				>
-					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
-						<line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
-					</svg>
-				</button>
 			</div>
 		</div>
 	</div>

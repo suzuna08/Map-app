@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Place, Tag, Collection } from '$lib/types/database';
-	import { createCollection, deleteCollection, loadCollections, updateCollection, loadCollectionPlaces, addPlacesToCollection, removePlaceFromCollection, enableSharing, disableSharing } from '$lib/stores/collections.svelte';
+	import { createCollection, deleteCollection, loadCollections, updateCollection, loadCollectionPlaces, addPlacesToCollection, removePlaceFromCollection, enableSharing, disableSharing, reorderCollections } from '$lib/stores/collections.svelte';
 	import type { CollectionMemberMap } from '$lib/stores/collections.svelte';
 	import { buildPlaceTagsMap, refreshTagsData } from '$lib/stores/places.svelte';
 	import { showToast, getToasts, dismissToast } from '$lib/stores/toasts.svelte';
@@ -35,10 +35,43 @@
 	let viewMode = $state<'grid' | 'list'>('grid');
 	let selectedPlaceId = $state<string | null>(null);
 	let isMobile = $state(false);
-	let hubHeight = $state(0);
-	let headerHeight = $state(0);
 	let showAddModal = $state(false);
 	let addSearch = $state('');
+
+	// Drag-to-reorder state
+	let dragIdx = $state<number | null>(null);
+	let dragOverIdx = $state<number | null>(null);
+
+	function handleDragStart(e: DragEvent, idx: number) {
+		dragIdx = idx;
+		if (e.dataTransfer) {
+			e.dataTransfer.effectAllowed = 'move';
+			e.dataTransfer.setData('text/plain', String(idx));
+		}
+	}
+
+	function handleDragOver(e: DragEvent, idx: number) {
+		e.preventDefault();
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+		dragOverIdx = idx;
+	}
+
+	function handleDrop(e: DragEvent, idx: number) {
+		e.preventDefault();
+		if (dragIdx === null || dragIdx === idx) { dragIdx = null; dragOverIdx = null; return; }
+		const reordered = [...collections];
+		const [moved] = reordered.splice(dragIdx, 1);
+		reordered.splice(idx, 0, moved);
+		collections = reordered;
+		dragIdx = null;
+		dragOverIdx = null;
+		reorderCollections(supabase, reordered.map((c) => c.id));
+	}
+
+	function handleDragEnd() {
+		dragIdx = null;
+		dragOverIdx = null;
+	}
 
 	let selectedCollection = $derived(collections.find((c) => c.id === selectedCollectionId) ?? null);
 
@@ -404,106 +437,79 @@
 	<title>{selectedCollection ? `${selectedCollection.name} — Collections` : 'My Collections'} — MapOrganizer</title>
 </svelte:head>
 
-<!-- ========== SINGLE PAGE: Hub + Browse Surface ========== -->
+<!-- ========== SINGLE PAGE: Places-style split layout ========== -->
 
-<!-- SECTION 1: Page title + Collection Hub (always visible) -->
-<div class="border-b border-warm-200/60 bg-[#faf7f2]" bind:clientHeight={hubHeight}>
-	<div class="px-3 pt-3 pb-2.5 sm:px-5 sm:pt-4 sm:pb-3 lg:px-6">
-		<div class="mb-2 flex items-center justify-between gap-3 sm:mb-2.5">
-			<h1 class="text-base font-extrabold text-warm-800 sm:text-lg">Collections</h1>
-			<button
-				onclick={() => { showCreate = true; }}
-				class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700 sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-sm"
-			>
-				<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-				New Collection
-			</button>
-		</div>
-
-		{#if collections.length === 0}
-			<div class="py-10 text-center">
-				<svg class="mx-auto h-8 w-8 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 11H5m14 0a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2m14 0V9a2 2 0 0 0-2-2M5 11V9a2 2 0 0 1 2-2m0 0V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2M7 7h10" /></svg>
-				<p class="mt-2 text-sm font-medium text-warm-500">No collections yet</p>
-				<button onclick={() => { showCreate = true; }} class="mt-1 text-sm font-semibold text-brand-600 hover:text-brand-700">Create your first collection</button>
-			</div>
-		{:else}
-			<!-- Collection hub: horizontal scrollable chips -->
-			<div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-			{#each collections as col (col.id)}
-				<button
-						onclick={() => selectCollection(col.id)}
-						class="group flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-all sm:gap-2 sm:px-2.5 sm:py-1.5
-							{selectedCollectionId === col.id ? 'bg-white shadow-sm ring-1 ring-warm-200/80' : 'hover:bg-white/60'}"
-					>
-						<CollectionAvatar color={col.color} emoji={col.emoji} size="xs" />
-						<p class="truncate text-xs font-bold text-warm-800 sm:text-sm">{col.name}</p>
+{#if isMobile}
+	<!-- Mobile: full-height flex layout with frozen header -->
+	<div class="flex h-[100dvh] flex-col overflow-hidden">
+		<div class="shrink-0 border-b border-warm-200/60 bg-[#faf7f2]">
+			<div class="px-3 pt-3 pb-2.5">
+				<div class="mb-2 flex items-center justify-between gap-3">
+					<h1 class="text-base font-extrabold text-warm-800">Collections</h1>
+					<button onclick={() => { showCreate = true; }} class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700">
+						<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+						New Collection
 					</button>
-				{/each}
-			</div>
-		{/if}
-	</div>
-</div>
-
-<!-- SECTION 2: Selected collection header + browse surface -->
-{#if selectedCollection && !browseLoading}
-	<div bind:clientHeight={headerHeight}>
-	<CollectionScopeHeader
-		collection={selectedCollection}
-		{collections}
-		{collectionPlacesMap}
-		filteredCount={filteredPlaces.length}
-		totalCount={browsePlaces.length}
-		{search}
-		{sortBy}
-		{viewMode}
-		onSearchChange={(v) => { search = v; }}
-		onSortChange={(v) => { sortBy = v as any; }}
-		onViewModeChange={(v) => { viewMode = v; }}
-		onAddPlaces={openAddModal}
-		onColorChange={saveBrowseColor}
-		onEmojiChange={saveBrowseEmoji}
-		onCopyShareLink={browseCopyShareLink}
-		onToggleSharing={browseToggleSharing}
-		onNameChange={saveBrowseName}
-		onDescriptionChange={saveBrowseDescription}
-		onDeleteCollection={handleDeleteSelectedCollection}
-	/>
-	</div>
-
-	{#if isMobile}
-		<!-- Mobile: map shell + list -->
-		<MobileMapShell places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} maptilerKey={data.maptilerKey} />
-		<div class="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-			<div class="mx-auto px-2.5 pt-1 pb-[max(2.5rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+0.25rem))]">
-				{#if sortedPlaces.length === 0}
-					<div class="py-16 text-center">
-						<svg class="mx-auto h-12 w-12 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
-						<p class="mt-3 text-base text-warm-500">{browsePlaces.length === 0 ? 'This collection is empty' : 'No places match your search'}</p>
-						{#if browsePlaces.length === 0}<button onclick={openAddModal} class="mt-2 text-base font-semibold text-brand-600 hover:text-brand-700">Add some places</button>{/if}
-					</div>
-				{:else if viewMode === 'grid'}
-					<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4">
-						{#each sortedPlaces as place (place.id)}
-							<PlaceCard {place} placeTags={browsePlaceTagsMap[place.id] ?? []} allTags={browseAllTags} {supabase} userId={session?.user?.id ?? ''} enrichingId={null} onEnrich={() => {}} onDelete={() => handleRemovePlace(place.id)} onTagClick={toggleTag} onTagsChanged={refreshTags} onNoteChanged={updateNote} onRatingChanged={updateRating} selected={selectedPlaceId === place.id} onSelect={handleCardSelect} onRemoveFromCollection={(id) => handleRemovePlace(id)} onDeletePlace={(id) => handleDeletePlace(id)} />
-						{/each}
-					</div>
-				{:else}
-					<div class="overflow-hidden rounded-2xl border border-warm-200 bg-white divide-y divide-warm-100">
-						{#each sortedPlaces as place (place.id)}
-							<PlaceListItem {place} placeTags={browsePlaceTagsMap[place.id] ?? []} allTags={browseAllTags} {supabase} userId={session?.user?.id ?? ''} onTagClick={toggleTag} onTagsChanged={refreshTags} onNoteChanged={updateNote} onRatingChanged={updateRating} onDelete={() => handleRemovePlace(place.id)} selected={selectedPlaceId === place.id} onSelect={handleCardSelect} onRemoveFromCollection={(id) => handleRemovePlace(id)} onDeletePlace={(id) => handleDeletePlace(id)} />
+				</div>
+				{#if collections.length > 0}
+					<div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+						{#each collections as col, idx (col.id)}
+							<button
+								draggable="true"
+								ondragstart={(e) => handleDragStart(e, idx)}
+								ondragover={(e) => handleDragOver(e, idx)}
+								ondrop={(e) => handleDrop(e, idx)}
+								ondragend={handleDragEnd}
+								onclick={() => selectCollection(col.id)}
+								class="group flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-all
+									{selectedCollectionId === col.id ? 'bg-white shadow-sm ring-1 ring-warm-200/80' : 'hover:bg-white/60'}
+									{dragIdx === idx ? 'opacity-40' : ''}
+									{dragOverIdx === idx && dragIdx !== idx ? 'ring-2 ring-brand-400/60' : ''}"
+							>
+								<CollectionAvatar color={col.color} emoji={col.emoji} size="xs" />
+								<p class="truncate text-xs font-bold text-warm-800">{col.name}</p>
+							</button>
 						{/each}
 					</div>
 				{/if}
 			</div>
 		</div>
-	{:else}
-		<!-- Desktop: split map/list -->
-		<div class="flex flex-col lg:flex-row" style="height: calc(100dvh - {hubHeight + headerHeight}px);">
-			<div class="relative z-0 h-[35vh] shrink-0 border-b border-warm-200 sm:h-[38vh] lg:order-2 lg:h-full lg:w-[42%] lg:self-start lg:border-b-0 lg:border-l">
-				<MapView places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} maptilerKey={data.maptilerKey} />
+
+		{#if selectedCollection && !browseLoading}
+			<div class="shrink-0">
+				<CollectionScopeHeader
+					collection={selectedCollection}
+					{collections}
+					{collectionPlacesMap}
+					totalCount={browsePlaces.length}
+					onAddPlaces={openAddModal}
+					onColorChange={saveBrowseColor}
+					onEmojiChange={saveBrowseEmoji}
+					onCopyShareLink={browseCopyShareLink}
+					onToggleSharing={browseToggleSharing}
+					onNameChange={saveBrowseName}
+					onDescriptionChange={saveBrowseDescription}
+					onDeleteCollection={handleDeleteSelectedCollection}
+				/>
 			</div>
-			<div class="min-w-0 flex-1 overflow-y-auto lg:order-1">
-				<div class="mx-auto px-2.5 py-3 sm:px-6 sm:py-4 lg:px-4 pb-[max(5rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+2rem))]">
+			<MobileMapShell places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} maptilerKey={data.maptilerKey} />
+			<div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
+				<div class="mx-auto px-2.5 pt-1 pb-[max(2.5rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+0.25rem))]">
+					<!-- Controls bar -->
+					<div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+						<span class="text-xs font-semibold text-warm-400">{browsePlaces.length} {browsePlaces.length === 1 ? 'place' : 'places'}</span>
+						<div class="flex items-center gap-1.5">
+							<select value={sortBy} onchange={(e) => { sortBy = (e.currentTarget as HTMLSelectElement).value as any; }} class="rounded-md border border-warm-200 bg-white px-1.5 py-1 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none">
+								<option value="newest">Recent</option>
+								<option value="az">A–Z</option>
+								<option value="rating">My Rating</option>
+							</select>
+							<div class="flex items-center gap-0.5 rounded-md border border-warm-200 bg-white p-0.5">
+								<button onclick={() => { viewMode = 'grid'; }} class="rounded p-1.5 transition-colors {viewMode === 'grid' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}" aria-label="Grid view"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg></button>
+								<button onclick={() => { viewMode = 'list'; }} class="rounded p-1.5 transition-colors {viewMode === 'list' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}" aria-label="List view"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg></button>
+							</div>
+						</div>
+					</div>
 					{#if sortedPlaces.length === 0}
 						<div class="py-16 text-center">
 							<svg class="mx-auto h-12 w-12 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
@@ -525,18 +531,139 @@
 					{/if}
 				</div>
 			</div>
-		</div>
-	{/if}
-
-{:else if browseLoading}
-	<div class="flex items-center justify-center py-20">
-		<svg class="h-8 w-8 animate-spin text-brand-500" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+		{:else if browseLoading}
+			<div class="flex flex-1 items-center justify-center">
+				<svg class="h-8 w-8 animate-spin text-brand-500" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+			</div>
+		{:else if collections.length === 0}
+			<div class="flex-1 py-10 text-center">
+				<svg class="mx-auto h-8 w-8 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 11H5m14 0a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2m14 0V9a2 2 0 0 0-2-2M5 11V9a2 2 0 0 1 2-2m0 0V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2M7 7h10" /></svg>
+				<p class="mt-2 text-sm font-medium text-warm-500">No collections yet</p>
+				<button onclick={() => { showCreate = true; }} class="mt-1 text-sm font-semibold text-brand-600 hover:text-brand-700">Create your first collection</button>
+			</div>
+		{/if}
 	</div>
 
-{:else if !selectedCollectionId && collections.length > 0}
-	<div class="py-20 text-center">
-		<svg class="mx-auto h-10 w-10 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" /></svg>
-		<p class="mt-3 text-base font-medium text-warm-500">Select a collection above to start browsing</p>
+{:else}
+	<!-- Desktop: Places-style split layout -->
+	<div class="flex flex-col lg:flex-row">
+		<!-- RIGHT: Map only (sticky sidebar, same as Places) -->
+		<div class="relative z-0 h-[35vh] shrink-0 border-b border-warm-200 sm:h-[38vh] lg:order-2 lg:sticky lg:top-0 lg:h-[100dvh] lg:w-[42%] lg:self-start lg:border-b-0 lg:border-l">
+			<MapView places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} maptilerKey={data.maptilerKey} />
+		</div>
+
+		<!-- LEFT: Collection hub + Header + controls + place cards -->
+		<div class="min-w-0 flex-1 lg:order-1">
+			<!-- Sticky collection hub + scope header -->
+			<div class="sticky top-0 z-20">
+				<div class="border-b border-warm-200/60 bg-[#faf7f2] px-3 pt-3 pb-2.5 sm:px-4 sm:pt-3 sm:pb-2.5 lg:px-4">
+					<div class="mb-2 flex items-center justify-between gap-3">
+						<h1 class="text-base font-extrabold text-warm-800 sm:text-lg">Collections</h1>
+						<button onclick={() => { showCreate = true; }} class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700 sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-sm">
+							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+							New Collection
+						</button>
+					</div>
+					{#if collections.length > 0}
+						<div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+							{#each collections as col, idx (col.id)}
+								<button
+									draggable="true"
+									ondragstart={(e) => handleDragStart(e, idx)}
+									ondragover={(e) => handleDragOver(e, idx)}
+									ondrop={(e) => handleDrop(e, idx)}
+									ondragend={handleDragEnd}
+									onclick={() => selectCollection(col.id)}
+									class="group flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-all sm:gap-2 sm:px-2.5 sm:py-1.5
+										{selectedCollectionId === col.id ? 'bg-white shadow-sm ring-1 ring-warm-200/80' : 'hover:bg-white/60'}
+										{dragIdx === idx ? 'opacity-40' : ''}
+										{dragOverIdx === idx && dragIdx !== idx ? 'ring-2 ring-brand-400/60' : ''}"
+								>
+									<CollectionAvatar color={col.color} emoji={col.emoji} size="xs" />
+									<p class="truncate text-xs font-bold text-warm-800 sm:text-sm">{col.name}</p>
+								</button>
+							{/each}
+						</div>
+					{/if}
+				</div>
+
+				{#if selectedCollection && !browseLoading}
+					<CollectionScopeHeader
+						collection={selectedCollection}
+						{collections}
+						{collectionPlacesMap}
+						totalCount={browsePlaces.length}
+						onAddPlaces={openAddModal}
+						onColorChange={saveBrowseColor}
+						onEmojiChange={saveBrowseEmoji}
+						onCopyShareLink={browseCopyShareLink}
+						onToggleSharing={browseToggleSharing}
+						onNameChange={saveBrowseName}
+						onDescriptionChange={saveBrowseDescription}
+						onDeleteCollection={handleDeleteSelectedCollection}
+					/>
+				{/if}
+			</div>
+
+			{#if selectedCollection && !browseLoading}
+				<div class="mx-auto px-2.5 py-3 sm:px-6 sm:py-4 lg:px-4 pb-[max(5rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+2rem))]">
+					<!-- Controls bar -->
+					<div class="mb-3 flex items-center justify-between">
+						<span class="text-xs font-semibold text-warm-400">{browsePlaces.length} {browsePlaces.length === 1 ? 'place' : 'places'}</span>
+						<div class="flex items-center gap-1.5 sm:gap-2">
+							<div class="relative">
+								<svg class="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+								<input type="text" value={search} oninput={(e) => { search = (e.currentTarget as HTMLInputElement).value; }} placeholder="Search..." class="w-28 rounded-lg border border-warm-200 bg-warm-50 py-1 pl-7 pr-7 text-xs font-medium text-warm-600 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:w-40 sm:text-sm" />
+								{#if search}<button onclick={() => { search = ''; }} class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600" aria-label="Clear search"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>{/if}
+							</div>
+							<select value={sortBy} onchange={(e) => { sortBy = (e.currentTarget as HTMLSelectElement).value as any; }} class="rounded-md border border-warm-200 bg-white px-1.5 py-1 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none sm:text-sm">
+								<option value="newest">Recent</option>
+								<option value="az">A–Z</option>
+								<option value="rating">My Rating</option>
+							</select>
+							<div class="flex items-center gap-0.5 rounded-md border border-warm-200 bg-white p-0.5">
+								<button onclick={() => { viewMode = 'grid'; }} class="rounded p-1.5 transition-colors {viewMode === 'grid' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}" aria-label="Grid view"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg></button>
+								<button onclick={() => { viewMode = 'list'; }} class="rounded p-1.5 transition-colors {viewMode === 'list' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}" aria-label="List view"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg></button>
+							</div>
+						</div>
+					</div>
+					{#if sortedPlaces.length === 0}
+						<div class="py-16 text-center">
+							<svg class="mx-auto h-12 w-12 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
+							<p class="mt-3 text-base text-warm-500">{browsePlaces.length === 0 ? 'This collection is empty' : 'No places match your search'}</p>
+							{#if browsePlaces.length === 0}<button onclick={openAddModal} class="mt-2 text-base font-semibold text-brand-600 hover:text-brand-700">Add some places</button>{/if}
+						</div>
+					{:else if viewMode === 'grid'}
+						<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4">
+							{#each sortedPlaces as place (place.id)}
+								<PlaceCard {place} placeTags={browsePlaceTagsMap[place.id] ?? []} allTags={browseAllTags} {supabase} userId={session?.user?.id ?? ''} enrichingId={null} onEnrich={() => {}} onDelete={() => handleRemovePlace(place.id)} onTagClick={toggleTag} onTagsChanged={refreshTags} onNoteChanged={updateNote} onRatingChanged={updateRating} selected={selectedPlaceId === place.id} onSelect={handleCardSelect} onRemoveFromCollection={(id) => handleRemovePlace(id)} onDeletePlace={(id) => handleDeletePlace(id)} />
+							{/each}
+						</div>
+					{:else}
+						<div class="overflow-hidden rounded-2xl border border-warm-200 bg-white divide-y divide-warm-100">
+							{#each sortedPlaces as place (place.id)}
+								<PlaceListItem {place} placeTags={browsePlaceTagsMap[place.id] ?? []} allTags={browseAllTags} {supabase} userId={session?.user?.id ?? ''} onTagClick={toggleTag} onTagsChanged={refreshTags} onNoteChanged={updateNote} onRatingChanged={updateRating} onDelete={() => handleRemovePlace(place.id)} selected={selectedPlaceId === place.id} onSelect={handleCardSelect} onRemoveFromCollection={(id) => handleRemovePlace(id)} onDeletePlace={(id) => handleDeletePlace(id)} />
+							{/each}
+						</div>
+					{/if}
+				</div>
+			{:else if browseLoading}
+				<div class="flex items-center justify-center py-20">
+					<svg class="h-8 w-8 animate-spin text-brand-500" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+				</div>
+			{:else if collections.length === 0}
+				<div class="py-10 text-center">
+					<svg class="mx-auto h-8 w-8 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 11H5m14 0a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2m14 0V9a2 2 0 0 0-2-2M5 11V9a2 2 0 0 1 2-2m0 0V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2M7 7h10" /></svg>
+					<p class="mt-2 text-sm font-medium text-warm-500">No collections yet</p>
+					<button onclick={() => { showCreate = true; }} class="mt-1 text-sm font-semibold text-brand-600 hover:text-brand-700">Create your first collection</button>
+				</div>
+			{:else}
+				<div class="py-20 text-center">
+					<svg class="mx-auto h-10 w-10 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" /></svg>
+					<p class="mt-3 text-base font-medium text-warm-500">Select a collection to start browsing</p>
+				</div>
+			{/if}
+		</div>
 	</div>
 {/if}
 
@@ -544,7 +671,7 @@
 {#if showCreate}
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="fixed inset-0 z-50 flex items-end justify-center sm:items-center" onclick={() => { showCreate = false; newName = ''; selectedColor = COLORS[0]; selectedEmoji = null; }}>
+	<div class="fixed inset-0 z-[60] flex items-end justify-center sm:items-center" onclick={() => { showCreate = false; newName = ''; selectedColor = COLORS[0]; selectedEmoji = null; }}>
 		<div class="absolute inset-0 bg-warm-900/40 backdrop-blur-sm"></div>
 		<div class="relative z-10 flex max-h-[85dvh] w-full flex-col rounded-t-2xl border border-warm-200 bg-white shadow-xl sm:max-w-md sm:rounded-2xl" onclick={(e) => e.stopPropagation()}>
 			<div class="flex shrink-0 items-center justify-between border-b border-warm-100 px-5 py-4">
@@ -586,7 +713,7 @@
 {#if showAddModal && selectedCollectionId}
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="fixed inset-0 z-50 flex items-end justify-center sm:items-center" onclick={() => { showAddModal = false; }}>
+	<div class="fixed inset-0 z-[60] flex items-end justify-center sm:items-center" onclick={() => { showAddModal = false; }}>
 		<div class="absolute inset-0 bg-warm-900/40 backdrop-blur-sm"></div>
 		<div class="relative z-10 flex max-h-[85dvh] w-full flex-col rounded-t-2xl border border-warm-200 bg-white shadow-xl sm:max-w-lg sm:rounded-2xl" onclick={(e) => e.stopPropagation()}>
 			<div class="flex items-center justify-between border-b border-warm-100 px-4 py-3 sm:px-5">

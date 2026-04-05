@@ -7,6 +7,19 @@
 alter table public.tags enable row level security;
 alter table public.place_tags enable row level security;
 
+-- ─── Drop existing policies (safe if they don't exist) ─────────────────────
+
+drop policy if exists "Users can view own tags" on public.tags;
+drop policy if exists "Users can insert own tags" on public.tags;
+drop policy if exists "Users can update own tags" on public.tags;
+drop policy if exists "Users can delete own tags" on public.tags;
+drop policy if exists "Public can view tags for link_access collections" on public.tags;
+
+drop policy if exists "Users can view own place_tags" on public.place_tags;
+drop policy if exists "Users can insert own place_tags" on public.place_tags;
+drop policy if exists "Users can delete own place_tags" on public.place_tags;
+drop policy if exists "Public can view place_tags for link_access collections" on public.place_tags;
+
 -- ─── Tags: users can only see/manage their own tags ─────────────────────────
 
 create policy "Users can view own tags"

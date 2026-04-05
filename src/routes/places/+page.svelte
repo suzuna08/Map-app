@@ -7,6 +7,7 @@
 	import MapView from '$lib/components/MapView.svelte';
 	import MobileMapShell from '$lib/components/MobileMapShell.svelte';
 	import SavedViewsBar from '$lib/components/SavedViewsBar.svelte';
+	import SaveViewButton from '$lib/components/SaveViewButton.svelte';
 	import AddToCollectionModal from '$lib/components/AddToCollectionModal.svelte';
 	import { sortable } from '$lib/actions/sortable';
 	import { saveTagOrder } from '$lib/tag-order';
@@ -14,7 +15,7 @@
 	import { getToasts, showToast, dismissToast } from '$lib/stores/toasts.svelte';
 	import { loadPlacesData, refreshTagsData, buildPlaceTagsMap, removeTagsFromPlace, applyTagsToPlace } from '$lib/stores/places.svelte';
 	import { loadCollections, addPlaceToCollection, addPlacesToCollection, removePlaceFromCollection, isPlaceInCollection, optimisticAdd, optimisticRemove, createCollection } from '$lib/stores/collections.svelte';
-	import { loadSavedViews, updateSavedView, buildFiltersSnapshot } from '$lib/stores/saved-views.svelte';
+	import { loadSavedViews, updateSavedView, buildFiltersSnapshot, reorderSavedViews } from '$lib/stores/saved-views.svelte';
 	import type { CollectionMemberMap } from '$lib/stores/collections.svelte';
 
 	let { data } = $props();
@@ -245,6 +246,22 @@
 
 	async function refreshSavedViews() {
 		savedViews = await loadSavedViews(supabase, session?.user?.id);
+	}
+
+	async function handleSavedViewReorder(orderedIds: string[]) {
+		const prev = savedViews;
+		savedViews = orderedIds
+			.map((id, i) => {
+				const v = prev.find((sv) => sv.id === id);
+				return v ? { ...v, order_index: i } : null;
+			})
+			.filter((v): v is SavedView => v !== null);
+
+		const ok = await reorderSavedViews(supabase, orderedIds);
+		if (!ok) {
+			savedViews = prev;
+			showToast('error', '', 'Could not save view order');
+		}
 	}
 
 	function applySavedView(view: SavedView) {
@@ -710,46 +727,59 @@
 </script>
 
 {#snippet placesSearchBlock()}
-				<!-- Search (top) -->
+				<!-- Search (top) + Save View button -->
 				<div class="mb-3 sm:mb-4">
-					<div class="relative">
-						<svg
-							class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-warm-400 sm:left-4 sm:h-[1.125rem] sm:w-[1.125rem]"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-						>
-							<circle cx="11" cy="11" r="8" />
-							<line x1="21" y1="21" x2="16.65" y2="16.65" />
-						</svg>
-						<input
-							bind:this={searchInputEl}
-							type="text"
-							bind:value={search}
-							onkeydown={handleSearchKeydown}
-							placeholder="Search places, tags, areas, or paste a link..."
-							class="w-full rounded-full border border-warm-200/90 bg-warm-50 py-2.5 pl-10 pr-9 text-sm font-medium text-warm-800 shadow-sm transition-colors placeholder:text-warm-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:py-3 sm:pl-11 sm:pr-11 sm:text-[15px]"
-						/>
-						{#if urlAdding}
-							<svg class="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-brand-500 sm:right-4" viewBox="0 0 24 24" fill="none">
-								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-							</svg>
-						{:else if detectedUrl}
-							<span class="pointer-events-none absolute right-3 top-1/2 max-w-[38%] -translate-y-1/2 truncate text-right text-[10px] font-semibold text-brand-600 sm:right-4 sm:max-w-[45%] sm:text-xs">Enter to add</span>
-						{:else if search}
-							<button
-								onclick={() => { search = ''; searchInputEl?.focus(); }}
-								class="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600 sm:right-2.5"
-								aria-label="Clear search"
+					<div class="flex items-center gap-2">
+						<div class="relative min-w-0 flex-1">
+							<svg
+								class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-warm-400 sm:left-4 sm:h-[1.125rem] sm:w-[1.125rem]"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
 							>
-								<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-									<line x1="18" y1="6" x2="6" y2="18" />
-									<line x1="6" y1="6" x2="18" y2="18" />
+								<circle cx="11" cy="11" r="8" />
+								<line x1="21" y1="21" x2="16.65" y2="16.65" />
+							</svg>
+							<input
+								bind:this={searchInputEl}
+								type="text"
+								bind:value={search}
+								onkeydown={handleSearchKeydown}
+								placeholder="Search places, tags, areas, or paste a link..."
+								class="w-full rounded-full border border-warm-200/90 bg-warm-50 py-2.5 pl-10 pr-9 text-sm font-medium text-warm-800 shadow-sm transition-colors placeholder:text-warm-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:py-3 sm:pl-11 sm:pr-11 sm:text-[15px]"
+							/>
+							{#if urlAdding}
+								<svg class="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-brand-500 sm:right-4" viewBox="0 0 24 24" fill="none">
+									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
 								</svg>
-							</button>
-						{/if}
+							{:else if detectedUrl}
+								<span class="pointer-events-none absolute right-3 top-1/2 max-w-[38%] -translate-y-1/2 truncate text-right text-[10px] font-semibold text-brand-600 sm:right-4 sm:max-w-[45%] sm:text-xs">Enter to add</span>
+							{:else if search}
+								<button
+									onclick={() => { search = ''; searchInputEl?.focus(); }}
+									class="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600 sm:right-2.5"
+									aria-label="Clear search"
+								>
+									<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+										<line x1="18" y1="6" x2="6" y2="18" />
+										<line x1="6" y1="6" x2="18" y2="18" />
+									</svg>
+								</button>
+							{/if}
+						</div>
+						<SaveViewButton
+							{supabase}
+							userId={session?.user?.id ?? ''}
+							{selectedCustomIds}
+							{filterMode}
+							{selectedSource}
+							{sortBy}
+							{viewMode}
+							{search}
+							onViewsChanged={refreshSavedViews}
+						/>
 					</div>
 				</div>
 
@@ -804,17 +834,12 @@
 					{savedViews}
 					{activeSavedViewId}
 					{viewIsDirty}
-					{selectedCustomIds}
-					{filterMode}
-					{selectedSource}
-					{sortBy}
-					{viewMode}
-					{search}
 					onApply={applySavedView}
 					onViewsChanged={refreshSavedViews}
 					onQuickUpdate={quickUpdateView}
 					onCreateCollection={createCollectionFromView}
 					onAddToCollection={addToCollectionFromView}
+					onReorder={handleSavedViewReorder}
 				/>
 {/snippet}
 
@@ -1279,12 +1304,14 @@
 				<MapView places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} maptilerKey={data.maptilerKey} />
 			</div>
 			<div class="min-w-0 flex-1 lg:order-1">
-				<div
-					class="mx-auto px-2.5 sm:px-6 sm:py-6 lg:px-4 pb-[max(2.5rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+0.25rem))]"
-				>
+				<div class="sticky top-0 z-20 border-b border-warm-200/80 bg-sage-100 px-2.5 pt-3 pb-2 sm:px-6 sm:pt-4 sm:pb-2.5 lg:px-4">
 					{@render placesSearchBlock()}
 					{@render placesContextualBlock()}
 					{@render placesSavedViewsBlock()}
+				</div>
+				<div
+					class="mx-auto px-2.5 sm:px-6 sm:py-4 lg:px-4 pb-[max(2.5rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+0.25rem))]"
+				>
 					{@render placesFiltersAndListBlock()}
 				</div>
 			</div>
@@ -1297,7 +1324,7 @@
 		{@const members = collectionPlacesMap[scopeId] ?? []}
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="fixed inset-0 z-50 flex items-end justify-center sm:items-center" onclick={() => { showAddToCollection = false; }}>
+		<div class="fixed inset-0 z-[60] flex items-end justify-center sm:items-center" onclick={() => { showAddToCollection = false; }}>
 			<div class="absolute inset-0 bg-warm-900/40 backdrop-blur-sm"></div>
 			<div
 				class="relative z-10 flex max-h-[85dvh] w-full flex-col rounded-t-2xl border border-warm-200 bg-white shadow-xl sm:max-w-lg sm:rounded-2xl"

@@ -219,7 +219,7 @@
 	<!-- Mobile: swipe container (row-root) -->
 	<div class="relative overflow-hidden sm:hidden">
 		<!-- delete-background: absolute, pinned right, no transforms -->
-		{#if onDelete}
+		{#if onDelete && (swipeX < 0 || swiping)}
 			<div class="absolute inset-0 z-0 flex items-stretch justify-end">
 				<button
 					onclick={handleSwipeDelete}
@@ -396,9 +396,12 @@
 					class="rounded p-1 text-warm-300 transition-colors hover:bg-brand-50 hover:text-brand-500"
 					aria-label="Add to collection"
 				>
-					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-					</svg>
+				<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<rect x="3" y="3" width="7" height="7" rx="1" />
+					<rect x="14" y="3" width="7" height="7" rx="1" />
+					<rect x="3" y="14" width="7" height="7" rx="1" />
+					<rect x="14" y="14" width="7" height="7" rx="1" />
+				</svg>
 				</button>
 			{/if}
 			{#if place.url}

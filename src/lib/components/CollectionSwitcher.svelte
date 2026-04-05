@@ -30,7 +30,7 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="fixed inset-0 z-50 flex items-end justify-center sm:items-center" onclick={onClose}>
+<div class="fixed inset-0 z-[60] flex items-end justify-center sm:items-center" onclick={onClose}>
 	<div class="absolute inset-0 bg-warm-900/40 backdrop-blur-sm"></div>
 	<div
 		class="relative z-10 flex max-h-[70dvh] w-full flex-col rounded-t-2xl border border-warm-200 bg-white shadow-xl sm:max-w-sm sm:rounded-2xl"

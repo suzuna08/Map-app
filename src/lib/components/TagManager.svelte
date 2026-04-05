@@ -145,13 +145,13 @@
 <div use:portal>
 <!-- Backdrop -->
 <button
-	class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
+	class="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm"
 	onclick={onClose}
 	aria-label="Close tag manager"
 ></button>
 
 <!-- Modal -->
-<div class="fixed inset-x-4 top-[10%] z-50 mx-auto max-h-[80dvh] max-w-md overflow-hidden rounded-2xl border border-warm-200 bg-warm-50 shadow-2xl sm:right-auto sm:left-1/2 sm:top-[15%] sm:max-h-[70vh] sm:w-full sm:-translate-x-1/2 lg:left-[calc(16rem+(100vw-16rem)*0.29)]">
+<div class="fixed inset-x-4 top-[10%] z-[60] mx-auto max-h-[80dvh] max-w-md overflow-hidden rounded-2xl border border-warm-200 bg-warm-50 shadow-2xl sm:right-auto sm:left-1/2 sm:top-[15%] sm:max-h-[70vh] sm:w-full sm:-translate-x-1/2 lg:left-[calc(16rem+(100vw-16rem)*0.29)]">
 	<!-- Header -->
 	<div class="flex items-center justify-between px-5 py-4">
 		<h2 class="text-base font-bold text-warm-800">Manage Tags</h2>

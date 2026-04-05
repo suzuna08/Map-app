@@ -1,12 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, SavedView, SavedViewFilters, TagGroup } from '$lib/types/database';
 
-const SAVED_VIEWS_COLUMNS = 'id, user_id, name, filters_json, sort_by, layout_mode, created_at, updated_at';
+const SAVED_VIEWS_COLUMNS = 'id, user_id, name, filters_json, sort_by, layout_mode, order_index, created_at, updated_at';
 
 export async function loadSavedViews(supabase: SupabaseClient<Database>, userId?: string): Promise<SavedView[]> {
 	let query = supabase
 		.from('saved_views')
 		.select(SAVED_VIEWS_COLUMNS)
+		.order('order_index', { ascending: true })
 		.order('created_at', { ascending: true });
 	if (userId) query = query.eq('user_id', userId);
 	const { data, error } = await query;
@@ -48,6 +49,7 @@ export async function updateSavedView(
 		filtersJson?: SavedViewFilters;
 		sortBy?: string;
 		layoutMode?: string;
+		orderIndex?: number;
 	}
 ): Promise<boolean> {
 	const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -55,6 +57,7 @@ export async function updateSavedView(
 	if (updates.filtersJson !== undefined) payload.filters_json = updates.filtersJson;
 	if (updates.sortBy !== undefined) payload.sort_by = updates.sortBy;
 	if (updates.layoutMode !== undefined) payload.layout_mode = updates.layoutMode;
+	if (updates.orderIndex !== undefined) payload.order_index = updates.orderIndex;
 
 	const { error } = await supabase
 		.from('saved_views')
@@ -96,4 +99,17 @@ export function buildFiltersSnapshot(
 	if (selectedSource !== 'all') filters.source = selectedSource;
 	if (searchText) filters.searchText = searchText;
 	return filters;
+}
+
+export async function reorderSavedViews(
+	supabase: SupabaseClient<Database>,
+	orderedIds: string[]
+): Promise<boolean> {
+	const updates = orderedIds.map((id, index) =>
+		supabase.from('saved_views').update({ order_index: index }).eq('id', id)
+	);
+	const results = await Promise.all(updates);
+	const failed = results.some((r) => r.error);
+	if (failed) console.error('[reorderSavedViews] some updates failed');
+	return !failed;
 }

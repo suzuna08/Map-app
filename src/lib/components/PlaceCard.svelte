@@ -203,168 +203,183 @@
 </script>
 
 <!-- ============================================================ -->
-<!-- MOBILE LAYOUT (< sm) — crossfade face swap + swipe-to-delete -->
-<!-- No 3D transforms on mobile to prevent compositing artifacts  -->
+<!-- MOBILE LAYOUT (< sm) — 3D flip + swipe-to-delete            -->
+<!-- Delete layer conditionally rendered to prevent flash-through -->
 <!-- ============================================================ -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="relative overflow-hidden rounded-xl sm:hidden" data-place-id={place.id}>
-	<!-- delete-background: absolute, z-0, no transforms ever -->
-	<div class="absolute inset-0 z-0 flex items-stretch justify-end">
-		<button
-			onclick={handleSwipeDelete}
-			class="flex w-[72px] flex-col items-center justify-center gap-0.5 text-white transition-colors {swipeConfirm ? 'bg-danger-600' : 'bg-danger-500'}"
-			aria-label={swipeConfirm ? 'Confirm delete' : 'Delete place'}
-		>
-			{#if swipeConfirm}
-				<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-					<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-				</svg>
-				<span class="text-xs font-bold">Confirm?</span>
-			{:else}
-				<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-				</svg>
-			{/if}
-		</button>
-	</div>
+<div class="relative rounded-xl sm:hidden {swipeX < 0 || swiping ? 'overflow-hidden' : ''}" data-place-id={place.id}>
+	<!-- delete-background: only in DOM when swiping -->
+	{#if swipeX < 0 || swiping}
+		<div class="absolute inset-0 z-0 flex items-stretch justify-end">
+			<button
+				onclick={handleSwipeDelete}
+				class="flex w-[72px] flex-col items-center justify-center gap-0.5 text-white transition-colors {swipeConfirm ? 'bg-danger-600' : 'bg-danger-500'}"
+				aria-label={swipeConfirm ? 'Confirm delete' : 'Delete place'}
+			>
+				{#if swipeConfirm}
+					<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+						<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+					</svg>
+					<span class="text-xs font-bold">Confirm?</span>
+				{:else}
+					<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+					</svg>
+				{/if}
+			</button>
+		</div>
+	{/if}
 
-	<!-- swipe-foreground: relative, z-[1], only translateX here -->
+	<!-- swipe-foreground: relative, z-[1], only translateX for swipe -->
 	<div
-		class="mobile-swipe-fg relative z-[1] bg-white"
+		class="mobile-swipe-fg relative z-[1]"
 		style="transform: translateX({swipeX}px); transition: {swiping ? 'none' : 'transform 0.2s ease-out'}"
 		ontouchstart={onSwipeStart}
 		ontouchmove={onSwipeMove}
 		ontouchend={onSwipeEnd}
 		onclick={handleMobileTap}
 	>
-		<!-- Front face (no 3D, fades out when flipped) -->
-		{#if !flipped}
-			<article class="flex h-[190px] cursor-pointer flex-col border bg-white p-3.5 transition-opacity duration-200 {selected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}">
-				<div class="mb-1 flex items-center justify-between">
-					<div class="flex items-center gap-1">
-						{#if place.category}
-							<span class="rounded-full bg-warm-200 px-2 py-0.5 text-xs font-bold text-warm-600">{place.category}</span>
-						{/if}
-						{#if place.area}
-							<span class="rounded-full bg-sage-200 px-2 py-0.5 text-xs font-bold text-sage-700">{place.area}</span>
-						{/if}
-					</div>
-					<RatingDisplay
-						placeId={place.id}
-						userRating={place.user_rating}
-						{supabase}
-						onRatingChanged={(id, r) => onRatingChanged?.(id, r)}
-						compact
-					/>
+		<!-- 3D flip container (same effect as desktop) -->
+		<div class="[perspective:800px]">
+			<div
+				class="flip-inner relative transition-transform duration-500 [transform-style:preserve-3d]"
+				class:is-flipped={flipped}
+			>
+				<!-- MOBILE FRONT -->
+				<div class="[backface-visibility:hidden]">
+					<article class="flex h-[190px] cursor-pointer flex-col rounded-xl border bg-white p-3.5 {selected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}">
+						<div class="mb-1 flex items-center justify-between">
+							<div class="flex items-center gap-1">
+								{#if place.category}
+									<span class="rounded-full bg-warm-200 px-2 py-0.5 text-xs font-bold text-warm-600">{place.category}</span>
+								{/if}
+								{#if place.area}
+									<span class="rounded-full bg-sage-200 px-2 py-0.5 text-xs font-bold text-sage-700">{place.area}</span>
+								{/if}
+							</div>
+							<RatingDisplay
+								placeId={place.id}
+								userRating={place.user_rating}
+								{supabase}
+								onRatingChanged={(id, r) => onRatingChanged?.(id, r)}
+								compact
+							/>
+						</div>
+
+						<h3 class="mt-1 line-clamp-1 text-base font-extrabold leading-snug text-warm-800">{place.title}</h3>
+
+						<div class="min-h-0 flex-1">
+							{#if contentPreview}
+								<p class="mt-0.5 line-clamp-2 text-xs italic leading-[1.35em] text-brand-500">
+									{contentPreview}
+								</p>
+							{/if}
+						</div>
+
+						<div class="mb-1.5">
+							<TagInput
+								{supabase}
+								placeId={place.id}
+								{userId}
+								{allTags}
+								{placeTags}
+								onUpdate={onTagsChanged}
+								onTagClick={onTagClick}
+								{onTagContextMenu}
+							/>
+							{#if !place.enriched_at && place.url}
+								<button
+									onclick={() => onEnrich(place.id)}
+									disabled={enrichingId === place.id}
+									class="mt-1 text-xs font-semibold text-brand-600 disabled:opacity-50"
+								>
+									{enrichingId === place.id ? '...' : 'Enrich'}
+								</button>
+							{/if}
+						</div>
+
+						<div class="mt-1.5 flex items-center gap-1 border-t border-warm-100 pt-1.5">
+							{#if selected && !flipped && !isCollectionContext}
+								<span class="text-xs font-medium text-brand-400 animate-pulse">Tap to flip</span>
+							{/if}
+							{#if place.url}
+								<a
+									href={place.url}
+									target="_blank"
+									class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-bold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+									aria-label="Open in Google Maps"
+								>
+									<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+									</svg>
+									Maps
+								</a>
+							{/if}
+							<button
+								onclick={flipToBack}
+								class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-bold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+								aria-label="Notes"
+							>
+								<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+								</svg>
+								Notes
+							</button>
+							{#if onCollectionPickerToggle}
+								<button
+									onclick={(e) => { e.stopPropagation(); onCollectionPickerToggle?.(place.id); }}
+									class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-bold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+									aria-label="Add to collection"
+								>
+									<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<rect x="3" y="3" width="7" height="7" rx="1" />
+										<rect x="14" y="3" width="7" height="7" rx="1" />
+										<rect x="3" y="14" width="7" height="7" rx="1" />
+										<rect x="14" y="14" width="7" height="7" rx="1" />
+									</svg>
+									<svg class="h-2 w-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+										<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+									</svg>
+								</button>
+							{/if}
+						</div>
+					</article>
 				</div>
 
-				<h3 class="mt-1 line-clamp-1 text-base font-extrabold leading-snug text-warm-800">{place.title}</h3>
-
-				<div class="min-h-0 flex-1">
-					{#if contentPreview}
-						<p class="mt-0.5 line-clamp-2 text-xs italic leading-[1.35em] text-brand-500">
-							{contentPreview}
-						</p>
-					{/if}
+				<!-- MOBILE BACK (Notes) -->
+				<div class="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
+					<article class="flex h-[190px] cursor-pointer flex-col rounded-xl border border-warm-200 bg-white p-3.5">
+						<div class="mb-1.5 flex items-center justify-between">
+							<h3 class="line-clamp-1 flex-1 text-base font-extrabold text-warm-800">{place.title}</h3>
+							<div class="ml-2 flex items-center gap-1.5">
+								{#if saving}
+									<span class="text-xs text-warm-400">Saving...</span>
+								{:else if saved}
+									<span class="text-xs text-sage-600">Saved</span>
+								{/if}
+								<button
+									onclick={flipToFront}
+									class="rounded-md p-1 text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+									aria-label="Flip back"
+								>
+									<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<path d="M19 12H5" /><polyline points="12 19 5 12 12 5" />
+									</svg>
+								</button>
+							</div>
+						</div>
+						<textarea
+							id="note-mobile-{place.id}"
+							bind:value={noteText}
+							oninput={scheduleAutoSave}
+							placeholder="Write your notes here..."
+							class="flex-1 w-full resize-none rounded-lg border border-warm-200 bg-warm-50 p-2 text-sm leading-relaxed text-warm-700 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20"
+						></textarea>
+					</article>
 				</div>
-
-				<div class="mb-1.5">
-					<TagInput
-						{supabase}
-						placeId={place.id}
-						{userId}
-						{allTags}
-						{placeTags}
-						onUpdate={onTagsChanged}
-						onTagClick={onTagClick}
-						{onTagContextMenu}
-					/>
-					{#if !place.enriched_at && place.url}
-						<button
-							onclick={() => onEnrich(place.id)}
-							disabled={enrichingId === place.id}
-							class="mt-1 text-xs font-semibold text-brand-600 disabled:opacity-50"
-						>
-							{enrichingId === place.id ? '...' : 'Enrich'}
-						</button>
-					{/if}
-				</div>
-
-				<div class="mt-1.5 flex items-center gap-1 border-t border-warm-100 pt-1.5">
-					{#if selected && !flipped}
-						<span class="text-xs font-medium text-brand-400 animate-pulse">Tap to flip</span>
-					{/if}
-					{#if place.url}
-						<a
-							href={place.url}
-							target="_blank"
-							class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-bold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
-							aria-label="Open in Google Maps"
-						>
-							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-							</svg>
-							Maps
-						</a>
-					{/if}
-					<button
-						onclick={flipToBack}
-						class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-bold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
-						aria-label="Notes"
-					>
-						<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-						</svg>
-						Notes
-					</button>
-					{#if onCollectionPickerToggle}
-						<button
-							onclick={(e) => { e.stopPropagation(); onCollectionPickerToggle?.(place.id); }}
-							class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-bold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
-							aria-label="Add to collection"
-						>
-							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-							</svg>
-							<svg class="h-2 w-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-								<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-							</svg>
-						</button>
-					{/if}
-				</div>
-			</article>
-		{:else}
-			<!-- Back face (Notes) — simple swap, no 3D -->
-			<article class="flex h-[190px] cursor-pointer flex-col border border-warm-200 bg-white p-3.5 transition-opacity duration-200">
-				<div class="mb-1.5 flex items-center justify-between">
-					<h3 class="line-clamp-1 flex-1 text-base font-extrabold text-warm-800">{place.title}</h3>
-					<div class="ml-2 flex items-center gap-1.5">
-						{#if saving}
-							<span class="text-xs text-warm-400">Saving...</span>
-						{:else if saved}
-							<span class="text-xs text-sage-600">Saved</span>
-						{/if}
-						<button
-							onclick={flipToFront}
-							class="rounded-md p-1 text-warm-400 hover:bg-warm-100 hover:text-warm-600"
-							aria-label="Flip back"
-						>
-							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<path d="M19 12H5" /><polyline points="12 19 5 12 12 5" />
-							</svg>
-						</button>
-					</div>
-				</div>
-				<textarea
-					id="note-mobile-{place.id}"
-					bind:value={noteText}
-					oninput={scheduleAutoSave}
-					placeholder="Write your notes here..."
-					class="flex-1 w-full resize-none rounded-lg border border-warm-200 bg-warm-50 p-2 text-sm leading-relaxed text-warm-700 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20"
-				></textarea>
-			</article>
-		{/if}
+			</div>
+		</div>
 	</div>
 </div>
 
@@ -424,9 +439,6 @@
 				</div>
 
 			<div class="mt-auto flex items-center gap-1 border-t border-warm-200 pt-2.5">
-				{#if selected && !flipped}
-					<span class="text-xs font-medium text-brand-400 animate-pulse">Click to flip</span>
-				{/if}
 				{#if !place.enriched_at && place.url}
 						<button
 							onclick={() => onEnrich(place.id)}
@@ -473,12 +485,15 @@
 							class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
 							aria-label="Add to collection"
 						>
-							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-							</svg>
-							<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-								<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-							</svg>
+						<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<rect x="3" y="3" width="7" height="7" rx="1" />
+							<rect x="14" y="3" width="7" height="7" rx="1" />
+							<rect x="3" y="14" width="7" height="7" rx="1" />
+							<rect x="14" y="14" width="7" height="7" rx="1" />
+						</svg>
+						<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+							<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+						</svg>
 						</button>
 					{/if}
 					<div class="ml-auto">
