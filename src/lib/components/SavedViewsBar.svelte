@@ -135,7 +135,7 @@
 					style="width: {Math.max(editingName.length * 7.5 + 24, 72)}px"
 				/>
 			{:else}
-				<div class="group relative shrink-0" data-sv-menu data-view-id={view.id}>
+				<div class="group relative shrink-0 select-none" data-sv-menu data-view-id={view.id}>
 					<button
 						onclick={() => onApply(view)}
 						class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold transition-all sm:px-3 sm:text-sm

@@ -461,7 +461,7 @@
 								ondrop={(e) => handleDrop(e, idx)}
 								ondragend={handleDragEnd}
 								onclick={() => selectCollection(col.id)}
-								class="group flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-all
+								class="group flex shrink-0 select-none items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-all
 									{selectedCollectionId === col.id ? 'bg-white shadow-sm ring-1 ring-warm-200/80' : 'hover:bg-white/60'}
 									{dragIdx === idx ? 'opacity-40' : ''}
 									{dragOverIdx === idx && dragIdx !== idx ? 'ring-2 ring-brand-400/60' : ''}"
@@ -567,18 +567,18 @@
 					{#if collections.length > 0}
 						<div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 							{#each collections as col, idx (col.id)}
-								<button
-									draggable="true"
-									ondragstart={(e) => handleDragStart(e, idx)}
-									ondragover={(e) => handleDragOver(e, idx)}
-									ondrop={(e) => handleDrop(e, idx)}
-									ondragend={handleDragEnd}
-									onclick={() => selectCollection(col.id)}
-									class="group flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-all sm:gap-2 sm:px-2.5 sm:py-1.5
-										{selectedCollectionId === col.id ? 'bg-white shadow-sm ring-1 ring-warm-200/80' : 'hover:bg-white/60'}
-										{dragIdx === idx ? 'opacity-40' : ''}
-										{dragOverIdx === idx && dragIdx !== idx ? 'ring-2 ring-brand-400/60' : ''}"
-								>
+							<button
+								draggable="true"
+								ondragstart={(e) => handleDragStart(e, idx)}
+								ondragover={(e) => handleDragOver(e, idx)}
+								ondrop={(e) => handleDrop(e, idx)}
+								ondragend={handleDragEnd}
+								onclick={() => selectCollection(col.id)}
+								class="group flex shrink-0 select-none items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-all sm:gap-2 sm:px-2.5 sm:py-1.5
+									{selectedCollectionId === col.id ? 'bg-white shadow-sm ring-1 ring-warm-200/80' : 'hover:bg-white/60'}
+									{dragIdx === idx ? 'opacity-40' : ''}
+									{dragOverIdx === idx && dragIdx !== idx ? 'ring-2 ring-brand-400/60' : ''}"
+							>
 									<CollectionAvatar color={col.color} emoji={col.emoji} size="xs" />
 									<p class="truncate text-xs font-bold text-warm-800 sm:text-sm">{col.name}</p>
 								</button>
