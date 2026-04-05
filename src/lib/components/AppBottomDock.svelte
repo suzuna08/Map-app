@@ -28,14 +28,14 @@
 </script>
 
 <nav
-	class="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
+	class="fixed inset-x-0 bottom-0 z-50 flex justify-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
 	class:dock-passive={isPassive}
 	class:dock-active={!isPassive}
 	aria-label="Main navigation"
 	onpointerenter={handleInteraction}
 >
 	<div
-		class="dock-pill pointer-events-auto flex max-w-lg items-center gap-1 rounded-[1.75rem] border border-warm-200/80 bg-warm-50/95 px-2 py-2 shadow-lg shadow-warm-900/10 backdrop-blur-lg sm:gap-2 sm:px-3"
+		class="dock-pill flex max-w-lg items-center gap-1 rounded-[1.75rem] border border-warm-200/80 bg-warm-50/95 px-2 py-2 shadow-lg shadow-warm-900/10 backdrop-blur-lg sm:gap-2 sm:px-3"
 	>
 		<a
 			href="/places"

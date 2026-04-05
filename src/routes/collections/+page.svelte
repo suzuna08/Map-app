@@ -11,6 +11,7 @@
 	import PlaceListItem from '$lib/components/PlaceListItem.svelte';
 	import MapView from '$lib/components/MapView.svelte';
 	import MobileMapShell from '$lib/components/MobileMapShell.svelte';
+	import { sortable } from '$lib/actions/sortable';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 
@@ -38,39 +39,13 @@
 	let showAddModal = $state(false);
 	let addSearch = $state('');
 
-	// Drag-to-reorder state
-	let dragIdx = $state<number | null>(null);
-	let dragOverIdx = $state<number | null>(null);
-
-	function handleDragStart(e: DragEvent, idx: number) {
-		dragIdx = idx;
-		if (e.dataTransfer) {
-			e.dataTransfer.effectAllowed = 'move';
-			e.dataTransfer.setData('text/plain', String(idx));
-		}
-	}
-
-	function handleDragOver(e: DragEvent, idx: number) {
-		e.preventDefault();
-		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-		dragOverIdx = idx;
-	}
-
-	function handleDrop(e: DragEvent, idx: number) {
-		e.preventDefault();
-		if (dragIdx === null || dragIdx === idx) { dragIdx = null; dragOverIdx = null; return; }
-		const reordered = [...collections];
-		const [moved] = reordered.splice(dragIdx, 1);
-		reordered.splice(idx, 0, moved);
-		collections = reordered;
-		dragIdx = null;
-		dragOverIdx = null;
-		reorderCollections(supabase, reordered.map((c) => c.id));
-	}
-
-	function handleDragEnd() {
-		dragIdx = null;
-		dragOverIdx = null;
+	// Drag-to-reorder via sortable action
+	function handleCollectionReorder(orderedIds: string[]) {
+		const prev = collections;
+		collections = orderedIds
+			.map((id) => prev.find((c) => c.id === id))
+			.filter((c): c is Collection => c !== null);
+		reorderCollections(supabase, orderedIds);
 	}
 
 	let selectedCollection = $derived(collections.find((c) => c.id === selectedCollectionId) ?? null);
@@ -452,22 +427,24 @@
 					</button>
 				</div>
 				{#if collections.length > 0}
-					<div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-						{#each collections as col, idx (col.id)}
+					<div
+						class="flex items-center gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+						use:sortable={{
+							onReorder: handleCollectionReorder,
+							itemSelector: '[data-col-id]',
+							idAttribute: 'data-col-id',
+							longPressMs: 500
+						}}
+					>
+						{#each collections as col (col.id)}
 							<button
-								draggable="true"
-								ondragstart={(e) => handleDragStart(e, idx)}
-								ondragover={(e) => handleDragOver(e, idx)}
-								ondrop={(e) => handleDrop(e, idx)}
-								ondragend={handleDragEnd}
+								data-col-id={col.id}
 								onclick={() => selectCollection(col.id)}
-								class="group flex shrink-0 select-none items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-all
-									{selectedCollectionId === col.id ? 'bg-white shadow-sm ring-1 ring-warm-200/80' : 'hover:bg-white/60'}
-									{dragIdx === idx ? 'opacity-40' : ''}
-									{dragOverIdx === idx && dragIdx !== idx ? 'ring-2 ring-brand-400/60' : ''}"
+								class="group flex shrink-0 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left transition-all
+									{selectedCollectionId === col.id ? 'border-brand-200 bg-brand-50 text-warm-800' : 'border-transparent text-warm-500 hover:bg-warm-100 hover:text-warm-700'}"
 							>
 								<CollectionAvatar color={col.color} emoji={col.emoji} size="xs" />
-								<p class="truncate text-xs font-bold text-warm-800">{col.name}</p>
+								<p class="truncate text-xs font-bold">{col.name}</p>
 							</button>
 						{/each}
 					</div>
@@ -565,22 +542,24 @@
 						</button>
 					</div>
 					{#if collections.length > 0}
-						<div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-							{#each collections as col, idx (col.id)}
+						<div
+							class="flex items-center gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+							use:sortable={{
+								onReorder: handleCollectionReorder,
+								itemSelector: '[data-col-id]',
+								idAttribute: 'data-col-id',
+								longPressMs: 500
+							}}
+						>
+							{#each collections as col (col.id)}
 							<button
-								draggable="true"
-								ondragstart={(e) => handleDragStart(e, idx)}
-								ondragover={(e) => handleDragOver(e, idx)}
-								ondrop={(e) => handleDrop(e, idx)}
-								ondragend={handleDragEnd}
+								data-col-id={col.id}
 								onclick={() => selectCollection(col.id)}
-								class="group flex shrink-0 select-none items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-all sm:gap-2 sm:px-2.5 sm:py-1.5
-									{selectedCollectionId === col.id ? 'bg-white shadow-sm ring-1 ring-warm-200/80' : 'hover:bg-white/60'}
-									{dragIdx === idx ? 'opacity-40' : ''}
-									{dragOverIdx === idx && dragIdx !== idx ? 'ring-2 ring-brand-400/60' : ''}"
+								class="group flex shrink-0 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left transition-all sm:gap-2 sm:px-2.5 sm:py-1.5
+									{selectedCollectionId === col.id ? 'border-brand-200 bg-brand-50 text-warm-800' : 'border-transparent text-warm-500 hover:bg-warm-100 hover:text-warm-700'}"
 							>
 									<CollectionAvatar color={col.color} emoji={col.emoji} size="xs" />
-									<p class="truncate text-xs font-bold text-warm-800 sm:text-sm">{col.name}</p>
+									<p class="truncate text-xs font-bold sm:text-sm">{col.name}</p>
 								</button>
 							{/each}
 						</div>
