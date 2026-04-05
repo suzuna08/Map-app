@@ -203,16 +203,17 @@
 </script>
 
 <!-- ============================================================ -->
-<!-- MOBILE LAYOUT (< sm) — 3D flip + swipe-to-delete             -->
+<!-- MOBILE LAYOUT (< sm) — crossfade face swap + swipe-to-delete -->
+<!-- No 3D transforms on mobile to prevent compositing artifacts  -->
 <!-- ============================================================ -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="relative overflow-hidden rounded-xl sm:hidden" data-place-id={place.id}>
-	<!-- Delete background layer (z-0, behind foreground) -->
-	<div class="absolute inset-0 z-0">
+	<!-- delete-background: absolute, z-0, no transforms ever -->
+	<div class="absolute inset-0 z-0 flex items-stretch justify-end">
 		<button
 			onclick={handleSwipeDelete}
-			class="absolute right-0 top-0 flex h-full w-[72px] flex-col items-center justify-center gap-0.5 text-white transition-colors {swipeConfirm ? 'bg-danger-600' : 'bg-danger-500'}"
+			class="flex w-[72px] flex-col items-center justify-center gap-0.5 text-white transition-colors {swipeConfirm ? 'bg-danger-600' : 'bg-danger-500'}"
 			aria-label={swipeConfirm ? 'Confirm delete' : 'Delete place'}
 		>
 			{#if swipeConfirm}
@@ -228,22 +229,18 @@
 		</button>
 	</div>
 
-	<!-- Foreground content layer (z-10, slides horizontally on swipe) -->
+	<!-- swipe-foreground: relative, z-[1], only translateX here -->
 	<div
-		class="relative z-10"
+		class="mobile-swipe-fg relative z-[1] bg-white"
 		style="transform: translateX({swipeX}px); transition: {swiping ? 'none' : 'transform 0.2s ease-out'}"
 		ontouchstart={onSwipeStart}
 		ontouchmove={onSwipeMove}
 		ontouchend={onSwipeEnd}
+		onclick={handleMobileTap}
 	>
-		<div class="[perspective:800px]" onclick={handleMobileTap}>
-			<div
-				class="flip-inner relative transition-transform duration-500 [transform-style:preserve-3d]"
-				class:is-flipped={flipped}
-			>
-				<!-- MOBILE FRONT -->
-				<div class="[backface-visibility:hidden]">
-					<article class="flex h-[190px] cursor-pointer flex-col border bg-white p-3.5 transition-all hover:shadow-sm {selected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}">
+		<!-- Front face (no 3D, fades out when flipped) -->
+		{#if !flipped}
+			<article class="flex h-[190px] cursor-pointer flex-col border bg-white p-3.5 transition-opacity duration-200 {selected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}">
 				<div class="mb-1 flex items-center justify-between">
 					<div class="flex items-center gap-1">
 						{#if place.category}
@@ -272,7 +269,6 @@
 					{/if}
 				</div>
 
-				<!-- Custom tags row -->
 				<div class="mb-1.5">
 					<TagInput
 						{supabase}
@@ -295,7 +291,6 @@
 					{/if}
 				</div>
 
-				<!-- Mobile action row: Maps | Notes -->
 				<div class="mt-1.5 flex items-center gap-1 border-t border-warm-100 pt-1.5">
 					{#if selected && !flipped}
 						<span class="text-xs font-medium text-brand-400 animate-pulse">Tap to flip</span>
@@ -339,11 +334,9 @@
 					{/if}
 				</div>
 			</article>
-		</div>
-
-		<!-- MOBILE BACK (Notes) -->
-		<div class="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-			<article class="flex h-[190px] flex-col border border-warm-200 bg-white p-3.5">
+		{:else}
+			<!-- Back face (Notes) — simple swap, no 3D -->
+			<article class="flex h-[190px] cursor-pointer flex-col border border-warm-200 bg-white p-3.5 transition-opacity duration-200">
 				<div class="mb-1.5 flex items-center justify-between">
 					<h3 class="line-clamp-1 flex-1 text-base font-extrabold text-warm-800">{place.title}</h3>
 					<div class="ml-2 flex items-center gap-1.5">
@@ -371,10 +364,8 @@
 					class="flex-1 w-full resize-none rounded-lg border border-warm-200 bg-warm-50 p-2 text-sm leading-relaxed text-warm-700 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20"
 				></textarea>
 			</article>
-		</div>
+		{/if}
 	</div>
-</div>
-</div>
 </div>
 
 <!-- ============================================================ -->

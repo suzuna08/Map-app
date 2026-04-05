@@ -21,6 +21,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	return {
 		collection,
-		places
+		places,
+		session: locals.session
 	};
 };

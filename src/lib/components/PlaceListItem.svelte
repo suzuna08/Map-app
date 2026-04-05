@@ -216,14 +216,14 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div data-place-id={place.id}>
-	<!-- Mobile: swipe container -->
+	<!-- Mobile: swipe container (row-root) -->
 	<div class="relative overflow-hidden sm:hidden">
-		<!-- Delete background layer (z-0) -->
+		<!-- delete-background: absolute, pinned right, no transforms -->
 		{#if onDelete}
-			<div class="absolute inset-0 z-0">
+			<div class="absolute inset-0 z-0 flex items-stretch justify-end">
 				<button
 					onclick={handleSwipeDelete}
-					class="absolute right-0 top-0 flex h-full w-[72px] flex-col items-center justify-center gap-0.5 text-white transition-colors {swipeConfirm ? 'bg-danger-600' : 'bg-danger-500'}"
+					class="flex w-[72px] flex-col items-center justify-center gap-0.5 text-white transition-colors {swipeConfirm ? 'bg-danger-600' : 'bg-danger-500'}"
 					aria-label={swipeConfirm ? 'Confirm delete' : 'Delete place'}
 				>
 					{#if swipeConfirm}
@@ -240,9 +240,9 @@
 			</div>
 		{/if}
 
-		<!-- Foreground content layer (z-10, slides horizontally on swipe) -->
+		<!-- swipe-foreground: only translateX, opaque bg, no 3D -->
 		<div
-			class="relative z-10 {selected ? 'bg-brand-50' : 'bg-white'}"
+			class="relative z-[1] {selected ? 'bg-brand-50' : 'bg-white'}"
 			style="transform: translateX({swipeX}px); transition: {swiping ? 'none' : 'transform 0.2s ease-out'}"
 			ontouchstart={onTouchStart}
 			ontouchmove={onTouchMove}

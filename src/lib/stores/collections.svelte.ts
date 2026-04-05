@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database, Collection } from '$lib/types/database';
+import type { Database, Collection, Place, Tag } from '$lib/types/database';
 
 export type CollectionMemberMap = Record<string, string[]>;
 
@@ -69,7 +69,7 @@ export async function createCollection(
 export async function updateCollection(
 	supabase: SupabaseClient<Database>,
 	collectionId: string,
-	updates: { name?: string; description?: string; color?: string; emoji?: string | null; visibility?: string; share_slug?: string | null }
+	updates: { name?: string; description?: string | null; color?: string; emoji?: string | null; visibility?: string; share_slug?: string | null }
 ): Promise<boolean> {
 	const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
 	if (updates.name !== undefined) payload.name = updates.name;
@@ -225,5 +225,57 @@ export async function loadCollectionBySlug(
 	return {
 		collection: col as Collection,
 		placeIds: (list_places as { place_id: string }[]).map((lp) => lp.place_id)
+	};
+}
+
+const PLACE_COLUMNS = 'id, user_id, title, note, url, source_list, created_at, google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at, user_rating, user_rated_at';
+
+export interface CollectionBrowseData {
+	places: Place[];
+	tags: Tag[];
+	placeTags: { place_id: string; tag_id: string }[];
+}
+
+export async function loadCollectionPlaces(
+	supabase: SupabaseClient<Database>,
+	collectionId: string,
+	userId: string
+): Promise<CollectionBrowseData> {
+	const [colRes, tagsRes] = await Promise.all([
+		supabase
+			.from('lists')
+			.select(`id, list_places(place_id, places(${PLACE_COLUMNS}, place_tags(tag_id)))`)
+			.eq('id', collectionId)
+			.eq('user_id', userId)
+			.single(),
+		supabase
+			.from('tags')
+			.select('id, user_id, name, color, source, created_at, order_index')
+			.eq('user_id', userId)
+			.order('name')
+	]);
+
+	if (colRes.error || !colRes.data) {
+		return { places: [], tags: [], placeTags: [] };
+	}
+
+	const listPlaces = (colRes.data as any).list_places as any[];
+	const placeTags: { place_id: string; tag_id: string }[] = [];
+	const places: Place[] = [];
+
+	for (const lp of listPlaces) {
+		const p = lp.places;
+		if (!p) continue;
+		const { place_tags, ...placeData } = p;
+		places.push(placeData as Place);
+		for (const pt of (place_tags as { tag_id: string }[])) {
+			placeTags.push({ place_id: placeData.id, tag_id: pt.tag_id });
+		}
+	}
+
+	return {
+		places,
+		tags: (tagsRes.data ?? []) as Tag[],
+		placeTags
 	};
 }

@@ -3,6 +3,7 @@
 	import PlaceCard from '$lib/components/PlaceCard.svelte';
 	import PlaceListItem from '$lib/components/PlaceListItem.svelte';
 	import MapView from '$lib/components/MapView.svelte';
+	import MobileMapShell from '$lib/components/MobileMapShell.svelte';
 	import { buildPlaceTagsMap, refreshTagsData } from '$lib/stores/places.svelte';
 	import { textColorForBg } from '$lib/tag-colors';
 	import {
@@ -116,11 +117,7 @@
 
 	let selectedPlaceId = $state<string | null>(null);
 	let isMobile = $state(false);
-	let mapExpanded = $state(true);
 	let maptilerKey = $derived(data.maptilerKey ?? '');
-
-	let mappablePlaces = $derived(places.filter((p) => p.lat != null && p.lng != null));
-	let hasMap = $derived(mappablePlaces.length > 0);
 
 	$effect(() => {
 		function check() { isMobile = window.innerWidth < 1024; }
@@ -374,233 +371,91 @@
 	<title>{collection?.name ?? 'Collection'} — MapOrganizer</title>
 </svelte:head>
 
-<!-- Sticky top panel: header + map -->
+<!-- Sticky top panel: header -->
 {#if collection}
-<div class="sticky top-0 z-10 border-b border-warm-200/80 bg-[#faf7f2] shadow-sm">
-	<div class="mx-auto max-w-4xl px-3 sm:px-6">
-		<!-- Breadcrumb + Header combined -->
-		<div class="flex items-center gap-1.5 pt-2 text-xs text-warm-400 sm:pt-2.5 sm:text-sm">
-			<a href="/collections" class="transition-colors hover:text-warm-600">Collections</a>
-			<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6" /></svg>
-			<span class="font-semibold text-warm-600">{collection.name}</span>
-		</div>
 
-		<!-- Header -->
-		<div class="pb-2 pt-1 sm:pb-2.5 sm:pt-1.5">
-			<div class="flex items-center justify-between gap-3">
-				<div class="min-w-0 flex-1">
-					<div class="flex items-center gap-2.5">
-						<div class="relative" bind:this={colorPickerEl}>
-						<button
-							onclick={() => { editingColor = !editingColor; }}
-							class="flex shrink-0 items-center justify-center rounded-full transition-all hover:scale-110"
-							aria-label="Change collection color"
-						>
-							<CollectionAvatar color={collection.color} emoji={collection.emoji} size="lg" />
-						</button>
-						{#if editingColor}
-							<div class="absolute left-0 top-full z-20 mt-2 rounded-xl border border-warm-200 bg-white p-2.5 shadow-lg" style="width: max-content; max-width: 280px;">
-								<div class="flex flex-wrap gap-1.5">
-									{#each COLORS as color}
-										<button
-											onclick={() => saveColor(color)}
-											class="h-5.5 w-5.5 rounded-full transition-all {collection.color === color ? 'ring-2 ring-offset-1 ring-warm-400 scale-110' : 'hover:scale-110'}"
-											style="background-color: {color}"
-											aria-label="Select color"
-										></button>
-									{/each}
-								</div>
-							<div class="mt-2 border-t border-warm-100 pt-2">
-							<span class="mb-1 block text-xs font-bold text-warm-400">Icon</span>
-							<EmojiPicker selected={collection.emoji ?? null} onSelect={(em) => { saveEmoji(em); }} />
+{#if isMobile}
+<!-- ===== MOBILE: MobileMapShell layout ===== -->
+<div class="flex h-[100dvh] flex-col overflow-hidden">
+	<div class="shrink-0 border-b border-warm-200/80 bg-[#faf7f2]">
+		<div class="px-3">
+			<div class="flex items-center gap-1.5 pt-2 text-xs text-warm-400">
+				<a href="/collections" class="transition-colors hover:text-warm-600">Collections</a>
+				<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6" /></svg>
+				<span class="font-semibold text-warm-600">{collection.name}</span>
+			</div>
+			<div class="pb-2 pt-1">
+				<div class="flex items-center justify-between gap-3">
+					<div class="min-w-0 flex-1">
+						<div class="flex items-center gap-2.5">
+							<div class="relative" bind:this={colorPickerEl}>
+								<button onclick={() => { editingColor = !editingColor; }} class="flex shrink-0 items-center justify-center rounded-full transition-all hover:scale-110" aria-label="Change collection color">
+									<CollectionAvatar color={collection.color} emoji={collection.emoji} size="lg" />
+								</button>
+								{#if editingColor}
+									<div class="absolute left-0 top-full z-20 mt-2 rounded-xl border border-warm-200 bg-white p-2.5 shadow-lg" style="width: max-content; max-width: 280px;">
+										<div class="flex flex-wrap gap-1.5">
+											{#each COLORS as color}
+												<button onclick={() => saveColor(color)} class="h-5.5 w-5.5 rounded-full transition-all {collection.color === color ? 'ring-2 ring-offset-1 ring-warm-400 scale-110' : 'hover:scale-110'}" style="background-color: {color}" aria-label="Select color"></button>
+											{/each}
+										</div>
+										<div class="mt-2 border-t border-warm-100 pt-2">
+											<span class="mb-1 block text-xs font-bold text-warm-400">Icon</span>
+											<EmojiPicker selected={collection.emoji ?? null} onSelect={(em) => { saveEmoji(em); }} />
+										</div>
+									</div>
+								{/if}
 							</div>
+							<div class="min-w-0 flex-1">
+								{#if editingName}
+									<input type="text" bind:value={editName} onkeydown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') editingName = false; }} onblur={saveName} class="w-full rounded-lg border border-warm-200 bg-warm-50 px-2 py-0.5 text-base font-extrabold text-warm-800 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20" autofocus />
+								{:else}
+									<button type="button" class="cursor-pointer truncate text-left text-base font-extrabold text-warm-800 transition-colors hover:text-brand-600" onclick={() => { editingName = true; editName = collection.name; }}>{collection.name}</button>
+								{/if}
+								{#if editingDesc}
+									<input type="text" bind:value={editDesc} onkeydown={(e) => { if (e.key === 'Enter') saveDescription(); if (e.key === 'Escape') editingDesc = false; }} onblur={saveDescription} placeholder="Add a description..." class="mt-0.5 w-full rounded-lg border border-warm-200 bg-warm-50 px-2 py-0.5 text-xs text-warm-500 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20" autofocus />
+								{:else}
+									<button type="button" class="mt-0.5 cursor-pointer text-left text-xs text-warm-400 transition-colors hover:text-warm-500" onclick={() => { editingDesc = true; editDesc = collection.description ?? ''; }}>{collection.description || 'Add a description...'}</button>
+								{/if}
 							</div>
+						</div>
+					</div>
+					<div class="flex shrink-0 items-center gap-1.5">
+						{#if collection.visibility === 'link_access'}
+							<button onclick={copyShareLink} class="rounded-md p-1.5 text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600" aria-label="Copy share link">
+								<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
+							</button>
 						{/if}
-						</div>
-						<div class="min-w-0 flex-1">
-							{#if editingName}
-								<input
-									type="text"
-									bind:value={editName}
-									onkeydown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') editingName = false; }}
-									onblur={saveName}
-									class="w-full rounded-lg border border-warm-200 bg-warm-50 px-2 py-0.5 text-base font-extrabold text-warm-800 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:text-lg"
-									autofocus
-								/>
-							{:else}
-								<button
-									type="button"
-									class="cursor-pointer truncate text-left text-base font-extrabold text-warm-800 transition-colors hover:text-brand-600 sm:text-lg"
-									onclick={() => { editingName = true; editName = collection.name; }}
-								>
-									{collection.name}
-								</button>
-							{/if}
-							{#if editingDesc}
-								<input
-									type="text"
-									bind:value={editDesc}
-									onkeydown={(e) => { if (e.key === 'Enter') saveDescription(); if (e.key === 'Escape') editingDesc = false; }}
-									onblur={saveDescription}
-									placeholder="Add a description..."
-									class="mt-0.5 w-full rounded-lg border border-warm-200 bg-warm-50 px-2 py-0.5 text-xs text-warm-500 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:text-sm"
-									autofocus
-								/>
-							{:else}
-								<button
-									type="button"
-									class="mt-0.5 cursor-pointer text-left text-xs text-warm-400 transition-colors hover:text-warm-500 sm:text-sm"
-									onclick={() => { editingDesc = true; editDesc = collection.description ?? ''; }}
-								>
-									{collection.description || 'Add a description...'}
-								</button>
-							{/if}
-						</div>
-					</div>
-				</div>
-
-				<div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
-					{#if collection.visibility === 'link_access'}
-						<button
-							onclick={copyShareLink}
-							class="rounded-md p-1.5 text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600 sm:p-2"
-							aria-label="Copy share link"
-						>
-							<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-								<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-							</svg>
+						<button onclick={toggleSharing} class="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-bold transition-colors {collection.visibility === 'link_access' ? 'border-sage-200 bg-sage-50 text-sage-700 hover:bg-sage-100' : 'border-warm-200 text-warm-500 hover:bg-warm-50'}">
+							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">{#if collection.visibility === 'link_access'}<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />{:else}<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" />{/if}</svg>
+							{collection.visibility === 'link_access' ? 'Shared' : 'Private'}
 						</button>
-					{/if}
-					<button
-						onclick={toggleSharing}
-						class="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-bold transition-colors sm:px-3 sm:py-1.5
-							{collection.visibility === 'link_access'
-								? 'border-sage-200 bg-sage-50 text-sage-700 hover:bg-sage-100'
-								: 'border-warm-200 text-warm-500 hover:bg-warm-50'}"
-					>
-						<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							{#if collection.visibility === 'link_access'}
-								<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
-							{:else}
-								<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-								<line x1="1" y1="1" x2="23" y2="23" />
-							{/if}
-						</svg>
-						{collection.visibility === 'link_access' ? 'Shared' : 'Private'}
-					</button>
-					<button
-						onclick={() => { showAddModal = true; }}
-						class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700 sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-sm"
-					>
-						<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-						</svg>
-						<span class="hidden sm:inline">Add Places</span>
-					</button>
+						<button onclick={() => { showAddModal = true; }} class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700">
+							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="flex items-center justify-between border-t border-warm-200/60 px-3 py-1.5">
+			<p class="text-xs font-semibold text-warm-500">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</p>
+			<div class="flex items-center gap-1.5">
+				<div class="relative">
+					<svg class="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+					<input type="text" bind:value={search} placeholder="Search..." class="w-28 rounded-lg border border-warm-200 bg-warm-50 py-1 pl-7 pr-7 text-xs font-medium text-warm-600 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20" />
+					{#if search}<button onclick={() => { search = ''; }} class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600" aria-label="Clear search"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>{/if}
+				</div>
+				<select bind:value={sortBy} class="rounded-md border border-warm-200 bg-white px-1.5 py-1 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none"><option value="newest">Recent</option><option value="az">A–Z</option><option value="rating">My Rating</option></select>
+				<div class="flex items-center gap-0.5 rounded-md border border-warm-200 bg-white p-0.5">
+					<button onclick={() => { viewMode = 'grid'; }} class="rounded p-1.5 transition-colors {viewMode === 'grid' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}" aria-label="Grid view"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg></button>
+					<button onclick={() => { viewMode = 'list'; }} class="rounded p-1.5 transition-colors {viewMode === 'list' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}" aria-label="List view"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg></button>
 				</div>
 			</div>
 		</div>
 	</div>
-
-	<!-- Map (inside sticky panel) -->
-	{#if hasMap}
-		<div class="mx-auto max-w-4xl px-3 pb-2 sm:px-6 sm:pb-2.5">
-			<div class="overflow-hidden rounded-xl border border-warm-200 sm:rounded-2xl">
-				<button
-					onclick={() => { mapExpanded = !mapExpanded; }}
-					class="flex w-full items-center justify-between bg-white px-3 py-1.5 text-xs font-semibold text-warm-500 transition-colors hover:bg-warm-50 sm:px-4 sm:py-2"
-				>
-					<div class="flex items-center gap-2">
-						<svg class="h-3.5 w-3.5 text-brand-500 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
-						</svg>
-						<span>{mappablePlaces.length} {mappablePlaces.length === 1 ? 'place' : 'places'} on map</span>
-					</div>
-					<svg
-						class="h-3.5 w-3.5 transition-transform duration-200 {mapExpanded ? 'rotate-180' : ''}"
-						viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-					>
-						<polyline points="6 9 12 15 18 9" />
-					</svg>
-				</button>
-
-				{#if mapExpanded}
-					<div class="h-[180px] border-t border-warm-200 sm:h-[220px]">
-						<MapView
-							places={filteredPlaces}
-							{selectedPlaceId}
-							onPlaceSelect={handleMapPlaceSelect}
-							{maptilerKey}
-						/>
-					</div>
-				{/if}
-			</div>
-		</div>
-	{/if}
-
-	<!-- Controls (inside sticky panel) -->
-	<div class="mx-auto flex max-w-4xl items-center justify-between border-t border-warm-200/60 px-3 py-1.5 sm:px-6 sm:py-2">
-		<p class="text-xs font-semibold text-warm-500 sm:text-base">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</p>
-		<div class="flex items-center gap-1.5 sm:gap-2">
-			<div class="relative">
-				<svg class="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-				</svg>
-				<input
-					type="text"
-					bind:value={search}
-					placeholder="Search..."
-					class="w-28 rounded-lg border border-warm-200 bg-warm-50 py-1 pl-7 pr-7 text-xs font-medium text-warm-600 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:w-40 sm:text-sm"
-				/>
-				{#if search}
-					<button
-						onclick={() => { search = ''; }}
-						class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600"
-						aria-label="Clear search"
-					>
-						<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-							<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-						</svg>
-					</button>
-				{/if}
-			</div>
-			<select
-				bind:value={sortBy}
-				class="rounded-md border border-warm-200 bg-white px-1.5 py-1 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none sm:text-sm"
-			>
-				<option value="newest">Recent</option>
-				<option value="az">A–Z</option>
-				<option value="rating">My Rating</option>
-			</select>
-			<div class="flex items-center gap-0.5 rounded-md border border-warm-200 bg-white p-0.5">
-				<button
-					onclick={() => { viewMode = 'grid'; }}
-					class="rounded p-1.5 transition-colors {viewMode === 'grid' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
-					aria-label="Grid view"
-				>
-					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
-					</svg>
-				</button>
-				<button
-					onclick={() => { viewMode = 'list'; }}
-					class="rounded p-1.5 transition-colors {viewMode === 'list' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
-					aria-label="List view"
-				>
-					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
-						<line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
-					</svg>
-				</button>
-			</div>
-		</div>
-	</div>
-</div>
-
-<div
-	class="mx-auto max-w-4xl px-3 pt-3 sm:px-6 sm:pt-4 pb-[max(5rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+2rem))] sm:pb-[max(7rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+3rem))]"
->
+	<MobileMapShell places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} {maptilerKey} />
+	<div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
+		<div class="mx-auto px-2.5 pt-1 pb-[max(2.5rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+0.25rem))]">
 	<!-- Places -->
 	{#if sortedPlaces.length === 0}
 		<div class="py-16 text-center">
@@ -664,8 +519,123 @@
 			{/each}
 		</div>
 	{/if}
+		</div>
+	</div>
 </div>
 
+{:else}
+<!-- ===== DESKTOP: Split map/list layout ===== -->
+<div class="min-h-[100dvh]">
+	<div class="sticky top-0 z-10 border-b border-warm-200/80 bg-[#faf7f2] shadow-sm">
+		<div class="mx-auto max-w-none px-3 sm:px-6 lg:px-4">
+			<div class="flex items-center gap-1.5 pt-2 text-xs text-warm-400 sm:pt-2.5 sm:text-sm">
+				<a href="/collections" class="transition-colors hover:text-warm-600">Collections</a>
+				<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6" /></svg>
+				<span class="font-semibold text-warm-600">{collection.name}</span>
+			</div>
+			<div class="pb-2 pt-1 sm:pb-2.5 sm:pt-1.5">
+				<div class="flex items-center justify-between gap-3">
+					<div class="min-w-0 flex-1">
+						<div class="flex items-center gap-2.5">
+							<div class="relative" bind:this={colorPickerEl}>
+								<button onclick={() => { editingColor = !editingColor; }} class="flex shrink-0 items-center justify-center rounded-full transition-all hover:scale-110" aria-label="Change collection color">
+									<CollectionAvatar color={collection.color} emoji={collection.emoji} size="lg" />
+								</button>
+								{#if editingColor}
+									<div class="absolute left-0 top-full z-20 mt-2 rounded-xl border border-warm-200 bg-white p-2.5 shadow-lg" style="width: max-content; max-width: 280px;">
+										<div class="flex flex-wrap gap-1.5">
+											{#each COLORS as color}
+												<button onclick={() => saveColor(color)} class="h-5.5 w-5.5 rounded-full transition-all {collection.color === color ? 'ring-2 ring-offset-1 ring-warm-400 scale-110' : 'hover:scale-110'}" style="background-color: {color}" aria-label="Select color"></button>
+											{/each}
+										</div>
+										<div class="mt-2 border-t border-warm-100 pt-2">
+											<span class="mb-1 block text-xs font-bold text-warm-400">Icon</span>
+											<EmojiPicker selected={collection.emoji ?? null} onSelect={(em) => { saveEmoji(em); }} />
+										</div>
+									</div>
+								{/if}
+							</div>
+							<div class="min-w-0 flex-1">
+								{#if editingName}
+									<input type="text" bind:value={editName} onkeydown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') editingName = false; }} onblur={saveName} class="w-full rounded-lg border border-warm-200 bg-warm-50 px-2 py-0.5 text-base font-extrabold text-warm-800 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:text-lg" autofocus />
+								{:else}
+									<button type="button" class="cursor-pointer truncate text-left text-base font-extrabold text-warm-800 transition-colors hover:text-brand-600 sm:text-lg" onclick={() => { editingName = true; editName = collection.name; }}>{collection.name}</button>
+								{/if}
+								{#if editingDesc}
+									<input type="text" bind:value={editDesc} onkeydown={(e) => { if (e.key === 'Enter') saveDescription(); if (e.key === 'Escape') editingDesc = false; }} onblur={saveDescription} placeholder="Add a description..." class="mt-0.5 w-full rounded-lg border border-warm-200 bg-warm-50 px-2 py-0.5 text-xs text-warm-500 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:text-sm" autofocus />
+								{:else}
+									<button type="button" class="mt-0.5 cursor-pointer text-left text-xs text-warm-400 transition-colors hover:text-warm-500 sm:text-sm" onclick={() => { editingDesc = true; editDesc = collection.description ?? ''; }}>{collection.description || 'Add a description...'}</button>
+								{/if}
+							</div>
+						</div>
+					</div>
+					<div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
+						{#if collection.visibility === 'link_access'}
+							<button onclick={copyShareLink} class="rounded-md p-1.5 text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600 sm:p-2" aria-label="Copy share link">
+								<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
+							</button>
+						{/if}
+						<button onclick={toggleSharing} class="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-bold transition-colors sm:px-3 sm:py-1.5 {collection.visibility === 'link_access' ? 'border-sage-200 bg-sage-50 text-sage-700 hover:bg-sage-100' : 'border-warm-200 text-warm-500 hover:bg-warm-50'}">
+							<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">{#if collection.visibility === 'link_access'}<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />{:else}<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" />{/if}</svg>
+							{collection.visibility === 'link_access' ? 'Shared' : 'Private'}
+						</button>
+						<button onclick={() => { showAddModal = true; }} class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700 sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-sm">
+							<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+							<span class="hidden sm:inline">Add Places</span>
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="mx-auto flex max-w-none items-center justify-between border-t border-warm-200/60 px-3 py-1.5 sm:px-6 sm:py-2 lg:px-4">
+			<p class="text-xs font-semibold text-warm-500 sm:text-base">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</p>
+			<div class="flex items-center gap-1.5 sm:gap-2">
+				<div class="relative">
+					<svg class="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+					<input type="text" bind:value={search} placeholder="Search..." class="w-28 rounded-lg border border-warm-200 bg-warm-50 py-1 pl-7 pr-7 text-xs font-medium text-warm-600 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:w-40 sm:text-sm" />
+					{#if search}<button onclick={() => { search = ''; }} class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600" aria-label="Clear search"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>{/if}
+				</div>
+				<select bind:value={sortBy} class="rounded-md border border-warm-200 bg-white px-1.5 py-1 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none sm:text-sm"><option value="newest">Recent</option><option value="az">A–Z</option><option value="rating">My Rating</option></select>
+				<div class="flex items-center gap-0.5 rounded-md border border-warm-200 bg-white p-0.5">
+					<button onclick={() => { viewMode = 'grid'; }} class="rounded p-1.5 transition-colors {viewMode === 'grid' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}" aria-label="Grid view"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg></button>
+					<button onclick={() => { viewMode = 'list'; }} class="rounded p-1.5 transition-colors {viewMode === 'list' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}" aria-label="List view"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg></button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="flex flex-col lg:flex-row">
+		<div class="relative z-0 h-[35vh] shrink-0 border-b border-warm-200 sm:h-[38vh] lg:order-2 lg:sticky lg:top-[120px] lg:h-[calc(100dvh-120px)] lg:w-[42%] lg:self-start lg:border-b-0 lg:border-l">
+			<MapView places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} {maptilerKey} />
+		</div>
+		<div class="min-w-0 flex-1 lg:order-1">
+			<div class="mx-auto px-2.5 py-3 sm:px-6 sm:py-4 lg:px-4 pb-[max(5rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+2rem))]">
+	{#if sortedPlaces.length === 0}
+		<div class="py-16 text-center">
+			<svg class="mx-auto h-12 w-12 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
+			<p class="mt-3 text-base text-warm-500">{places.length === 0 ? 'This collection is empty' : 'No places match your search'}</p>
+			{#if places.length === 0}
+				<button onclick={() => { showAddModal = true; }} class="mt-2 text-base font-semibold text-brand-600 hover:text-brand-700">Add some places</button>
+			{/if}
+		</div>
+	{:else if viewMode === 'grid'}
+		<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4">
+			{#each sortedPlaces as place (place.id)}
+				<PlaceCard {place} placeTags={placeTagsMap[place.id] ?? []} {allTags} {supabase} userId={session?.user?.id ?? ''} enrichingId={null} onEnrich={() => {}} onDelete={() => handleRemovePlace(place.id)} onTagClick={toggleTag} onTagsChanged={refreshTags} onNoteChanged={updateNote} onRatingChanged={updateRating} selected={selectedPlaceId === place.id} onSelect={handleCardSelect} onRemoveFromCollection={(id) => handleRemovePlace(id)} onDeletePlace={(id) => handleDeletePlace(id)} />
+			{/each}
+		</div>
+	{:else}
+		<div class="overflow-hidden rounded-2xl border border-warm-200 bg-white divide-y divide-warm-100">
+			{#each sortedPlaces as place (place.id)}
+				<PlaceListItem {place} placeTags={placeTagsMap[place.id] ?? []} {allTags} {supabase} userId={session?.user?.id ?? ''} onTagClick={toggleTag} onTagsChanged={refreshTags} onNoteChanged={updateNote} onRatingChanged={updateRating} onDelete={() => handleRemovePlace(place.id)} selected={selectedPlaceId === place.id} onSelect={handleCardSelect} onRemoveFromCollection={(id) => handleRemovePlace(id)} onDeletePlace={(id) => handleDeletePlace(id)} />
+			{/each}
+		</div>
+	{/if}
+			</div>
+		</div>
+	</div>
+</div>
+{/if}
 <!-- Add places modal -->
 {#if showAddModal}
 	<!-- svelte-ignore a11y_click_events_have_key_events -->

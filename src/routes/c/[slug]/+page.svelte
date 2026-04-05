@@ -1,17 +1,59 @@
 <script lang="ts">
 	import type { Collection, Place } from '$lib/types/database';
+	import type { Session } from '@supabase/supabase-js';
 	import MapView from '$lib/components/MapView.svelte';
 	import CollectionAvatar from '$lib/components/CollectionAvatar.svelte';
+	import { showToast } from '$lib/stores/toasts.svelte';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 
 	let { data } = $props();
 	let collection = (data as any).collection as Collection;
 	let places = (data as any).places as Place[];
 	let maptilerKey: string = data.maptilerKey ?? '';
+	let session: Session | null = (data as any).session ?? null;
 
 	let viewMode = $state<'grid' | 'list'>('grid');
 	let search = $state('');
 	let selectedPlaceId = $state<string | null>(null);
 	let mapExpanded = $state(true);
+	let saving = $state(false);
+	let saved = $state(false);
+
+	let isOwner = $derived(session?.user?.id === collection.user_id);
+
+	async function handleSave() {
+		if (!session) {
+			goto(`/login?redirect=${encodeURIComponent(page.url.pathname)}`);
+			return;
+		}
+		if (saving || saved) return;
+
+		saving = true;
+		try {
+			const res = await fetch('/api/collections/save-shared', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ collectionId: collection.id })
+			});
+
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({ message: 'Something went wrong' }));
+				showToast('error', '', err.message ?? 'Failed to save collection');
+				return;
+			}
+
+			const result = await res.json();
+			saved = true;
+			showToast('success', '', 'Collection saved!', [
+				{ label: 'View', handler: () => goto(`/collections/${result.id}`) }
+			]);
+		} catch {
+			showToast('error', '', 'Failed to save collection');
+		} finally {
+			saving = false;
+		}
+	}
 
 	let mappablePlaces = $derived(places.filter((p) => p.lat != null && p.lng != null));
 	let hasMap = $derived(mappablePlaces.length > 0);
@@ -70,6 +112,29 @@
 						</div>
 					</div>
 				</div>
+			<button
+				onclick={handleSave}
+				disabled={saving || saved || isOwner}
+				class="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors sm:text-sm {saved ? 'bg-sage-200 text-sage-700' : isOwner ? 'bg-warm-200 text-warm-400 cursor-not-allowed' : 'bg-brand-500 text-white hover:bg-brand-600 active:bg-brand-700'} disabled:opacity-60"
+				title={isOwner ? 'This is your collection' : 'Save to your collections'}
+			>
+				{#if saving}
+					<svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+						<path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83" />
+					</svg>
+					Saving…
+				{:else if saved}
+					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+						<polyline points="20 6 9 17 4 12" />
+					</svg>
+					Saved
+				{:else}
+					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+					</svg>
+					Save
+				{/if}
+			</button>
 			</div>
 		</div>
 	</div>
