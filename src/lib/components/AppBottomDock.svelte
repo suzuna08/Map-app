@@ -1,16 +1,17 @@
 <script lang="ts">
 	import { page } from '$app/state';
-
-	interface Props {
-		onAddPlace: () => void;
-	}
-
-	let { onAddPlace }: Props = $props();
+	import { dockMode, type DockMode } from '$lib/stores/dock-scroll-state';
 
 	let pathname = $derived(page.url.pathname);
+	let mode = $state<DockMode>('active');
+
+	$effect(() => {
+		const unsub = dockMode.subscribe((m) => { mode = m; });
+		return unsub;
+	});
 
 	const dockTabBase =
-		'flex min-h-[3.25rem] w-[4.75rem] shrink-0 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-center text-[10px] font-bold leading-tight transition-colors sm:w-[5rem] sm:text-xs';
+		'flex min-h-[3.25rem] w-[5.5rem] shrink-0 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-center text-[10px] font-bold leading-tight transition-colors sm:w-[6rem] sm:text-xs';
 	const dockTabActive = 'bg-brand-100 text-brand-800';
 	const dockTabIdle = 'text-warm-500 hover:bg-warm-100 hover:text-warm-700';
 	const iconWrap = 'flex h-5 w-5 shrink-0 items-center justify-center sm:h-6 sm:w-6';
@@ -18,14 +19,23 @@
 	let placesActive = $derived(pathname === '/places');
 	let collectionsActive = $derived(pathname.startsWith('/collections'));
 	let settingsActive = $derived(pathname === '/settings' || pathname.startsWith('/settings/'));
+
+	let isPassive = $derived(mode === 'passive');
+
+	function handleInteraction() {
+		dockMode.set('active');
+	}
 </script>
 
 <nav
 	class="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
+	class:dock-passive={isPassive}
+	class:dock-active={!isPassive}
 	aria-label="Main navigation"
+	onpointerenter={handleInteraction}
 >
 	<div
-		class="pointer-events-auto flex max-w-lg items-center gap-1 rounded-[1.75rem] border border-warm-200/80 bg-warm-50/95 px-2 py-2 shadow-lg shadow-warm-900/10 backdrop-blur-lg sm:gap-2 sm:px-3"
+		class="dock-pill pointer-events-auto flex max-w-lg items-center gap-1 rounded-[1.75rem] border border-warm-200/80 bg-warm-50/95 px-2 py-2 shadow-lg shadow-warm-900/10 backdrop-blur-lg sm:gap-2 sm:px-3"
 	>
 		<a
 			href="/places"
@@ -57,18 +67,6 @@
 			<span class="max-w-full text-center leading-tight">Collections</span>
 		</a>
 
-		<button
-			type="button"
-			onclick={onAddPlace}
-			class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-600 text-white shadow-md shadow-brand-900/20 transition-colors hover:bg-brand-700 sm:h-12 sm:w-12"
-			aria-label="Add place"
-		>
-			<svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-				<line x1="12" y1="5" x2="12" y2="19" />
-				<line x1="5" y1="12" x2="19" y2="12" />
-			</svg>
-		</button>
-
 		<a
 			href="/settings"
 			class="{dockTabBase} {settingsActive ? dockTabActive : dockTabIdle}"
@@ -94,3 +92,30 @@
 		</a>
 	</div>
 </nav>
+
+<style>
+	nav {
+		transition: opacity 280ms ease, transform 280ms ease;
+		will-change: opacity, transform;
+	}
+
+	.dock-active {
+		opacity: 1;
+		transform: translateY(0);
+	}
+
+	.dock-passive {
+		opacity: 0.45;
+		transform: translateY(10px);
+	}
+
+	.dock-passive .dock-pill {
+		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+	}
+
+	nav:hover,
+	nav:focus-within {
+		opacity: 1 !important;
+		transform: translateY(0) !important;
+	}
+</style>

@@ -3,15 +3,14 @@
 	import { invalidate, goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
-	import AddPlaceModal from '$lib/components/AddPlaceModal.svelte';
 	import AppBottomDock from '$lib/components/AppBottomDock.svelte';
 	import { bottomDockSuppressed } from '$lib/stores/bottom-dock-suppressed';
+	import { initDockScrollWatcher } from '$lib/stores/dock-scroll-state';
 
 	let { data, children } = $props();
 
 	let supabase = $derived(data.supabase);
 	let session = $derived(data.session);
-	let showAddModal = $state(false);
 
 	let pathname = $derived(page.url.pathname);
 
@@ -24,6 +23,13 @@
 
 	let showDockBase = $derived(!!session && appShellRoute(pathname));
 	let showDock = $derived(showDockBase && !$bottomDockSuppressed);
+
+	$effect(() => {
+		if (showDock) {
+			const teardown = initDockScrollWatcher();
+			return teardown;
+		}
+	});
 
 	const REFRESH_MARGIN_MS = 5 * 60 * 1000; // refresh 5 min before expiry
 
@@ -100,7 +106,7 @@
 <div
 	class="min-h-[100dvh] bg-sage-100 font-sans"
 	style={showDock
-		? '--app-dock-reserve: calc(5.75rem + env(safe-area-inset-bottom, 0px));'
+		? '--app-dock-reserve: calc(5rem + env(safe-area-inset-bottom, 0px));'
 		: '--app-dock-reserve: 0px;'}
 >
 	<div class="box-border min-h-[100dvh]">
@@ -108,13 +114,6 @@
 	</div>
 
 	{#if showDock}
-		<AppBottomDock onAddPlace={() => { showAddModal = true; }} />
-	{/if}
-
-	{#if showAddModal}
-		<AddPlaceModal
-			onClose={() => { showAddModal = false; }}
-			onPlaceAdded={() => { invalidate('supabase:auth'); window.dispatchEvent(new CustomEvent('place-added')); }}
-		/>
+		<AppBottomDock />
 	{/if}
 </div>

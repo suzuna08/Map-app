@@ -35,4 +35,20 @@
 			Sign out
 		</button>
 	</section>
+
+	<section class="mt-4 rounded-2xl border border-warm-200 bg-white p-5 shadow-sm">
+		<h2 class="text-sm font-extrabold uppercase tracking-wide text-warm-500">Data</h2>
+		<p class="mt-3 text-sm text-warm-500">Bulk import places from Google Takeout CSV exports.</p>
+		<a
+			href="/upload"
+			class="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm font-bold text-brand-700 transition-colors hover:bg-brand-100"
+		>
+			<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+				<polyline points="17 8 12 3 7 8" />
+				<line x1="12" y1="3" x2="12" y2="15" />
+			</svg>
+			Import from CSV
+		</a>
+	</section>
 </div>
