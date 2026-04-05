@@ -80,7 +80,7 @@ Auth is handled through `@supabase/ssr` with a server hook (`hooks.server.ts`) a
 
 **Visibility-based session check**: A `visibilitychange` listener detects when the browser tab returns to the foreground. If the session is near expiry (within the 5-minute margin), it triggers an immediate refresh. If there's no current session, it invalidates to update the UI.
 
-**Server-side route protection**: `hooks.server.ts` defines a `PROTECTED_ROUTES` array (`/places`, `/upload`, `/api/places`, `/collections`). If there's no session and the request path starts with any protected route, the hook issues a `303` redirect to `/login?redirect=<intended_path>`. This is the primary access control mechanism, replacing the previous client-side-only `$effect` redirect approach.
+**Server-side route protection**: `hooks.server.ts` defines a `PROTECTED_ROUTES` array (`/places`, `/upload`, `/api/places`, `/collections`, `/settings`). If there's no session and the request path starts with any protected route, the hook issues a `303` redirect to `/login?redirect=<intended_path>`. This is the primary access control mechanism, replacing the previous client-side-only `$effect` redirect approach.
 
 **Login page redirect**: The login page reads the `redirect` query param and uses `getSafeRedirect()` to validate it before navigating. The function rejects non-relative paths, double-slash prefixes (protocol-relative URLs), and paths that point back to `/login` itself. Invalid redirects fall back to `/places`.
 
@@ -113,7 +113,7 @@ Both triggers use `security definer` with `search_path = ''` to safely access th
 
 **`google_place_type_catalog`** -- Stores the official Google Places API (New) type keys with metadata: `type_key`, `can_be_primary`, `table_group` (A/B/C), `status` (active/deprecated/unmapped). Read-only for authenticated users; admin writes happen via service role or the `/api/admin/intel-catalog` endpoint.
 
-**`intel_tag_mappings`** -- Maps Google type keys to internal product-level classifications: `primary_category`, `operational_status`, `market_niche`, `discussion_pillar`, and `suggested_tags` (JSONB array). References `google_place_type_catalog` via foreign key. This is the editable layer that separates external taxonomy from internal business intelligence.
+**`intel_tag_mappings`** -- Maps Google type keys to internal product-level classifications: `primary_category`, `operational_status`, `market_niche`, `discussion_pillar`, `suggested_tags` (JSONB array), and `market_context` (free-text context for market discussion). References `google_place_type_catalog` via foreign key. This is the editable layer that separates external taxonomy from internal business intelligence.
 
 **`place_intel_tags`** -- Optional per-place cache of computed intel tag results. Stores the resolved classification, source types, and an `approved` flag for future user-approval workflows. Unique on `place_id`.
 
@@ -125,7 +125,7 @@ All tables have RLS enabled. Policies ensure users can only see/modify their own
 
 The `migration.sql` file only defines `places`, `lists`, and `list_places`. The `tags` and `place_tags` tables (along with enrichment columns on `places`) were added later directly in Supabase. The TypeScript types in `database.ts` reflect the full schema.
 
-A separate `add_tag_order_index.sql` migration adds the `order_index` column to `tags` for drag-and-drop reordering. Because this column may not exist on older deployments, all code that reads or writes `order_index` uses `try/catch` with graceful fallback (see [Tag Reordering](#tag-reordering--drag-and-drop)).
+A separate `add_tag_order_index.sql` migration adds the `order_index` column to `tags` for drag-and-drop reordering. Because this column may not exist on older deployments, all code that reads or writes `order_index` checks the Supabase `{ error }` response and falls back silently on failure (see [Tag Reordering](#tag-reordering--drag-and-drop)).
 
 A third migration file, `add_profiles_table.sql`, creates the `profiles` table with RLS policies and the two auth triggers. This migration is independent of the others and can be run at any time.
 
@@ -236,7 +236,7 @@ The `add-by-url` endpoint has its own `normalizeUrl()` function that's distinct 
 
 ### Source List Tagging
 
-Places added via URL import get `source_list: 'url-import'`, while CSV-imported places get the filename (minus `.csv`) as their `source_list`. This enables filtering by import source in the sidebar's "Sources" section.
+Places added via URL import get `source_list: 'url-import'`, while CSV-imported places get the filename (minus `.csv`) as their `source_list`. This enables filtering by import source, though there is currently no standalone UI to select a source — source filters can only be activated through Saved Views (which persist a `source` field in `filters_json`). An active source filter is shown as a dismissible chip in the filter summary row.
 
 ### Inline URL Detection in Search
 
@@ -293,6 +293,8 @@ The response includes `contextTagsApplied` and `contextTagsRequested` counts, en
 
 User tags get deterministic colors via `colorForTag`: the tag name is normalized (lowercase, trimmed, single spaces), then hashed with djb2, and the hash modulo the palette length picks from a curated 6-color muted palette (muted gold, stone sage, slate blue, terracotta, muted teal, dusty purple). The same name always gets the same color, but users can override it.
 
+A `textColorForBg(bg)` helper is intended to return dark text (`#3a3028`) on light backgrounds and white (`#ffffff`) on dark ones. However, the `LIGHT_BG_SET` used for the check is currently empty, so the function always returns white. This means user-overridden light background colors will have white (low-contrast) text until the set is populated.
+
 ### TagInput Component
 
 The inline tag input on each place card uses a portal pattern: the dropdown suggestions are appended to `document.body` instead of rendered in place. This avoids z-index and overflow clipping issues caused by the card's `overflow: hidden` and 3D transform context.
@@ -326,7 +328,7 @@ Tags in all three groups (category, area, custom) support drag-and-drop reorderi
 
 **Drop position**: Insert position is calculated using distance to item midpoints. An item is placed "after" when `cy > midY + 30% * height` or when vertically centered and `cx > midX`. Edge zones (40px from container edges) trigger horizontal auto-scroll during drag.
 
-**Persistence** (`tag-order.ts`): After reorder, `saveTagOrder()` writes the new `order_index` values to the `tags` table. `getNextOrderIndex()` assigns the next available index to new tags. `reindexAfterDelete()` renumbers remaining tags after a deletion. All functions use `try/catch` because the `order_index` column may not exist yet (added via a separate migration), falling back silently on error.
+**Persistence** (`tag-order.ts`): After reorder, `saveTagOrder()` writes the new `order_index` values to the `tags` table. `getNextOrderIndex()` assigns the next available index to new tags. `reindexAfterDelete()` renumbers remaining tags after a deletion. All functions check the Supabase `{ error }` response and fall back silently when the `order_index` column doesn't exist (added via a separate migration).
 
 ---
 
@@ -358,14 +360,14 @@ Similarly, an `$effect` monitors `selectedSource` against the current `sourceLis
 
 ### Search
 
-Search is case-insensitive and checks across four fields: title, description, address, and tag names. All matching is done client-side with `String.includes()`.
+Search is case-insensitive and checks across six fields: title, description, address, category, area, and tag names. All matching is done client-side — the fields are joined into a single lowercase haystack and each search term is tested with `String.includes()`.
 
 ### Sorting
 
 Seven sort options, all client-side:
 - Newest/oldest by `created_at`
 - A-Z/Z-A by `title` with `localeCompare`
-- My Rating (descending by `user_rating`, nulls last)
+- Rating (descending by `user_rating`, nulls last)
 - Most tagged (by count of tags in `placeTagsMap`)
 - Tag group (alphabetically by first user tag name, untagged places sorted last via `\uffff`)
 
@@ -422,7 +424,7 @@ Clip path IDs are scoped per star index (`star-left-0`, `star-right-0`, etc.) to
 
 - **PlaceCard** and **PlaceListItem**: Both components accept an `onRatingChanged?: (placeId: string, rating: number | null) => void` prop. The `RatingDisplay` is placed in the same visual position as the former Google rating — top-right of the header row on cards, inline in the data row on list items.
 - **MapView popup**: Shows `My rating: 4.5 ★` as display-only text. No editor inside the popup to keep it lightweight.
-- **Sorting**: The `rating` sort option now sorts by `user_rating` (descending, nulls last) and the dropdown label reads "My Rating".
+- **Sorting**: The `rating` sort option sorts by `user_rating` (descending, nulls last) and the dropdown label reads "Rating".
 - **Collection pages**: `/collections/[id]` uses `user_rating` for display and sorting. The public share page (`/c/[slug]`) shows the owner's personal rating read-only (no sort controls).
 - **Server queries**: All `+page.server.ts` files and the `PLACES_COLUMNS` constant in `places.svelte.ts` include `user_rating` and `user_rated_at` in their SELECT lists.
 
@@ -555,7 +557,7 @@ The collections index page (`/collections`) includes a one-time client-side colo
 
 `src/lib/stores/collections.svelte.ts` follows the same async-helper pattern as `places.svelte.ts` and `saved-views.svelte.ts`:
 
-- **`loadCollections()`**: Fetches all user collections with embedded `list_places(place_id)` join in a single query (scoped by `user_id`), then builds the `CollectionMemberMap` from the join result
+- **`loadCollections()`**: Fetches all user collections with embedded `list_places(place_id)` join in a single query (scoped by `user_id`), ordered by `created_at` descending. Note: the server load in `collections/+page.server.ts` sorts by `updated_at` instead — the server sort takes precedence on initial page load, while the store sort applies to client-side refreshes
 - **`createCollection()`**: Creates a collection, optionally bulk-inserting place IDs
 - **`updateCollection()`**: Updates name, description, color, visibility, or share_slug
 - **`deleteCollection()`**: Deletes a collection (cascade removes `list_places` rows)
@@ -592,7 +594,7 @@ The public page (`/c/[slug]`) loads data via a server load function that uses a 
 
 ### Navigation
 
-The root layout nav bar includes a "My Collections" link (shortened to "Collections" on mobile) between "My Places" and the "+ Add Place" button. The `/collections` route is protected (requires auth). The `/c/[slug]` route is public.
+The bottom dock includes a "Collections" tab linking to `/collections`. The `/collections` route is protected (requires auth). The `/c/[slug]` route is public.
 
 ### Trade-offs
 
@@ -615,7 +617,7 @@ The system has three layers:
 
 1. **Google Place Type Catalog** (`src/lib/google-place-types.ts`): A complete registry of 100+ official Google Places API (New) type keys, split into Table A (searchable/primary types) and Table B (returned-only types). Each entry has `type_key`, `can_be_primary`, `table_group`, and `status`. Provides `lookupGoogleType()` and `isKnownGoogleType()` for fast lookups.
 
-2. **Intel Tag Mappings** (`src/lib/intel-tag-mappings.ts`): An editable mapping table of ~80 entries that maps Google type keys to internal classifications across categories like Dining, Cafe, Nightlife, Fitness, Wellness, Attractions, Shopping, Lodging, Services, and Entertainment. Each mapping specifies: `primary_category`, `operational_status`, `market_niche`, `discussion_pillar`, and `suggested_tags`. Provides `lookupMapping()`, `getAllMappings()`, and `getMappingOrDefault()`.
+2. **Intel Tag Mappings** (`src/lib/intel-tag-mappings.ts`): An editable mapping table of ~80 entries that maps Google type keys to internal classifications across categories like Dining, Cafe, Nightlife, Fitness, Wellness, Attractions, Shopping, Lodging, Services, and Entertainment. Each mapping specifies: `primary_category`, `operational_status`, `market_niche`, `discussion_pillar`, `suggested_tags`, and `market_context`. Provides `lookupMapping()`, `getAllMappings()`, and `getMappingOrDefault()`.
 
 3. **Intel Tagging Engine** (`src/lib/intel-tagging.ts`): Pure computation that takes raw Google Place data (`primaryType` + `types` array) and produces a structured `IntelTagResult` with six output layers:
    - Primary Category -- top-level bucket
@@ -631,7 +633,7 @@ The engine prioritizes `primaryType` (from Google's response) as the authoritati
 
 ### API Endpoints
 
-**`GET /api/places/[id]/intel-tags`**: Computes intel tags for a single place. Optionally re-fetches from Google for full type data (if the place has a URL). Supports `?market=true` query param to include a `MarketDiscussionOutput` payload (prompt-ready JSON for downstream market discussion use cases).
+**`GET /api/places/[id]/intel-tags`**: Computes intel tags for a single place. Fetches the place by ID (user-scoped), then attempts to re-fetch from Google for full type data if the place has a URL. Falls back to the stored `primary_type` on fetch failure. Supports `?market=true` query param to include a `MarketDiscussionOutput` payload (prompt-ready JSON for downstream market discussion use cases). Returns the computed intel classification, catalog metadata (hits/misses, source types), and optionally the market discussion output.
 
 **`POST /api/admin/intel-catalog`**: Seeds or refreshes the `google_place_type_catalog` and `intel_tag_mappings` Supabase tables from the TypeScript seed data. Supports `'upsert'` (default, updates existing) or `'full'` mode. `GET` returns current catalog/mapping stats for observability.
 
@@ -669,7 +671,7 @@ A drag-handle at the bottom of the shell supports pointer-drag resizing with sna
 
 The mobile layout uses `overflow: hidden` on the outer container with the content panel in a scrollable `flex-1 min-h-0 overflow-y-auto` div, preventing the map from scrolling with the page.
 
-**Desktop (lg+)**: The layout switches to `flex-row`. The map panel gets `order-2` (right side), `width: 42%`, and `position: sticky` at `top: 3.5rem` (just below the nav). This keeps the map visible at all times while the left content panel scrolls freely. The `align-self: start` property is required for sticky to work correctly in a flex row -- without it, the flex item stretches to the container height and sticky has no room to "stick".
+**Desktop (lg+)**: The layout switches to `flex-row`. The map panel gets `order-2` (right side), `width: 42%`, and `position: sticky` at `top: 0` (full viewport height, `h-[100dvh]`) since the nav bar has been replaced by a bottom dock. The `align-self: start` property is required for sticky to work correctly in a flex row -- without it, the flex item stretches to the container height and sticky has no room to "stick". On mid-size screens (< lg), the map shows as a fixed-height band (`h-[35vh]` / `sm:h-[38vh]`) above the content.
 
 **Breakpoint detection**: An `isMobile` reactive variable (updated via `resize` event listener, threshold at 1024px) controls which layout renders. This uses JS-based detection rather than CSS media queries because the mobile and desktop layouts use different component trees (`MobileMapShell` wrapping `MapView` vs. `MapView` alone).
 
@@ -753,9 +755,9 @@ Click handling uses event delegation: clicks on interactive elements (links, but
 
 ### PlaceCard -- Swipe to Delete (Mobile Grid)
 
-The mobile grid card layout combines 3D flip with swipe-to-delete. The DOM nesting is: swipe container > swipeable wrapper > perspective container > flip inner.
+The mobile grid card layout combines 3D flip with swipe-to-delete. The DOM structure uses a strict 3-layer pattern: outer clipping container (`position: relative; overflow: hidden; border-radius`) > delete background layer (`position: absolute; inset: 0; z-index: 0`) > foreground content layer (`position: relative; z-index: 10`).
 
-The swipe layer sits *outside* the perspective/flip context. Touch events (`ontouchstart`, `ontouchmove`, `ontouchend`) are handled on the swipeable wrapper, which translates horizontally via `transform: translateX()`. Behind it, a delete button is conditionally rendered (only when `swipeX < 0`) with `rounded-r-xl` to match the card's border radius.
+The delete layer sits in a separate stacking context from the foreground, with an explicit z-index gap. The foreground layer is the only element that receives the horizontal `translateX` during swipe. All 3D flip transforms (`perspective`, `preserve-3d`, `rotateY`) are nested *inside* the foreground layer, ensuring they never create a stacking context that could interfere with the delete layer's visual ordering.
 
 The `handleFlip` function is swipe-aware: if the card is currently swiped open (`swipeX !== 0`), a tap resets the swipe back to zero instead of triggering a flip. This prevents accidental flips when the user taps to dismiss the delete action.
 
@@ -774,7 +776,7 @@ Both PlaceCard (grid view, mobile) and PlaceListItem (list view, mobile) support
 3. The element translates horizontally, clamped to `[-72px, 0]`
 4. `touchend` snaps: if swiped past 36px threshold, it locks open revealing the delete button; otherwise snaps back to 0
 
-In PlaceCard, the swipe layer wraps the entire flip card and interacts cleanly with the flip gesture -- tapping a swiped-open card dismisses the swipe rather than flipping.
+All swipeable components (PlaceCard, PlaceListItem, Collections index) share the same 3-layer DOM pattern: an outer `overflow: hidden` container owns the border radius and clips all children; a `z-0` absolute-positioned delete layer holds the delete button; a `z-10` relative-positioned foreground layer receives the swipe translateX and contains all content/flip transforms. This ensures the delete action is never visible during fast scrolling, flip animations, or expand/collapse transitions.
 
 ### TagInput -- Portal Dropdown
 
@@ -798,9 +800,11 @@ Accessed via the "+" button in the custom tags row. A modal that manages user ta
 - **Sortable list**: The tag list supports drag-and-drop reordering using the same `sortable` action as the filter tag rows.
 - **User tags only**: The parent passes `allTags={userTags}` -- category and area tags are excluded from management since they're system-generated.
 
-### TopBarTagAdd
+### TopBarTagAdd (unused)
 
-A compact tag creation component (`TopBarTagAdd.svelte`) used in the filter bar area. Renders as a small "+ Add" dashed-border pill that expands into an inline input on click. Features the same portal-based dropdown as `TagInput` for suggestions, auto-title-case normalization, deterministic color assignment via `colorForTag()`, and `order_index` assignment via `getNextOrderIndex()`. Designed for quick tag creation without opening the full TagManager modal.
+> **Note**: `TopBarTagAdd.svelte` exists in the codebase (203 lines) but is not imported or rendered by any page or component — it is dead code. The places page uses a "Manage" button that opens the full `TagManager` modal instead.
+
+The component was designed as a compact tag creation widget for the filter bar area. It renders a small "+ Add" dashed-border pill that expands into an inline input on click, with a portal-based dropdown for suggestions, auto-title-case normalization, deterministic color assignment via `colorForTag()`, and `order_index` assignment via `getNextOrderIndex()`.
 
 ### AddToCollectionModal
 
@@ -829,7 +833,7 @@ A modal with two tabs: "Paste URL" and "Upload CSV". The CSV tab simply links to
 
 **Status flow**: The URL tab uses a state machine: `idle` → `loading` → `success` | `duplicate` | `error`. Each state shows different UI (input field, spinner, success message with place title, or error message). After success/duplicate, the modal can be closed.
 
-**Single entry point**: The modal is rendered once in the root layout (`+layout.svelte`), toggled by the navbar's "+ Add Place" button. This is the sole explicit add-place entry point (the search bar's inline URL paste is a complementary quick-add path). When a place is added via this modal, it dispatches a `place-added` CustomEvent on `window`, which the places page listens for to refresh its local state via `loadData()`. This avoids the need for a second modal instance on the places page.
+**Single entry point**: The modal is rendered once in the root layout (`+layout.svelte`), toggled by the bottom dock's "+" button. This is the sole explicit add-place entry point (the search bar's inline URL paste is a complementary quick-add path). When a place is added via this modal, it dispatches a `place-added` CustomEvent on `window`, which the places page listens for to refresh its local state via `loadData()`. This avoids the need for a second modal instance on the places page.
 
 ### Toast Notification System
 
@@ -855,13 +859,30 @@ The filter summary area (`"Filtered by: ..."`) reserves a `min-h-[28px]` (mobile
 
 Google Fonts (Nunito, weights 400--800) is loaded via `<link>` tags in the root layout with `preconnect` hints to `fonts.googleapis.com` and `fonts.gstatic.com`. The `display=swap` parameter ensures text is visible immediately with a fallback font, then swaps to Nunito once loaded. The font family is registered in `app.css` under `@theme { --font-sans: 'Nunito', ... }`.
 
-### Navigation Bar
+### Navigation: AppBottomDock
 
-The nav is sticky (`sticky top-0 z-30`) with a frosted-glass effect (`backdrop-blur-lg bg-warm-50/85`). Heights differ by breakpoint: `h-12` (48px) on mobile, `sm:h-14` (56px) on desktop. The "Add Place" button in the nav shows only an icon on mobile, with text added at `sm+`. This is the single explicit add-place entry point for the entire app -- it opens the `AddPlaceModal` with URL paste and CSV upload tabs.
+The top nav bar has been replaced by a floating bottom dock (`AppBottomDock.svelte`). The dock is a `fixed inset-x-0 bottom-0 z-50` bar with a frosted-glass pill (`bg-warm-50/95 backdrop-blur-lg rounded-[1.75rem]`) containing four navigation tabs and a central add button:
+
+- **Places** tab — map pin icon, links to `/places`
+- **Collections** tab — grid icon, links to `/collections`
+- **"+" add button** — centered `bg-brand-600` circle (`h-11 w-11` / `sm:h-12 sm:w-12`), opens `AddPlaceModal`
+- **Settings** tab — gear icon, links to `/settings`
+
+Active tab: `bg-brand-100 text-brand-800`. Idle tab: `text-warm-500 hover:bg-warm-100`. The dock is visible only when authenticated and on an app-shell route (`/places`, `/collections`, `/upload`, `/settings`, or any sub-path of `/collections` or `/settings`). A `bottomDockSuppressed` writable store (`src/lib/stores/bottom-dock-suppressed.ts`) lets modals like `PlaceActionMenu` temporarily hide the dock.
+
+The root layout injects a `--app-dock-reserve` CSS custom property (equal to the dock height plus safe-area inset) so pages can add bottom padding to avoid content being obscured by the dock.
+
+### Settings Page
+
+The `/settings` route is a simple account page (`max-w-lg`) with:
+- Section heading "Account" with the user's email
+- Full-width "Sign out" button (`rounded-xl border-warm-200 bg-warm-50`)
+
+This replaces the former "Sign out" button that lived in the nav bar.
 
 ### Layout-Level AddPlaceModal
 
-The root layout renders the single `AddPlaceModal` instance (toggled by the nav's "+ Add Place" button). This serves as the primary explicit add-place entry point alongside the search bar's inline URL paste. The layout version uses `invalidate('supabase:auth')` for auth refresh and dispatches a `window` `place-added` CustomEvent so the places page can call its local `loadData()` to refresh the place list immediately.
+The root layout renders the single `AddPlaceModal` instance (toggled by the dock's "+" button). This serves as the primary explicit add-place entry point alongside the search bar's inline URL paste. The layout version uses `invalidate('supabase:auth')` for auth refresh and dispatches a `window` `place-added` CustomEvent so the places page can call its local `loadData()` to refresh the place list immediately.
 
 ### Auth State Subscription
 
@@ -879,6 +900,7 @@ All design tokens live in `app.css` inside a `@theme` block (Tailwind v4 syntax)
 - **brand** palette: Warm browns (#f9f6f1 to #4a412a) -- used for accents, ratings, active states
 - **sage** palette: Muted blue-grays (#f2f1ef to #24313b) -- used for area tags, success states, page background
 - **warm** palette: Neutral taupes (#faf9f7 to #28221c) -- used for text, borders, backgrounds
+- **danger** palette: Muted warm terracotta reds (#f4eceb to #56302d) -- used for swipe-to-delete backgrounds and destructive confirm buttons
 
 Additional global styles handle safe area insets, tap highlight removal, overscroll behavior, and the toast animation keyframes.
 
@@ -888,12 +910,12 @@ Additional global styles handle safe area insets, tap highlight removal, overscr
 
 The app has distinct mobile and desktop layouts rather than just reflowing:
 
-- **Map layout**: Mobile uses a `MobileMapShell` component with a draggable map (128px collapsed / 55vh expanded, 80px minimum) above a scrollable content panel. Desktop uses a sticky right panel (42% width) alongside a scrollable left content area. The two layouts render different component trees controlled by a JS `isMobile` flag (threshold: 1024px).
+- **Map layout**: Mobile uses a `MobileMapShell` component with a draggable map (128px collapsed / 55vh expanded, 80px minimum) above a scrollable content panel. Desktop uses a sticky right panel (42% width, `lg:sticky lg:top-0 lg:h-[100dvh]`) alongside a scrollable left content area. The two layouts render different component trees controlled by a JS `isMobile` flag (threshold: 1024px). On non-mobile screens, the map shows as a fixed-height band (`h-[35vh]` / `sm:h-[38vh]`) on tablets, expanding to the full sticky panel on `lg+`.
 - **PlaceCard**: Mobile uses a compact layout with smaller text, fewer visible details, and swipe-to-delete. Desktop shows price level, more metadata, and hover-reveal delete. Both show an inline personal rating display (`4.5 ★` / `Not rated`) that opens a star scrubber popover on click. The card grid uses 1-2 columns (reduced from 3 to accommodate the map panel).
 - **PlaceListItem**: Mobile has swipe-to-delete; desktop has hover-reveal action buttons.
-- **Tag filtering**: Mobile uses a tabbed horizontal scroll (Category | Area | Custom); desktop shows all three rows inline.
-- **Navigation**: Heights differ (48px mobile, 56px desktop). The "Add Place" button text is hidden on mobile, showing only the icon.
-- **Safe areas**: The layout respects `env(safe-area-inset-*)` for notched devices.
+- **Tag filtering**: Mobile uses a single horizontally scrollable row of custom tag pills. Desktop shows a labeled row ("Custom") with tag pills.
+- **Navigation**: A floating bottom dock (`AppBottomDock`) replaces the former sticky top nav bar. Four tabs (Places, Collections, +Add, Settings) with safe-area inset padding.
+- **Safe areas**: The layout respects `env(safe-area-inset-*)` for notched devices. Pages use `--app-dock-reserve` to pad content above the bottom dock.
 
 ---
 
@@ -923,7 +945,7 @@ Key settings: `strict: true`, `moduleResolution: "bundler"` (for SvelteKit compa
 Three categories:
 - `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_ANON_KEY` -- accessed via `$env/static/public` in layout load
 - `GOOGLE_PLACES_API_KEY` -- server-only, accessed via `$env/static/private` in API routes
-- `PUBLIC_MAPTILER_KEY` -- accessed via `$env/static/public` in the MapView component
+- `PUBLIC_MAPTILER_KEY` -- accessed via `$env/dynamic/public` in `+layout.server.ts` (runtime read, not build-time inlined) and passed to pages through the layout data
 
 Public vars (prefixed `PUBLIC_`) are safe to expose to the browser. The Google API key is server-only and never sent to the client.
 
@@ -1183,6 +1205,23 @@ A comprehensive query optimization pass was performed across all server loads, c
 
 **Fix**: Changed the cookie option in `hooks.server.ts` from `httpOnly: true` to `httpOnly: false`. This allows the Supabase browser client to read and manage the session cookie directly. The security trade-off is that the session token becomes accessible to client-side JavaScript (and therefore to XSS attacks), but this is the expected configuration for `@supabase/ssr` where the browser client needs cookie access for session management.
 
+### 17. Swipe-to-Delete Layer Visible During Scroll, Flip, and State Changes
+
+**Problem**: On mobile, the red delete action behind swipeable list items and grid cards was not truly hidden. The delete button would flash into view during fast vertical scrolling, appear momentarily during card flip animations, and bleed through during expand/collapse transitions. The root cause was a layering/overflow/transform-boundary issue across all three swipeable components (PlaceCard, PlaceListItem, and the Collections index page):
+
+1. The collections page used `bg-danger-500` as the outer row container's background color, meaning the red was always painted as the row itself -- any sub-pixel gap or repaint glitch exposed it
+2. The delete button was a direct child of the row container at the same stacking level as the foreground content, with no explicit z-index separation
+3. In PlaceCard, the 3D flip transform (`transform-style: preserve-3d`) created a new stacking context that interfered with the delete layer's visual ordering
+4. The foreground content layer lacked an explicit z-index, relying on DOM order alone for paint order -- unreliable when CSS transforms create new stacking contexts
+
+**Fix**: Refactored all three swipeable components into a strict 3-layer DOM structure:
+
+- **Outer row container**: `position: relative; overflow: hidden` with the final border radius. No background color -- this is purely a clipping boundary.
+- **Delete background layer**: `position: absolute; inset: 0; z-index: 0` wrapping the delete button, pinned behind the foreground. The button is right-aligned within this layer. This layer never receives any transforms.
+- **Foreground content layer**: `position: relative; z-index: 10` with an opaque background (white/brand). This is the only layer that receives the horizontal `translateX` during swipe. All flip/rotate/3D transforms are nested inside this layer, so they cannot affect the stacking relationship with the delete layer.
+
+This is not a simple z-index tweak -- the fix required restructuring the DOM hierarchy to ensure the delete layer sits outside all transform boundaries (perspective, preserve-3d, translateX) while the outer container's `overflow: hidden` clips everything cleanly at the rounded corners.
+
 ---
 
 ## Known Inconsistencies
@@ -1191,7 +1230,7 @@ These are not bugs, but implementation inconsistencies worth noting for future c
 
 ### 1. `order_index` Optional
 
-The `order_index` column on `tags` may not exist if the migration hasn't been run. All tag ordering code (`saveTagOrder`, `getNextOrderIndex`, `reindexAfterDelete`) uses `try/catch` and falls back silently. Tags created when `order_index` is missing get no ordering, and the UI falls back to alphabetical sort.
+The `order_index` column on `tags` may not exist if the migration hasn't been run. All tag ordering code (`saveTagOrder`, `getNextOrderIndex`, `reindexAfterDelete`) checks the Supabase `{ error }` response and falls back silently (returns `0`, `{ ok: false }`, or early-returns respectively). Tags created when `order_index` is missing get no ordering, and the UI falls back to alphabetical sort.
 
 ### 2. Debug `console.log` Statements
 
@@ -1208,3 +1247,19 @@ The `console.log` calls should be removed or gated behind a debug flag before pr
 ### 4. Mobile Layout Detection -- JS vs. CSS
 
 The mobile/desktop split uses a JS `isMobile` state variable (updated on `resize`, threshold 1024px) to conditionally render different component trees (`MobileMapShell` vs. bare `MapView`). This duplicates the `lg:` Tailwind breakpoint at 1024px but in JS. If the breakpoint changes in Tailwind, the JS threshold must also be updated manually. A `matchMedia` approach or a shared breakpoint constant would reduce this coupling.
+
+### 5. `list_places.position` Column Missing from TypeScript Types
+
+The `add_list_places_position.sql` migration adds a `position` integer column to `list_places` in the database, but the TypeScript type definition in `src/lib/types/database.ts` does not include `position` in the `list_places` Row/Insert/Update types. Any code attempting to read or write `position` through the typed Supabase client would get a TypeScript error.
+
+### 6. `supabase.ts` Helper Is Dead Code
+
+`src/lib/supabase.ts` exports a `createSupabaseClient()` helper, but no file in the codebase imports it. The actual Supabase client creation is done inline in `src/routes/+layout.ts`.
+
+### 7. `TopBarTagAdd.svelte` Is Dead Code
+
+`src/lib/components/TopBarTagAdd.svelte` (203 lines) is never imported or rendered by any page or component. The places page uses a "Manage" button that opens the full `TagManager` modal instead.
+
+### 8. `/api/places/[id]/intel-tags` Endpoint Available But Not Wired Into UI
+
+The `intel-tags/+server.ts` endpoint is fully implemented (91 lines) and functional, but no page or component in the UI currently calls it. Intel tag computation is available via direct API call but is not surfaced in the app's interface.

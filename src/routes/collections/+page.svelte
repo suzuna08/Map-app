@@ -294,30 +294,34 @@
 		<div class="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2 sm:gap-4">
 			{#each collections as col (col.id)}
 				{@const count = (collectionPlacesMap[col.id] ?? []).length}
-				<!-- Mobile: swipe-to-delete wrapper (delete layer always behind card, like PlaceListItem) -->
+				<!-- Mobile: swipe-to-delete wrapper -->
 				<div
-					class="relative h-[96px] w-full shrink-0 overflow-hidden rounded-xl border border-warm-200/80 bg-danger-500 sm:hidden"
+					class="relative h-[96px] w-full shrink-0 overflow-hidden rounded-xl border border-warm-200/80 sm:hidden"
 				>
-					<button
-						onclick={(e) => handleSwipeDelete(col, e)}
-						class="absolute right-0 top-0 flex h-full w-[72px] flex-col items-center justify-center gap-0.5 rounded-r-[11px] text-white transition-colors {swipeConfirm ? 'bg-danger-600' : 'bg-transparent'}"
-						aria-label={swipeConfirm ? 'Confirm delete' : 'Delete collection'}
-					>
-						{#if swipeConfirm}
-							<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-								<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-							</svg>
-							<span class="text-xs font-bold">Confirm?</span>
-						{:else}
-							<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-							</svg>
-						{/if}
-					</button>
+					<!-- Delete background layer (z-0) -->
+					<div class="absolute inset-0 z-0">
+						<button
+							onclick={(e) => handleSwipeDelete(col, e)}
+							class="absolute right-0 top-0 flex h-full w-[72px] flex-col items-center justify-center gap-0.5 text-white transition-colors {swipeConfirm ? 'bg-danger-600' : 'bg-danger-500'}"
+							aria-label={swipeConfirm ? 'Confirm delete' : 'Delete collection'}
+						>
+							{#if swipeConfirm}
+								<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+									<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+								</svg>
+								<span class="text-xs font-bold">Confirm?</span>
+							{:else}
+								<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+								</svg>
+							{/if}
+						</button>
+					</div>
 
+					<!-- Foreground content layer (z-10, slides horizontally on swipe) -->
 					<a
 						href="/collections/{col.id}"
-						class="relative flex h-full min-h-0 w-full flex-col overflow-hidden rounded-l-[11px] bg-white transition-all active:bg-warm-50/80"
+						class="relative z-10 flex h-full min-h-0 w-full flex-col overflow-hidden bg-white transition-all active:bg-warm-50/80"
 						style="transform: translateX({swipeId === col.id ? swipeX : 0}px); transition: {swiping && swipeId === col.id ? 'none' : 'transform 0.2s ease-out'}"
 						onclick={(e) => { if (swipeId === col.id && swipeX < 0) { e.preventDefault(); swipeX = 0; swipeConfirm = false; } }}
 						ontouchstart={(e) => onTouchStart(col.id, e)}
