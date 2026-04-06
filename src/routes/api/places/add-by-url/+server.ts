@@ -146,18 +146,17 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 	}
 
-	const { data: existingPlaces } = await locals.supabase
-		.from('places')
-		.select('*')
-		.eq('user_id', user.id)
-		.not('url', 'is', null);
-
 	if (normalizedUrl) {
-		const urlMatch = (existingPlaces ?? []).find(
-			(p: any) => p.url && normalizeUrl(p.url) === normalizedUrl
-		);
+		const { data: urlMatch } = await locals.supabase
+			.from('places')
+			.select('*')
+			.eq('user_id', user.id)
+			.eq('url', normalizedUrl)
+			.limit(1)
+			.maybeSingle();
+
 		if (urlMatch) {
-			console.log('[add-by-url] DUPLICATE by URL:', (urlMatch as any).title, 'stored url:', (urlMatch as any).url);
+			console.log('[add-by-url] DUPLICATE by URL:', (urlMatch as any).title);
 			return handleDuplicate(urlMatch as Place);
 		}
 	}
@@ -211,7 +210,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	// was a share.google link or other URL that doesn't work as a permalink.
 	const storedUrl = (isUnresolvableShareUrl && details.google_place_id)
 		? buildGoogleMapsUrl(details.google_place_id, display_name)
-		: resolvedUrl;
+		: normalizeUrl(resolvedUrl);
 
 	const { data: inserted, error: insertError } = await locals.supabase
 		.from('places')

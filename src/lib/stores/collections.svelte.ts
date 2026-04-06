@@ -104,13 +104,10 @@ export async function reorderCollections(
 	supabase: SupabaseClient<Database>,
 	orderedIds: string[]
 ): Promise<boolean> {
-	const updates = orderedIds.map((id, i) =>
-		supabase.from('lists').update({ sort_order: i }).eq('id', id)
-	);
-	const results = await Promise.all(updates);
-	const hasError = results.some((r) => r.error);
-	if (hasError) console.error('[reorderCollections] some updates failed');
-	return !hasError;
+	const rows = orderedIds.map((id, i) => ({ id, sort_order: i }));
+	const { error } = await supabase.from('lists').upsert(rows, { onConflict: 'id' });
+	if (error) console.error('[reorderCollections] upsert failed', error);
+	return !error;
 }
 
 export async function addPlaceToCollection(

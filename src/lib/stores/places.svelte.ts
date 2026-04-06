@@ -81,11 +81,12 @@ export async function removeTagsFromPlace(
 	placeId: string,
 	tagIds: string[]
 ) {
-	await Promise.all(
-		tagIds.map((tagId) =>
-			supabase.from('place_tags').delete().eq('place_id', placeId).eq('tag_id', tagId)
-		)
-	);
+	if (tagIds.length === 0) return;
+	await supabase
+		.from('place_tags')
+		.delete()
+		.eq('place_id', placeId)
+		.in('tag_id', tagIds);
 }
 
 export async function applyTagsToPlace(

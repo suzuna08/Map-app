@@ -25,15 +25,13 @@
 	let serverPlaces = $derived(((data as any).places ?? []) as Place[]);
 	let serverPlaceIds = $derived(((data as any).placeIds ?? []) as string[]);
 	let serverTags = $derived(((data as any).tags ?? []) as Tag[]);
-	let serverPlaceTags = $derived(((data as any).placeTags ?? []) as { place_id: string; tag_id: string }[]);
-	let serverAllPlaces = $derived(((data as any).allPlaces ?? []) as Place[]);
 
 	let collection = $state<Collection>(serverCollection);
 	let places = $state<Place[]>(serverPlaces);
 	let placeIds = $state<string[]>(serverPlaceIds);
 	let allTags = $state<Tag[]>(serverTags);
-	let placeTagsMap = $state<Record<string, Tag[]>>(buildPlaceTagsMap(serverTags, serverPlaceTags));
-	let allPlaces = $state<Place[]>(serverAllPlaces);
+	let placeTagsMap = $state<Record<string, Tag[]>>({});
+	let allPlaces = $state<Place[]>([]);
 
 	let prevCollectionId = $state(serverCollection?.id);
 
@@ -44,8 +42,8 @@
 			places = serverPlaces;
 			placeIds = serverPlaceIds;
 			allTags = serverTags;
-			placeTagsMap = buildPlaceTagsMap(serverTags, serverPlaceTags);
-			allPlaces = serverAllPlaces;
+			placeTagsMap = {};
+			allPlaces = [];
 			editName = serverCollection.name;
 			editDesc = serverCollection.description ?? '';
 			editingName = false;
@@ -187,6 +185,26 @@
 		const result = await refreshTagsData(supabase, userId);
 		allTags = result.tags;
 		placeTagsMap = buildPlaceTagsMap(allTags, result.placeTags);
+	}
+
+	async function openAddModal() {
+		openAddModal();
+		addSearch = '';
+		addTagFilter = {};
+		urlStatus = 'idle';
+		urlResultPlace = null;
+		urlErrorMessage = '';
+		const userId = session?.user?.id ?? '';
+		const [placesResult, tagsResult] = await Promise.all([
+			supabase
+				.from('places')
+				.select('id, title, area, category, description, address, user_rating')
+				.eq('user_id', userId)
+				.order('created_at', { ascending: false }),
+			refreshTagsData(supabase, userId)
+		]);
+		allPlaces = (placesResult.data ?? []) as Place[];
+		placeTagsMap = buildPlaceTagsMap(tagsResult.tags, tagsResult.placeTags);
 	}
 
 	async function handleRemovePlace(placeId: string) {
@@ -440,7 +458,7 @@
 							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">{#if collection.visibility === 'link_access'}<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />{:else}<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" />{/if}</svg>
 							{collection.visibility === 'link_access' ? 'Shared' : 'Private'}
 						</button>
-						<button onclick={() => { showAddModal = true; }} class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700">
+						<button onclick={() => { openAddModal(); }} class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700">
 							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
 						</button>
 					</div>
@@ -477,7 +495,7 @@
 			</p>
 			{#if places.length === 0}
 				<button
-					onclick={() => { showAddModal = true; }}
+					onclick={() => { openAddModal(); }}
 					class="mt-2 text-base font-semibold text-brand-600 hover:text-brand-700"
 				>
 					Add some places
@@ -589,7 +607,7 @@
 							<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">{#if collection.visibility === 'link_access'}<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />{:else}<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" />{/if}</svg>
 							{collection.visibility === 'link_access' ? 'Shared' : 'Private'}
 						</button>
-						<button onclick={() => { showAddModal = true; }} class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700 sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-sm">
+						<button onclick={() => { openAddModal(); }} class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700 sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-sm">
 							<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
 							<span class="hidden sm:inline">Add Places</span>
 						</button>
@@ -625,7 +643,7 @@
 			<svg class="mx-auto h-12 w-12 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
 			<p class="mt-3 text-base text-warm-500">{places.length === 0 ? 'This collection is empty' : 'No places match your search'}</p>
 			{#if places.length === 0}
-				<button onclick={() => { showAddModal = true; }} class="mt-2 text-base font-semibold text-brand-600 hover:text-brand-700">Add some places</button>
+				<button onclick={() => { openAddModal(); }} class="mt-2 text-base font-semibold text-brand-600 hover:text-brand-700">Add some places</button>
 			{/if}
 		</div>
 	{:else if viewMode === 'grid'}

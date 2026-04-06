@@ -105,11 +105,8 @@ export async function reorderSavedViews(
 	supabase: SupabaseClient<Database>,
 	orderedIds: string[]
 ): Promise<boolean> {
-	const updates = orderedIds.map((id, index) =>
-		supabase.from('saved_views').update({ order_index: index }).eq('id', id)
-	);
-	const results = await Promise.all(updates);
-	const failed = results.some((r) => r.error);
-	if (failed) console.error('[reorderSavedViews] some updates failed');
-	return !failed;
+	const rows = orderedIds.map((id, index) => ({ id, order_index: index }));
+	const { error } = await supabase.from('saved_views').upsert(rows, { onConflict: 'id' });
+	if (error) console.error('[reorderSavedViews] upsert failed', error);
+	return !error;
 }

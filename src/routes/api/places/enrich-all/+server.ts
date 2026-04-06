@@ -29,29 +29,40 @@ export const POST: RequestHandler = async ({ locals }) => {
 	const errors: string[] = [];
 	const intelResults: Array<{ place_id: string; title: string; intel: IntelTagResult }> = [];
 
-	for (const place of places) {
-		try {
-			const details = await fetchPlaceDetails(place.url!, place.title);
-			if (details) {
-				const { display_name: _, types: _types, ...dbFields } = details;
-				await locals.supabase
-					.from('places')
-					.update({
-						...dbFields,
-						enriched_at: new Date().toISOString()
-					} as any)
-					.eq('id', place.id);
+	const BATCH_SIZE = 3;
+	for (let i = 0; i < places.length; i += BATCH_SIZE) {
+		const batch = places.slice(i, i + BATCH_SIZE);
+		const results = await Promise.allSettled(
+			batch.map(async (place) => {
+				const details = await fetchPlaceDetails(place.url!, place.title);
+				if (details) {
+					const { display_name: _, types: _types, ...dbFields } = details;
+					await locals.supabase
+						.from('places')
+						.update({
+							...dbFields,
+							enriched_at: new Date().toISOString()
+						} as any)
+						.eq('id', place.id);
 
-				const intel = computeIntelTags(details.primary_type, details.types);
-				intelResults.push({ place_id: place.id, title: place.title, intel });
-
+					const intel = computeIntelTags(details.primary_type, details.types);
+					return { place_id: place.id, title: place.title, intel };
+				}
+				return null;
+			})
+		);
+		for (let j = 0; j < results.length; j++) {
+			const r = results[j];
+			if (r.status === 'fulfilled' && r.value) {
+				intelResults.push(r.value);
 				enrichedCount++;
+			} else if (r.status === 'rejected') {
+				errors.push(`${batch[j].title}: ${r.reason instanceof Error ? r.reason.message : 'Unknown error'}`);
 			}
-		} catch (e) {
-			errors.push(`${place.title}: ${e instanceof Error ? e.message : 'Unknown error'}`);
 		}
-
-		await new Promise((r) => setTimeout(r, 200));
+		if (i + BATCH_SIZE < places.length) {
+			await new Promise((r) => setTimeout(r, 200));
+		}
 	}
 
 	return json({

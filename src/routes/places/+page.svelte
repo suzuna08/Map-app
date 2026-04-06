@@ -111,13 +111,13 @@
 
 	async function removeContextTagsFromPlace(placeId: string, tagIds: string[]) {
 		await removeTagsFromPlace(supabase, placeId, tagIds);
-		await loadData();
+		await refreshTags();
 		showToast('info', '', 'Tags removed');
 	}
 
 	async function applyContextTagsToPlace(placeId: string, tagIds: string[]) {
 		await applyTagsToPlace(supabase, placeId, tagIds);
-		await loadData();
+		await refreshTags();
 		showToast('success', '', 'Tagged to current view');
 	}
 
@@ -176,14 +176,19 @@
 					showToast('success', place.title, `Already saved. Added tags: ${tagLabel}`, [
 						{ label: 'Undo', handler: () => removeContextTagsFromPlace(place.id, tagIdsToApply) }
 					]);
-					await loadData();
+					await refreshTags();
 				} else if (shouldApply && tagsRequested > 0 && tagsApplied === 0) {
 					showToast('duplicate', place.title, 'Already saved in this view');
 				} else {
 					showToast('duplicate', place.title, 'Already saved');
 				}
 			} else {
-				await loadData();
+				if (!places.some((p) => p.id === place.id)) {
+					places = [place, ...places];
+				}
+				if (shouldApply && tagsApplied > 0) {
+					await refreshTags();
+				}
 
 				if (shouldApply && tagsApplied > 0) {
 					showToast('success', place.title, `Added to ${tagLabel}`, [
@@ -357,9 +362,13 @@
 		requestAnimationFrame(() => { suppressDeactivate = false; });
 	}
 
+	let savedViewsLoaded = false;
 	$effect(() => {
 		void supabase;
-		refreshSavedViews();
+		if (!savedViewsLoaded) {
+			savedViewsLoaded = true;
+			refreshSavedViews();
+		}
 	});
 
 	async function refreshTags() {

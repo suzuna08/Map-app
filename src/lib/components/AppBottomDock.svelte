@@ -14,7 +14,9 @@
 
 	const STORAGE_KEY = 'dock-position';
 	const HINT_STORAGE_KEY = 'dock-hint-seen';
+	const MOBILE_Y_STORAGE_KEY = 'dock-mobile-y';
 	const MOBILE_BREAKPOINT = 640;
+	const MOBILE_DEFAULT_Y_PCT = 0.65;
 
 	let pos = $state<{ x: number; y: number } | null>(null);
 	let pillEl = $state<HTMLDivElement | null>(null);
@@ -25,11 +27,24 @@
 	let hintPlayed = $state(false);
 	let hintAnimating = $state(false);
 	let prefersReducedMotion = $state(false);
+	let mobileYPx = $state<number | null>(null);
+	let mobileDragging = $state(false);
+
+	function getMobileY(): number {
+		if (mobileYPx !== null) return mobileYPx;
+		if (typeof window !== 'undefined') return window.innerHeight * MOBILE_DEFAULT_Y_PCT;
+		return 500;
+	}
 
 	onMount(() => {
 		try {
 			const raw = localStorage.getItem(STORAGE_KEY);
 			if (raw) pos = JSON.parse(raw);
+		} catch { /* ignore */ }
+
+		try {
+			const savedY = localStorage.getItem(MOBILE_Y_STORAGE_KEY);
+			if (savedY) mobileYPx = Math.max(60, Math.min(parseFloat(savedY), window.innerHeight - 60));
 		} catch { /* ignore */ }
 
 		function checkMobile() {
@@ -71,11 +86,40 @@
 		mobileCollapsed = false;
 	}
 
+	function startMobileDrag(e: PointerEvent) {
+		e.preventDefault();
+		const startY = e.clientY;
+		const startTop = getMobileY();
+		let moved = false;
+
+		function onMove(ev: PointerEvent) {
+			const dy = ev.clientY - startY;
+			if (!moved && Math.abs(dy) < 4) return;
+			moved = true;
+			mobileDragging = true;
+			const vh = window.innerHeight;
+			mobileYPx = Math.max(60, Math.min(startTop + dy, vh - 60));
+		}
+
+		function onUp() {
+			window.removeEventListener('pointermove', onMove);
+			window.removeEventListener('pointerup', onUp);
+			if (moved) {
+				try { localStorage.setItem(MOBILE_Y_STORAGE_KEY, String(mobileYPx)); } catch { /* ignore */ }
+				setTimeout(() => { mobileDragging = false; }, 0);
+			}
+		}
+
+		window.addEventListener('pointermove', onMove);
+		window.addEventListener('pointerup', onUp);
+	}
+
 	$effect(() => {
 		if (!isMobile || mobileCollapsed) return;
 		let skipNext = true;
 		function onDocClick(e: MouseEvent) {
 			if (skipNext) { skipNext = false; return; }
+			if (mobileDragging) return;
 			if (pillEl && !pillEl.contains(e.target as Node)) {
 				mobileCollapsed = true;
 			}
@@ -199,13 +243,24 @@
 
 	{#if mobileCollapsed}
 		<!-- Collapsed: slim hint tab on right edge -->
-		<button
-			class="mobile-hint-tab fixed z-50 flex items-center justify-center rounded-l-xl border border-r-0 border-warm-200/80 bg-brand-50/95 shadow-md shadow-warm-900/10 backdrop-blur-lg"
-			style="right: 0; top: 50%; transform: translateY(-50%); padding-right: env(safe-area-inset-right, 0px);"
-			onclick={expandMobile}
-			aria-label="Open navigation"
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="mobile-hint-tab fixed z-50 flex flex-col items-center rounded-l-xl border border-r-0 border-warm-200/80 bg-brand-50/95 shadow-md shadow-warm-900/10 backdrop-blur-lg"
+			style="right: 0; top: {getMobileY()}px; transform: translateY(-50%); padding-right: env(safe-area-inset-right, 0px);"
 		>
-			<div class="flex flex-col items-center gap-1.5 px-1.5 py-3">
+			<div
+				class="flex w-full cursor-grab touch-none items-center justify-center py-1 text-warm-300 active:cursor-grabbing"
+				onpointerdown={startMobileDrag}
+			>
+				<svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
+					<circle cx="8" cy="12" r="1.5" /><circle cx="16" cy="12" r="1.5" />
+				</svg>
+			</div>
+			<button
+				class="flex flex-col items-center gap-1.5 px-1.5 pb-2"
+				onclick={expandMobile}
+				aria-label="Open navigation"
+			>
 				<svg class="h-4 w-4 text-brand-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 					<polyline points="15 18 9 12 15 6" />
 				</svg>
@@ -215,20 +270,31 @@
 						<circle cx="12" cy="10" r="3" />
 					</svg>
 				</div>
-			</div>
-		</button>
+			</button>
+		</div>
 	{:else}
 		<!-- Expanded: full floating dock sliding from right -->
 		<nav
 			class="mobile-dock-expanded fixed right-0 z-50 flex items-center"
 			class:mobile-hint-nudge={hintAnimating}
-			style="top: 50%; transform: translateY(-50%) translateX({mobileSlideIn ? '0' : '100%'}); transition: transform 250ms ease-out; padding-right: env(safe-area-inset-right, 0px);"
+			style="top: {getMobileY()}px; transform: translateY(-50%) translateX({mobileSlideIn ? '0' : '100%'}); transition: transform 250ms ease-out; padding-right: env(safe-area-inset-right, 0px);"
 			aria-label="Main navigation"
 		>
 			<div
 				bind:this={pillEl}
 				class="dock-pill flex flex-col items-center gap-1 rounded-l-[1.25rem] border border-r-0 border-warm-200/80 bg-warm-50/95 px-1.5 py-2 shadow-lg shadow-warm-900/10 backdrop-blur-lg"
 			>
+				<!-- Drag handle for vertical repositioning -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div
+					class="flex w-full cursor-grab touch-none items-center justify-center py-0.5 text-warm-300 active:cursor-grabbing"
+					onpointerdown={startMobileDrag}
+				>
+					<svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
+						<circle cx="8" cy="12" r="1.5" /><circle cx="16" cy="12" r="1.5" />
+					</svg>
+				</div>
+
 				<!-- Collapse button -->
 				<button
 					onclick={collapseMobile}
@@ -427,7 +493,7 @@
 	}
 
 	.mobile-hint-tab {
-		animation: mobile-hint-appear 200ms ease-out both;
+		touch-action: none;
 	}
 
 	.mobile-dock-link {

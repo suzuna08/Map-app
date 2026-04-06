@@ -89,18 +89,21 @@
 		};
 	});
 
+	let markerKey = $derived(
+		places
+			.filter(p => p.lat != null && p.lng != null)
+			.map(p => `${p.id}:${p.lat}:${p.lng}`)
+			.sort()
+			.join(',')
+	);
+
 	$effect(() => {
 		if (!mapReady || !map) return;
-		const _p = places;
+		const _key = markerKey;
 		syncMarkers();
 
-		const fitKey = places
-			.filter(p => p.lat != null && p.lng != null)
-			.map(p => p.id)
-			.sort()
-			.join(',');
-		if (fitKey !== prevFitKey) {
-			prevFitKey = fitKey;
+		if (_key !== prevFitKey) {
+			prevFitKey = _key;
 			fitToMarkers(true);
 		}
 	});
