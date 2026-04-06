@@ -15,6 +15,7 @@ Detailed documentation of MapOrganizer's visual design system, page layouts, com
 - [Collections Index](#collections-index)
 - [Collection Detail Page](#collection-detail-page)
 - [Public Shared Collection](#public-shared-collection)
+- [Settings Page](#settings-page)
 - [Component Library](#component-library)
 - [Responsive Behavior](#responsive-behavior)
 - [Motion & Transitions](#motion--transitions)
@@ -40,7 +41,7 @@ Desktop (sm+) adds `text-lg`, `text-xl`, `text-2xl` via responsive prefixes.
 
 ### Color Palettes
 
-Three custom palettes defined in `app.css` via Tailwind v4's `@theme` block:
+Four custom palettes defined in `app.css` via Tailwind v4's `@theme` block:
 
 **Brand** — Warm browns and golds, used for primary actions, accents, ratings, active states:
 | Token | Hex | Usage |
@@ -59,7 +60,7 @@ Three custom palettes defined in `app.css` via Tailwind v4's `@theme` block:
 |---|---|---|
 | `sage-50` | `#f2f1ef` | Success toast backgrounds |
 | `sage-100` | `#e9e6e1` | Page background (`bg-sage-100`) |
-| `sage-200` | `#d6d1ca` | Feature card icon backgrounds, shared badges |
+| `sage-200` | `#d6d1ca` | Feature card icon backgrounds, secondary UI |
 | `sage-400` | `#7e95a6` | Muted accent, secondary icons |
 | `sage-500` | `#637d8e` | Secondary text in steel-blue contexts |
 | `sage-700` | `#3d5060` | Area tag text, success text |
@@ -67,7 +68,7 @@ Three custom palettes defined in `app.css` via Tailwind v4's `@theme` block:
 **Warm** — Neutral taupes, used for text, borders, cards, and backgrounds:
 | Token | Hex | Usage |
 |---|---|---|
-| `warm-50` | `#faf9f7` | Card backgrounds, nav bar, inputs |
+| `warm-50` | `#faf9f7` | Card backgrounds, bottom dock, inputs |
 | `warm-100` | `#f3efe8` | Hover backgrounds, pill backgrounds |
 | `warm-200` | `#e8e1d4` | Borders, dividers |
 | `warm-300` | `#d5cab8` | Dashed borders, placeholder-ish elements |
@@ -76,6 +77,17 @@ Three custom palettes defined in `app.css` via Tailwind v4's `@theme` block:
 | `warm-600` | `#7a6e5a` | Input text, interactive text |
 | `warm-700` | `#5a5042` | Strong secondary text |
 | `warm-800` | `#3b332a` | Primary text, headings |
+
+**Danger** — Muted warm terracotta reds, used for destructive actions (swipe-to-delete backgrounds, confirm buttons):
+| Token | Hex | Usage |
+|---|---|---|
+| `danger-50` | `#f4eceb` | Light destructive backgrounds |
+| `danger-100` | `#e8d6d4` | Destructive hover states |
+| `danger-200` | `#d4b5b2` | Destructive borders |
+| `danger-500` | `#9a5f5b` | Swipe-delete background, destructive accent |
+| `danger-600` | `#7f4844` | Confirm-delete buttons |
+| `danger-700` | `#6a3b38` | Destructive hover |
+| `danger-800` | `#56302d` | Strong destructive accent |
 
 ### Tag Color Palette
 
@@ -134,29 +146,32 @@ All icons are inline SVGs (no icon library dependency), using `stroke="currentCo
 
 The entire app is wrapped in a `min-h-[100dvh] bg-sage-100 font-sans` container, giving every page the warm sage background.
 
-### Navigation Bar
+### Navigation Bar → Bottom Dock
 
-A sticky top bar (`sticky top-0 z-30`) with a frosted-glass effect:
-- **Background**: `bg-warm-50/85 backdrop-blur-lg` — semi-transparent warm white with blur
-- **Border**: `border-b border-warm-200/60` — subtle divider
-- **Height**: `h-12` (48px) on mobile, `sm:h-14` (56px) on desktop
-- **Max width**: `max-w-[1400px]` centered with `mx-auto`
+The former sticky top nav bar has been replaced by a floating bottom dock (`AppBottomDock.svelte`) with **three rendering modes** depending on screen size and user customization:
 
-**Left side**: App logo (map pin SVG in `brand-600`) + "MapOrganizer" text in `font-extrabold`. Links to `/places` when authenticated, `/` when not.
+#### Desktop Bottom Bar (default, ≥ 640px, no custom position)
+- **Position**: `fixed inset-x-0 bottom-0 z-50`, centered with `justify-center`, safe-area padding via `pb-[max(0.75rem,env(safe-area-inset-bottom))]`
+- **Container**: `rounded-[1.25rem] border border-warm-200/80 bg-warm-50/95 backdrop-blur-lg shadow-lg shadow-warm-900/10` — frosted-glass pill with `max-w-lg`
+- **Tabs**: Places (map pin), Collections (grid), Settings (gear) — each tab is `min-h-[2.5rem] w-[4.5rem]` / `sm:w-[5rem]` with icon + label (`text-[9px]` / `sm:text-[10px]`)
+- **Active tab**: `bg-brand-100 text-brand-800`
+- **Idle tab**: `text-warm-500 hover:bg-warm-100 hover:text-warm-700`
+- **Drag handle**: 6-dot grip on the left side. Dragging repositions the dock freely; position persisted to localStorage. A reset button (↻ icon) on the right restores the dock to the bottom
+- **Scroll-aware passive mode**: `pointerenter` on the pill immediately restores active mode
 
-**Right side** (authenticated only):
-- "Places" link — `text-warm-600`, `hover:bg-warm-100`
-- "Collections" link — same style
-- "+ Add Place" button — `bg-brand-600` pill with plus icon; text hidden on mobile (`hidden sm:inline`), icon-only on small screens
-- "Sign out" — subtle `text-warm-400` button
+#### Custom-Positioned Draggable (any screen, after user drags)
+When the user drags the dock via the grip handle, it becomes a freely-positioned `fixed` pill at the exact `left/top` coordinates. The position is clamped to stay within 8px of viewport edges and persisted in localStorage (`dock-position`). A reset button (↻ icon) clears the custom position and returns to the default bottom bar
 
-### Add Place Modal (Global)
+#### Mobile Collapsible Right-Edge Drawer (< 640px, no custom position)
+- **Expanded**: Vertical `flex-col` dock sliding in from the right edge (`transform: translateX(0/100%)`, 250ms ease-out). Contains a vertical drag handle, collapse chevron, and 3 nav links stacked vertically (`3.5rem` wide, `2.75rem` min-height each). Active state uses CSS classes `mobile-dock-link-active` (`bg-brand-100 text-brand-800`); idle uses `mobile-dock-link-idle`. Padded for `env(safe-area-inset-right)`
+- **Collapsed**: Slim hint tab fixed on the right edge (`rounded-l-xl`, brand-50 background, warm-200 border). Shows a chevron icon and map pin icon. Tapping expands the dock
+- **Vertical drag**: Both collapsed and expanded states support vertical repositioning via pointer drag. Position defaults to 65% of viewport height, clamped to 60px from top/bottom edges, persisted in localStorage (`dock-mobile-y`)
+- **Tap-outside-to-close**: A document click listener collapses the expanded dock when tapping outside
+- **First-visit hint**: On first load (if `dock-hint-seen` not in localStorage and `prefers-reduced-motion` is not set), a subtle nudge animation shifts the expanded dock 10px right and back after 1.2s, then stores the flag. Respects `prefers-reduced-motion: reduce`
 
-A single `AddPlaceModal` instance lives in the root layout, triggered by the nav's "+ Add Place" button. Two tabs:
-- **Paste URL**: Text input with loading/success/error state machine
-- **Upload CSV**: Link to the `/upload` page
+The dock is shown only when authenticated and on an app-shell route (`/places`, `/collections`, `/upload`, `/settings`). A `bottomDockSuppressed` store allows modals to temporarily hide the dock. The root layout sets a `--app-dock-reserve` CSS variable so page content pads above the dock (automatically `0px` on mobile where the dock is on the right edge). A scroll-aware `dock-scroll-state` store transitions the desktop bottom dock between active (full opacity) and passive (45% opacity, translated 10px down) modes based on scroll direction.
 
-The modal uses a dark backdrop (`bg-black/40 backdrop-blur-sm`) and appears near the top of the viewport (`pt-[12vh]`), centered horizontally.
+Adding places is handled by the search bar on the Places page, which detects Google Maps URLs inline.
 
 ---
 
@@ -173,9 +188,9 @@ A centered marketing page with vertically stacked content:
    - Authenticated: "Open My Places" (brand-600 filled) + "Upload CSV" (warm-50 outlined)
    - Unauthenticated: "Get Started" (brand-600 filled) + "Sign In" (warm-50 outlined)
 5. **Feature cards**: 3-column grid (`sm:grid-cols-3`) with:
-   - **Import**: Upload icon in sage-200 circle, title + description
-   - **Tag**: Tag icon in brand-100 circle, title + description
-   - **Find**: Search icon in sage-200 circle, title + description
+   - **Import**: Upload icon in sage-200 `rounded-lg` square, title + description
+   - **Tag**: Tag icon in brand-100 `rounded-lg` square, title + description
+   - **Find**: Search icon in sage-200 `rounded-lg` square, title + description
 
 Each card uses `rounded-xl border border-warm-200 bg-warm-50 p-5`.
 
@@ -205,13 +220,14 @@ The primary app screen. The most complex layout with a split map+list view.
 
 A `flex flex-row` container:
 - **Left panel** (58%): Scrollable content area with filters, search, and place grid/list
-- **Right panel** (42%): Sticky `MapView` pinned at `top: 3.5rem` (below nav), full viewport height minus nav
+- **Right panel** (42%): Sticky `MapView` pinned at `top: 0` with `h-[100dvh]`, full viewport height
 
 ### Mobile Layout (< lg)
 
-A vertical stack with `overflow: hidden` on the outer container:
-- **Top**: `MobileMapShell` wrapping `MapView` — draggable (128px default, 55vh expanded, 80px minimum) with a drag handle for pointer-drag resizing
-- **Bottom**: Scrollable content panel (`flex-1 min-h-0 overflow-y-auto`)
+A vertical stack with `overflow: hidden` on the outer container (`h-[100dvh]`):
+- **Top**: Search, contextual capture, and saved views bar in a fixed panel (`shrink-0`)
+- **Middle**: `MobileMapShell` wrapping `MapView` — draggable (128px default, 55vh expanded, 80px minimum) with a drag handle for pointer-drag resizing
+- **Bottom**: Scrollable content panel (`flex-1 min-h-0 overflow-y-auto`) with bottom padding for the dock (`--app-dock-reserve`)
 
 ### Content Area Anatomy (Top to Bottom)
 
@@ -234,7 +250,7 @@ A `min-h-[28px]` (mobile) / `min-h-[32px]` (desktop) row showing:
 
 #### 3. Contextual Capture Banner
 Shown when a Google Maps URL is detected in search AND custom tags are active:
-- `bg-brand-50/60 border-brand-200/60 rounded-lg`
+- `bg-brand-50/80 border-brand-200/60 rounded-lg`
 - "Adding into: Tag1 + Tag2" with auto-tag ON/OFF toggle
 - Amber/green indicator pill
 
@@ -257,7 +273,7 @@ Shown when browsing a specific collection:
 #### 7. Search + Sort + View Controls Row
 A compact row with:
 - **Place count**: `text-xs font-semibold text-warm-500`
-- **Search input**: `rounded-lg`/`rounded-xl` with search icon, clear button. Doubles as URL input — detects Google Maps URLs and shows "Enter to add" hint
+- **Search input**: `rounded-full` pill shape with search icon, clear button. Doubles as URL input — detects Google Maps URLs and shows "Enter to add" hint
 - **Sort dropdown**: `<select>` with options: Recent, Oldest, A–Z, Z–A, Rating, Most tagged, Tag group
 - **View toggle**: Segmented control with grid/list icons, `rounded-md border-warm-200 bg-white`
 
@@ -300,31 +316,40 @@ Centered layout (`max-w-2xl`):
 
 **Route**: `/collections`
 
-Centered layout (`max-w-3xl`):
+Two-mode page: a collection hub with horizontal tab selector and inline browse mode. The page auto-selects the first collection on load (or restores the `?collection=<id>` from the URL), so the user always lands in browse mode rather than an empty overview.
 
-### Header
-- Title: "Collections" with subtitle "Curated groups of your saved places"
-- "New Collection" button: `bg-brand-600` with plus icon
+### Collection Tab Selector
 
-### Create Form (expandable)
-A `rounded-2xl border-warm-200 bg-white` card with:
-- **Name input**: Text field with placeholder "e.g. Weekend Brunch Spots"
-- **Color picker**: Row of 6 color circles, selected state gets `ring-2 ring-offset-1 ring-warm-400 scale-110`
+A horizontally scrollable row of collection pills (sticky on desktop) near the top of the page:
+- Each pill: `CollectionAvatar` (xs size) + collection name, `rounded-lg border` with gap-1.5
+- Selected pill: `border-brand-200 bg-brand-50 text-warm-800`
+- Unselected: `border-transparent text-warm-500 hover:bg-warm-100 hover:text-warm-700`
+- Pills support drag-to-reorder via `sortable` action (long-press 500ms on mobile; order persisted via `sort_order` column)
+- "New Collection" button (`bg-brand-600` with plus icon) in the header bar opens the create modal
+
+### Create Collection Modal
+A centered modal (`sm:max-w-md`, bottom-sheet on mobile) with:
+- **Name input**: Text field with `CollectionAvatar` preview, placeholder "e.g. Weekend Brunch Spots"
 - **Emoji picker**: Categorized picker with ~794 emojis across 8 categories (Food & Drink, Travel & Places, Activities, Nature, Objects, Smileys, Symbols, Flags), category tab navigation, text search, and a "--" no-icon option. Selected state: `ring-2 ring-warm-400 bg-warm-100 scale-110`. Scrollable grid (max-height 200px)
-- **Actions**: "Create" button (brand-600) + "Cancel" text button
+- **Color picker**: Row of 6 color circles, selected state gets `ring-2 ring-offset-2 ring-warm-400 scale-110`
+- **Actions**: "Create collection" button (brand-600, full-width) + "Cancel" text button
 
-### Collection Cards Grid
-`grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4`
+### Browse Mode (Always Active When Collections Exist)
 
-Each card is an `<a>` to `/collections/[id]`:
-- **Top row**: Visibility badge ("Shared" in `sage-200`), date, hover-reveal action buttons (color picker, delete)
-- **Icon + Name**: Color circle (or emoji in ringed circle) + truncated collection name in `font-extrabold`
-- **Description**: Optional, 2-line clamp
-- **Footer**: Place count pill in `bg-warm-100`
-- **Hover**: `shadow-md shadow-warm-200/50`
-- **Delete**: Inline confirm/cancel (no separate modal)
-- **Swipe-to-delete (mobile)**: Same left-swipe pattern as PlaceCard/PlaceListItem — swipe left to reveal red delete button (72px, snap threshold 36px), with inline confirm step
-- **Color/emoji picker**: Dropdown appears below the palette button, positioned absolutely
+When a pill is clicked (or auto-selected on load), the page shows a full map + list experience matching the Places page layout:
+- **Desktop**: Split layout — 58% scrollable content, 42% sticky `MapView`. The tab selector + `CollectionScopeHeader` are both sticky at top
+- **Mobile**: `MobileMapShell` (collapsible draggable map) + scrollable content below
+- **`CollectionScopeHeader`** below tabs: avatar (clickable → color/emoji picker), name (inline editable), description (inline editable), visibility toggle, share link button, "+ Add Places" button, overflow menu (delete with confirmation)
+- **Controls bar**: Place count, search input (desktop only, `w-28 sm:w-40` with clear button), sort dropdown (Recent, A–Z, My Rating), grid/list toggle
+- `PlaceCard` / `PlaceListItem` rendering with collection-scoped actions (remove from collection vs. delete place)
+- URL state synced via `?collection=<id>` for deep-linkability
+
+### Add Places Modal
+A centered modal (`sm:max-w-lg`, bottom-sheet on mobile) with a smart search/URL input:
+- Detects Google Maps URLs and shows an "Add" button for URL mode
+- Standard search mode: filters user's places by title, description, address, category, area, and tags (comma-separated terms)
+- Tag filter pills below the search input for narrowing by user tags
+- Scrollable list of non-member places with plus icons, tag previews, and click-to-add
 
 ### Empty State
 Centered icon + "No collections yet" + "Create your first collection" link
@@ -335,14 +360,14 @@ Centered icon + "No collections yet" + "Create your first collection" link
 
 **Route**: `/collections/[id]`
 
-### Sticky Header Panel
-Sticks below the nav (`sticky top-12 sm:top-14 z-10`), sage-tinted background (`bg-[#faf7f2]`):
+### Header Panel
+Sticks at the top of the viewport (`sticky top-0 z-10`), sage-tinted background (`bg-[#faf7f2]`):
 
 1. **Breadcrumb**: "Collections > {name}" trail
 2. **Header row**:
    - **Left**: Clickable color circle/emoji (opens color+emoji picker), click-to-edit name (`font-extrabold`), click-to-edit description
    - **Right**: Copy link button (when shared), Private/Shared toggle, "+ Add Places" button (brand-600)
-3. **Collapsible map**: Expandable panel with MapView inside `rounded-xl border`, toggle button showing place count + chevron. Map height: 180px mobile, 220px desktop
+3. **Map panel**: Same split layout as Places — desktop has a sticky 42% right map panel; mobile uses `MobileMapShell` with draggable height
 4. **Controls bar**: Place count, search input, sort dropdown (Recent, A–Z, My Rating), grid/list toggle
 
 ### Content Area
@@ -355,6 +380,8 @@ Same PlaceCard/PlaceListItem rendering as the places page, but:
 Bottom-sheet on mobile, centered on desktop:
 - Search input for filtering user's places
 - Tag filter pills (user tags only, AND logic) for narrowing results — toggleable colored pills that filter `nonMemberPlaces` by tag intersection
+- **Add by URL**: Paste a Google Maps URL to add a new place directly, with loading states and error handling
+- **Add Multiple**: Batch add support for adding multiple places at once
 - Scrollable list of non-member places with "+" add button, title, area, category, tags preview, rating
 - Clicking adds immediately with toast feedback
 
@@ -370,9 +397,10 @@ Read-only page accessible without authentication. Sticky top panel layout (`max-
 - Left-aligned `CollectionAvatar` (lg size: `h-8 w-8`/`sm:h-9 sm:w-9`) alongside collection name and description inline
 - Collection name in `text-base`/`sm:text-lg font-extrabold`
 - Optional description below name (`text-xs`/`sm:text-sm text-warm-400`)
+- **Save button** (right-aligned): Logged-in users (non-owners) can click to duplicate the collection into their own account. States: default (`bg-brand-500 text-white`), saving (spinner), saved (`bg-sage-200 text-sage-700`), disabled for owners (`bg-warm-200 text-warm-400`)
 
 ### Collapsible Map
-Same toggle pattern as collection detail — expandable MapView with place markers. Height: 180px mobile, 220px desktop.
+Expandable MapView with place markers inside `rounded-xl border`. Toggle button showing place count + chevron. Height: 180px mobile, 220px desktop.
 
 ### Controls
 - Search input (searches title, address, category, area)
@@ -391,6 +419,26 @@ Compact rows with title, area/category metadata, rating, Maps link.
 
 ### Footer
 "Shared via MapOrganizer" branding with link to home page.
+
+---
+
+## Settings Page
+
+**Route**: `/settings`
+
+Simple account page (`max-w-lg`, centered, padded for bottom dock):
+
+1. **Title**: "Settings" in `text-2xl font-extrabold text-warm-800`
+2. **Account section**: `rounded-2xl border border-warm-200 bg-white p-5 shadow-sm`
+   - Heading: "Account" in `text-sm font-extrabold uppercase tracking-wide text-warm-500`
+   - User email display
+   - Full-width "Sign out" button: `rounded-xl border border-warm-200 bg-warm-50 text-warm-700`, hover `bg-warm-100`
+3. **Data section**: `rounded-2xl border border-warm-200 bg-white p-5 shadow-sm`
+   - Heading: "Data" in same uppercase heading style
+   - Description text for bulk CSV import
+   - Full-width "Import from CSV" link button: `rounded-xl border-brand-200 bg-brand-50 text-brand-700`, with upload icon, navigates to `/upload`
+
+This page replaces the former "Sign out" button in the top nav bar.
 
 ---
 
@@ -463,9 +511,11 @@ Right-click menu on tags:
 - Positioned at cursor, clamped to viewport edges
 - Dismisses on click-outside or Escape
 
-### TopBarTagAdd
+### TopBarTagAdd (unused)
 
-Compact creation widget in filter bar:
+> **Note**: This component exists in the codebase but is not imported by any page — it is dead code. The places page uses a "Manage" button opening the full `TagManager` instead.
+
+Compact creation widget originally designed for the filter bar:
 - Dashed-border "+ Add" pill → expands to inline input
 - Portal dropdown for suggestions
 - Auto-assigns color via `colorForTag()` hash
@@ -476,17 +526,11 @@ Compact creation widget in filter bar:
 Horizontal pill row for saved view presets:
 - Pill per view: bookmark icon + name
 - Active: `border-brand-400 bg-brand-50 text-brand-700 ring-1`
-- Edit mode: pill turns amber, pencil icon replaces bookmark, Save/Cancel buttons appear
-- Create: dashed-border trigger → inline name input
-- Three-dot menu: Rename, Delete, Edit View, New Collection, Add to Collection — fixed-positioned dropdown (desktop) or bottom sheet (mobile)
+- Active + dirty (filters changed since apply): adds `border-dashed` + small brand-500 dot indicator
+- Create: `SaveViewButton` component — dashed-border trigger → inline name input with Save/Cancel buttons
+- Three-dot menu: Rename, New Collection, Add to Collection, Delete — fixed-positioned dropdown (desktop) or bottom sheet (mobile). Delete uses `text-danger-600` styling
 - Click to apply, click active to deactivate (clears filters)
-
-### AddPlaceModal
-
-Two-tab modal (URL paste / CSV upload):
-- URL tab: Input field + state machine (idle → loading → success/duplicate/error)
-- CSV tab: Link to `/upload` page
-- Dark backdrop + centered card / bottom-sheet
+- Drag-to-reorder via `sortable` action with 500ms long-press on mobile; order persisted via `reorderSavedViews()`
 
 ### AddToCollectionModal
 
@@ -522,12 +566,56 @@ Categorized emoji picker with search:
 
 ### PlaceActionMenu
 
-Context menu for place actions in collection view:
-- Two options: "Remove from collection" and "Delete place permanently"
-- Mobile: bottom sheet with `rounded-t-2xl`
-- Desktop: positioned dropdown menu
-- Red destructive styling for delete action
-- Used on collection detail page (`/collections/[id]`)
+A context menu for places within collection views. Provides two destructive actions: "Remove from collection" and "Delete place permanently". Mobile: bottom sheet with `rounded-t-2xl`. Desktop: positioned dropdown menu. Red destructive styling for delete action. Used on collection detail page (`/collections/[id]`).
+
+### CollectionScopeHeader
+
+Sticky header component for the collection browse mode on `/collections`:
+- `border-b border-warm-200/80 bg-[#faf7f2]` background
+- Left: `CollectionAvatar` (lg size, clickable → color/emoji picker dropdown), inline-editable name (`font-extrabold`), inline-editable description
+- Right: Copy share link, visibility toggle (Shared/Private), "+ Add Places" button (`bg-brand-600`), overflow menu (⋯) with delete confirmation
+- Color picker dropdown: 6 circles + `EmojiPicker` below, absolute positioned
+
+### CollectionSwitcher
+
+Modal for switching between collections without leaving browse mode:
+- Bottom-sheet on mobile, centered on desktop
+- Search input for filtering collections by name
+- Scrollable list of collections with `CollectionAvatar` + name + place count
+- Clicking selects the collection and closes the modal
+
+### SaveViewButton
+
+Extracted component for creating new saved views:
+- Default state: dashed-border pill with bookmark icon, shows "+" on mobile and "Save View" on `sm+`
+- Active state: inline text input with Save/Cancel buttons
+- Detects Google Maps URLs in search text and excludes them from the snapshot
+- Creates a `buildFiltersSnapshot` of the current filter state
+
+### AppBottomDock
+
+Floating navigation component with three rendering modes:
+
+**Desktop bottom bar** (default, ≥ 640px):
+- Fixed to bottom of viewport, centered `max-w-lg` pill
+- Frosted glass: `bg-warm-50/95 backdrop-blur-lg rounded-[1.25rem] shadow-lg`
+- 3 navigation tabs: Places, Collections, Settings — each `min-h-[2.5rem] w-[4.5rem] sm:w-[5rem]`
+- 6-dot drag handle on left, optional reset button (↻) on right when custom-positioned
+- Active tab: `bg-brand-100 text-brand-800`; Idle: `text-warm-500`
+- Safe-area aware via `env(safe-area-inset-bottom)`
+- Scroll-aware passive state: reduces opacity to 45% and translates 10px down during downward scroll (cumulative delta > 8px), restores on scroll-up or idle (400ms timeout). Uses `dock-scroll-state.ts` store with rAF-based throttling and direction lock (3px delta). Hover or pointer-enter immediately restores active mode
+
+**Custom-positioned draggable** (after user drags the grip):
+- Same pill layout but positioned at absolute `left/top` coordinates, clamped to 8px from edges
+- Position persisted in localStorage (`dock-position`)
+- Reset button restores to default bottom bar
+
+**Mobile collapsible right-edge drawer** (< 640px):
+- Expanded: vertical `flex-col` dock sliding in from right (`translateX`, 250ms ease-out), `rounded-l-[1.25rem]`, drag handle for vertical repositioning, collapse chevron, 3 nav links stacked vertically (`3.5rem` wide)
+- Collapsed: slim hint tab on right edge (`rounded-l-xl`, brand-50 bg), chevron + map pin icon
+- Vertical position draggable (default 65% viewport height, persisted in localStorage)
+- Tap-outside-to-close, first-visit nudge animation, `prefers-reduced-motion` respected
+- Suppressible via `bottomDockSuppressed` store (hidden during action sheets)
 
 ### MapView
 
@@ -536,7 +624,7 @@ MapLibre GL JS map component:
 - MapTiler "pastel" style tiles
 - Custom SVG pin markers with hover/selected states
 - Popups with warm styling (Nunito, rounded-xl, warm-200 border)
-- Geolocate control: custom styled white rounded button (`border-radius: 8px`, `box-shadow`). Default icon: warm-700 crosshair. Active icon: brand-500 crosshair. User location dot: brand-500 fill with brand-400 30% ring
+- Geolocate control: custom styled white rounded button (`border-radius: 8px`, `box-shadow`). Default icon: warm-700 crosshair. Active icon: brand-500 crosshair. User location dot: brand-500 fill with brand-500 30% opacity ring
 - Bidirectional selection sync with card list
 - `mapMode` prop: `'collapsed'` / `'expanded'` / `'default'`
 - `ResizeObserver` for container sync
@@ -579,19 +667,19 @@ Fixed bottom-center stack:
 - Swipe-to-delete on PlaceCard, PlaceListItem, and collection cards
 - Horizontal-scroll tag filter strip
 - Bottom-sheet modals (`items-end`, `rounded-t-2xl`)
-- Nav "+ Add Place" icon-only (no text)
+- Collapsible right-edge dock drawer for navigation (Places, Collections, Settings) with vertical layout, drag-to-reposition, and tap-outside-to-close
 - Safe area inset support (`env(safe-area-inset-*)`)
 - `touch-action: manipulation` on interactive elements
 - `-webkit-tap-highlight-color: transparent`
 
 ### Desktop-Specific UI
-- Sticky right map panel (42% width)
+- Sticky right map panel (42% width, `top-0`, full viewport height)
 - Hover-reveal action buttons on cards/list items
 - Labeled tag filter rows ("Custom" label)
 - Click-drag tag reordering (no long-press needed)
 - Centered modals
 - Three-dot menus on saved view pills
-- Full nav bar text
+- Same bottom dock navigation (tabs slightly larger at `sm:w-[5rem]`)
 
 ---
 

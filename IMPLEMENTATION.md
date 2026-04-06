@@ -107,9 +107,9 @@ Auth is handled through `@supabase/ssr` with a server hook (`hooks.server.ts`) a
 
 Both triggers use `security definer` with `search_path = ''` to safely access the `auth` schema.
 
-**`lists`** and **`list_places`** -- Used for the Collections feature. `lists` stores user-created collections with name, description, color, optional `emoji` (a single emoji character for the collection icon), visibility (`'private'` or `'link_access'`), and optional `share_slug` for public sharing. `list_places` is the junction table linking places to collections, with a `position` column for manual ordering. Extended via `add_collections_columns.sql`, `add_list_places_position.sql`, and `add_emoji_column.sql` migrations.
+**`lists`** and **`list_places`** -- Used for the Collections feature. `lists` stores user-created collections with name, description, color, optional `emoji` (a single emoji character for the collection icon), visibility (`'private'` or `'link_access'`), optional `share_slug` for public sharing, and `sort_order` (integer for user-defined ordering). `list_places` is the junction table linking places to collections. Extended via `add_collections_columns.sql`, `add_list_places_position.sql`, `add_emoji_column.sql`, and `add_list_sort_order.sql` migrations.
 
-**`saved_views`** -- Persists user-defined filter/sort/layout presets. Stores `filters_json` (JSONB with category, area, custom tag IDs and source), `sort_by`, and `layout_mode`. See [Saved Views](#saved-views).
+**`saved_views`** -- Persists user-defined filter/sort/layout presets. Stores `filters_json` (JSONB with category, area, custom tag IDs and source), `sort_by`, `layout_mode`, and `order_index` (integer for user-defined ordering). See [Saved Views](#saved-views).
 
 **`google_place_type_catalog`** -- Stores the official Google Places API (New) type keys with metadata: `type_key`, `can_be_primary`, `table_group` (A/B/C), `status` (active/deprecated/unmapped). Read-only for authenticated users; admin writes happen via service role or the `/api/admin/intel-catalog` endpoint.
 
@@ -453,13 +453,14 @@ Not stored: category/area tag selections (these are derived from the data), map 
 
 ### Data Model
 
-**`saved_views`** table (migration: `supabase/add_saved_views.sql`):
+**`saved_views`** table (migration: `supabase/add_saved_views.sql`, `supabase/add_saved_views_order.sql`):
 - `id` (uuid, PK)
 - `user_id` (uuid, FK to `auth.users`)
 - `name` (text)
 - `filters_json` (jsonb) -- stores `{ customTagIds?, source? }`
 - `sort_by` (text, default `'newest'`)
 - `layout_mode` (text, default `'grid'`)
+- `order_index` (integer, default `0`) -- user-defined ordering
 - `created_at`, `updated_at` (timestamptz)
 
 RLS policies restrict all operations to `auth.uid() = user_id`.
@@ -468,9 +469,10 @@ RLS policies restrict all operations to `auth.uid() = user_id`.
 
 Follows the same patterns as the existing codebase:
 
-- **Data-access helpers** (`src/lib/stores/saved-views.svelte.ts`): Pure async functions (`loadSavedViews`, `createSavedView`, `updateSavedView`, `deleteSavedView`, `buildFiltersSnapshot`) matching the style of `places.svelte.ts` and `collections.svelte.ts`. No module-level reactive state. `buildFiltersSnapshot()` accepts an optional `tagGroups` parameter and stores it in the filters for the multi-group model.
+- **Data-access helpers** (`src/lib/stores/saved-views.svelte.ts`): Pure async functions (`loadSavedViews`, `createSavedView`, `updateSavedView`, `deleteSavedView`, `reorderSavedViews`, `buildFiltersSnapshot`) matching the style of `places.svelte.ts` and `collections.svelte.ts`. No module-level reactive state. `loadSavedViews()` sorts by `order_index` ascending then `created_at` ascending. `reorderSavedViews()` writes the new `order_index` values via parallel updates. `buildFiltersSnapshot()` accepts an optional `tagGroups` parameter and stores it in the filters for the multi-group model.
 - **Types** (`src/lib/types/database.ts`): `SavedView`, `SavedViewInsert`, `SavedViewFilters` interface (includes `tagGroups?: TagGroup[]`), `TagGroup` interface (`{ id, tagIds, mode: 'any' | 'all' }`), `BrowseScope` type.
-- **Component** (`src/lib/components/SavedViewsBar.svelte`): Reusable bar component receiving all needed state as props and calling back via `onApply` and `onViewsChanged`. The three-dot menu uses `position: fixed` to escape the `overflow-x-auto` scrollable container (same approach as TagInput's portal dropdown).
+- **Component** (`src/lib/components/SavedViewsBar.svelte`): Reusable bar component receiving all needed state as props and calling back via `onApply`, `onViewsChanged`, and `onReorder`. Supports drag-to-reorder via the `sortable` action. Accepts a `viewIsDirty` prop: when the active view's data has changed, the pill shows a dashed border with a dot indicator. The three-dot menu uses `position: fixed` to escape the `overflow-x-auto` scrollable container (same approach as TagInput's portal dropdown).
+- **SaveViewButton** (`src/lib/components/SaveViewButton.svelte`): Extracted component that handles saved view creation with an inline name input, Google Maps URL detection (excluded from snapshots), and tag group snapshot. Accepts filter state as props and calls `createSavedView` with a `buildFiltersSnapshot` of the current state.
 - **Integration** (`src/routes/places/+page.svelte`): Loads saved views on mount, manages `activeSavedViewId` state, provides `applySavedView()` to restore filter/sort/layout, and auto-saves filter changes back to the active view with an 800ms debounce.
 
 ### UI Placement
@@ -486,25 +488,23 @@ The SavedViewsBar renders on the places page between the search bar area and the
 - **Create**: Click the "+ Save View" button, type a name, press Enter or click Save. Captures current filter/sort/layout state. Clicking outside the input (blur) dismisses it if empty.
 - **Apply**: Click a saved view pill to restore its filter/sort/layout state. The pill highlights as active. Click the same pill again to deactivate (clears all filters).
 - **Browse freely**: While a saved view is active, changing any tag filter or source filter silently deactivates the view (the pill unhighlights). The saved definition is never touched. This means pressing Clear, removing a tag chip with X, or adding a new tag simply returns you to free-form browsing. Click the saved view pill again to snap back to its original filters.
-- **Edit View**: Open the three-dot menu → Edit View. This applies the view's filters and enters edit mode: the pill turns amber, a Save/Cancel button pair appears, and filter changes do not deactivate the view. Adjust tags freely, then Save to persist or Cancel to revert.
 - **Create Collection from View**: Open the three-dot menu → New Collection. Evaluates the saved view's filters against the current `scopedPlaces` via `getPlaceIdsForView()`, then creates a new collection pre-populated with all matching place IDs. Toast confirms creation with place count.
 - **Add to Collection from View**: Open the three-dot menu → Add to Collection. Same filter evaluation, then opens `AddToCollectionModal` in batch mode with all matching place IDs. Supports adding to any existing collection with duplicate-aware feedback.
 - **Rename**: Open the three-dot menu → Rename. Inline input replaces the pill; Enter or blur saves.
 - **Delete**: Open the three-dot menu → Delete. Removes the view with toast confirmation.
+- **Reorder**: Drag-and-drop saved view pills to reorder them. Uses the `sortable` action with long-press on mobile. Order is persisted via `reorderSavedViews()`.
 
 ### Auto-Deactivate on Filter Change
 
-When a saved view is active (but not in edit mode) and the user changes any filter (toggles a tag, clears filters, switches source), the view automatically deactivates -- the pill loses its highlight and `activeSavedViewId` resets to `null`. The saved view's stored definition is never modified.
+When a saved view is active and the user changes any filter (toggles a tag, clears filters, switches source), the view automatically deactivates -- the pill loses its highlight and `activeSavedViewId` resets to `null`. The saved view's stored definition is never modified.
 
-When in edit mode (`editingViewId` is set), auto-deactivation is suppressed so the user can freely adjust filters without losing the active view context. Save persists the changes; Cancel reverts to the original filters.
-
-**Implementation**: An `$effect` in `+page.svelte` keeps a lightweight snapshot (`appliedSnapshot`) of the tag IDs and source at the moment a view is applied. On every filter change, it compares the current filter state against this snapshot. If they diverge and `editingViewId` is not set, `activeSavedViewId` is set to `null`. A `suppressDeactivate` flag prevents the effect from firing during the initial `applySavedView()` call (since that call itself changes the filters to match the snapshot).
+**Implementation**: An `$effect` in `+page.svelte` keeps a lightweight snapshot (`appliedSnapshot`) of the tag IDs and source at the moment a view is applied. On every filter change, it compares the current filter state against this snapshot. If they diverge, `activeSavedViewId` is set to `null`. A `suppressDeactivate` flag prevents the effect from firing during the initial `applySavedView()` call (since that call itself changes the filters to match the snapshot).
 
 Sort and layout changes do not deactivate the view -- only tag and source filter changes do, since those are the semantically meaningful filters that define what a view "means."
 
 ### Trade-offs
 
-- **Auto-deactivate + explicit edit**: Saved views silently deactivate when filters change during normal browsing, preventing accidental overwrites. To actually update a view, the user opens the 3-dot menu → Edit View, which enters an amber-highlighted edit mode with Save/Cancel. This balances safety (no accidental edits) with usability (easy to update when you intend to).
+- **Auto-deactivate on filter change**: Saved views silently deactivate when filters change during normal browsing, preventing accidental overwrites. This balances safety (no accidental edits) with simplicity (the saved definition is immutable once created).
 - **Tag ID references, not names**: Saved views store tag IDs in `filters_json`. If a tag is deleted, those IDs become stale and the saved view silently skips them (the stale filter auto-cleanup effect handles this). An alternative would be to store tag names, but that would break on renames.
 - **No search text persistence**: Search text is intentionally excluded. Saved views are meant for filter presets, not full session restoration. Including search would make applying a view feel like it's "typing for you."
 - **Client-side only filtering**: Consistent with the existing architecture -- saved views restore the client-side filter state and the existing `$derived` chain handles the rest.
@@ -526,6 +526,7 @@ Collections reuse the existing `lists` and `list_places` tables from the origina
   - `emoji` (text, nullable): Optional emoji character used as the collection icon (e.g. a food emoji). Falls back to color-circle when null
   - `visibility` (text, default `'private'`): `'private'` or `'link_access'`
   - `share_slug` (text, nullable, unique): URL-safe random identifier for public sharing
+  - `sort_order` (integer, default `0`): User-defined ordering for the collections hub. Backfilled by `created_at` on migration
 - **`list_places`** → Collection membership (many-to-many junction)
 
 A migration file (`supabase/add_collections_columns.sql`) adds visibility and share_slug columns and creates three new RLS policies:
@@ -541,14 +542,32 @@ The collections index page (`/collections`) includes a one-time client-side colo
 
 ### Routes
 
-**`/collections`** — Index page showing all user collections as cards in a responsive grid. Each card shows the name, place count, color accent, visibility badge, and last-updated date. Supports creating new collections with a name and color picker.
+**`/collections`** — Two-mode page acting as a collection hub + browse surface. The page auto-selects the first collection on load (or restores the `?collection=<id>` from the URL), so the user always lands directly in browse mode rather than an empty overview.
 
-**`/collections/[id]`** — Detail page for a single collection. Shows:
+The **collection tab selector** is a horizontally scrollable row of pills near the top. Each pill shows the collection avatar (xs) and name, styled as `rounded-lg border` with `gap-1.5`. Selected: `border-brand-200 bg-brand-50 text-warm-800`. Unselected: `border-transparent text-warm-500 hover:bg-warm-100 hover:text-warm-700`. Pills support drag-to-reorder via the `sortable` action (long-press 500ms on mobile; order persisted via `sort_order` column). A "New Collection" button in the header opens a create modal (`sm:max-w-md`, bottom-sheet on mobile) with name + avatar preview, emoji picker, color picker, and create/cancel actions.
+
+In **browse mode** (always active when collections exist), the page becomes a full map + list experience scoped to the selected collection, matching the Places browsing model. On desktop, the tab selector and `CollectionScopeHeader` are both sticky at top, with the map as a sticky 42%-width side panel; on mobile, a draggable `MobileMapShell`. The `CollectionScopeHeader` exposes the full collection object identity and controls:
+- Avatar (clickable — opens color/emoji picker)
+- Name (clickable — inline edit)
+- Description (clickable — inline edit)
+- Place count + visibility status (Shared/Private)
+- Copy share link button (when shared)
+- Visibility toggle (Private ↔ Shared)
+- Add Places button
+- Overflow menu (⋯): Delete collection with confirmation
+
+The controls bar (below the header) shows: place count, search input (desktop, `w-28 sm:w-40` with clear button), sort dropdown (Recent, A–Z, My Rating), and grid/list toggle.
+
+The "Add Places" modal (`sm:max-w-lg`, bottom-sheet on mobile) features a smart search/URL input that detects Google Maps URLs and shows an inline "Add" button for URL mode. In standard search mode, it filters the user's places by title, description, address, category, area, and tags (comma-separated terms). Tag filter pills below the search input narrow by user tags. The scrollable list shows non-member places with plus icons, tag previews, and click-to-add.
+
+URL state is synced via `?collection=<id>` so the selected collection is deep-linkable and shareable. Previously loaded collection data is cached in a local `Map<string, CollectionBrowseData>` for instant switching. Remove-from-collection and delete-place are distinct actions surfaced through `PlaceCard`/`PlaceListItem` action menus.
+
+**`/collections/[id]`** — Deep-linkable detail page for a single collection. Uses the same split map/list layout as the browse mode above: desktop has a sticky side map; mobile uses `MobileMapShell` with draggable height. Shows:
 - Editable name and description (click to edit inline)
 - Grid/list toggle with PlaceCard and PlaceListItem reuse
 - Search within collection
 - Sort by recent, A–Z, or my rating
-- "+ Add Places" modal with search over all user places not in the collection
+- "+ Add Places" modal with search over all user places not in the collection, tag filter pills for narrowing results, and an "Add by URL" option that lets users paste Google Maps URLs directly to add new places
 - Share toggle (private ↔ link_access) with copy-link button
 
 **`/c/[slug]`** — Public read-only share page. Accessed without authentication. Shows a clean layout with the collection name, description, and all places in grid or list view. Each place shows category, area, price level, the owner's personal rating, note preview, and a link to Google Maps. Search filters by title, address, category, and area. No tag display or editing capabilities. The server load function (`c/[slug]/+page.server.ts`) uses a single deep nested join (`list_places(place_id, places(...))`) to fetch the collection and all its place data in one query — no tags or place_tags are fetched.
@@ -557,14 +576,16 @@ The collections index page (`/collections`) includes a one-time client-side colo
 
 `src/lib/stores/collections.svelte.ts` follows the same async-helper pattern as `places.svelte.ts` and `saved-views.svelte.ts`:
 
-- **`loadCollections()`**: Fetches all user collections with embedded `list_places(place_id)` join in a single query (scoped by `user_id`), ordered by `created_at` descending. Note: the server load in `collections/+page.server.ts` sorts by `updated_at` instead — the server sort takes precedence on initial page load, while the store sort applies to client-side refreshes
+- **`loadCollections()`**: Fetches all user collections with embedded `list_places(place_id)` join in a single query (scoped by `user_id`), ordered by `sort_order` ascending. Note: the server load in `collections/+page.server.ts` sorts by `updated_at` instead — the server sort takes precedence on initial page load, while the store sort applies to client-side refreshes
 - **`createCollection()`**: Creates a collection, optionally bulk-inserting place IDs
-- **`updateCollection()`**: Updates name, description, color, visibility, or share_slug
+- **`updateCollection()`**: Updates name, description, color, emoji, visibility, share_slug, or sort_order
 - **`deleteCollection()`**: Deletes a collection (cascade removes `list_places` rows)
+- **`reorderCollections()`**: Accepts an ordered array of collection IDs and writes `sort_order` values via parallel updates
 - **`addPlaceToCollection()` / `addPlacesToCollection()`**: Single or batch membership insert using `.upsert()` with `onConflict: 'list_id,place_id'` and `ignoreDuplicates: true`
 - **`removePlaceFromCollection()`**: Removes a place from a collection
 - **`enableSharing()` / `disableSharing()`**: Toggles visibility and generates/clears the share slug
 - **`loadCollectionBySlug()`**: Loads a collection by slug with embedded `list_places(place_id)` join in a single query
+- **`loadCollectionPlaces()`**: Client-side data loader for the collection browse mode on `/collections`. Uses a single `Promise.all` with two independent queries: (1) a deep nested join (`lists` → `list_places` → `places` + `place_tags`) scoped by collection ID and user ID, and (2) a user-scoped tags query. Returns full place objects with lat/lng for the map, plus tags and placeTags. One round-trip per the performance audit guidelines
 - **`optimisticAdd()` / `optimisticRemove()`**: Pure functions for optimistic UI updates on the `CollectionMemberMap`
 
 ### Adding Places
@@ -591,6 +612,8 @@ Simple MVP sharing:
 4. **Disable**: Sets `visibility = 'private'`, nullifies the slug
 
 The public page (`/c/[slug]`) loads data via a server load function that uses a single deep nested join query (`lists.select('..., list_places(place_id, places(...))')`) filtered by `share_slug` and `visibility = 'link_access'`. This fetches the collection and all its place data in one round-trip. RLS policies allow anonymous SELECT on collections and their places when visibility is `link_access`.
+
+**Save Shared Collection** (`POST /api/collections/save-shared`): Logged-in users viewing a shared collection can click "Save" to duplicate it into their own account. The endpoint validates the collection is `link_access`, prevents self-save (409), creates a new collection with the same name/description/color/emoji, deep-copies all places (with `source_list: 'shared-import'`), and links them to the new collection. Returns the new collection ID and place count.
 
 ### Navigation
 
@@ -755,11 +778,16 @@ Click handling uses event delegation: clicks on interactive elements (links, but
 
 ### PlaceCard -- Swipe to Delete (Mobile Grid)
 
-The mobile grid card layout combines 3D flip with swipe-to-delete. The DOM structure uses a strict 3-layer pattern: outer clipping container (`position: relative; overflow: hidden; border-radius`) > delete background layer (`position: absolute; inset: 0; z-index: 0`) > foreground content layer (`position: relative; z-index: 10`).
+The mobile grid card layout combines a 3D flip animation with swipe-to-delete. The DOM follows a strict layering pattern:
 
-The delete layer sits in a separate stacking context from the foreground, with an explicit z-index gap. The foreground layer is the only element that receives the horizontal `translateX` during swipe. All 3D flip transforms (`perspective`, `preserve-3d`, `rotateY`) are nested *inside* the foreground layer, ensuring they never create a stacking context that could interfere with the delete layer's visual ordering.
+- **row-root**: `position: relative; overflow: hidden; border-radius`. No transforms, no perspective. Pure clipping container.
+- **delete-background**: `position: absolute; inset: 0; z-index: 0`. Delete button right-aligned via flex. **Conditionally rendered** -- only exists in the DOM when `swipeX < 0 || swiping`, so it cannot flash through during scroll or flip.
+- **swipe-foreground**: `position: relative; z-index: 1; bg-white`. Only `translateX` for swipe. Contains the 3D flip structure inside it.
+- **3D flip** (inside swipe-foreground): `perspective:800px` wrapper > `flip-inner` with `preserve-3d` + `is-flipped` class > front/back faces with `backface-visibility:hidden`. Same 3D `rotateY(180deg)` effect as desktop.
 
-The `handleFlip` function is swipe-aware: if the card is currently swiped open (`swipeX !== 0`), a tap resets the swipe back to zero instead of triggering a flip. This prevents accidental flips when the user taps to dismiss the delete action.
+The key to making 3D flip and swipe-to-delete coexist safely is **conditional rendering of the delete layer**: the delete background only enters the DOM when the user is actively swiping. During flip animations and fast scrolling, the delete element simply does not exist, so GPU compositing cannot expose it regardless of `preserve-3d` behavior.
+
+The `handleMobileTap` function is swipe-aware: if the card is currently swiped open (`swipeX !== 0`), a tap resets the swipe back to zero instead of triggering a flip. This prevents accidental flips when the user taps to dismiss the delete action.
 
 Gesture locking works the same as in PlaceListItem: the first significant movement (> 5px) locks the gesture to either horizontal (swipe) or vertical (scroll), preventing conflict between the two.
 
@@ -776,7 +804,7 @@ Both PlaceCard (grid view, mobile) and PlaceListItem (list view, mobile) support
 3. The element translates horizontally, clamped to `[-72px, 0]`
 4. `touchend` snaps: if swiped past 36px threshold, it locks open revealing the delete button; otherwise snaps back to 0
 
-All swipeable components (PlaceCard, PlaceListItem, Collections index) share the same 3-layer DOM pattern: an outer `overflow: hidden` container owns the border radius and clips all children; a `z-0` absolute-positioned delete layer holds the delete button; a `z-10` relative-positioned foreground layer receives the swipe translateX and contains all content/flip transforms. This ensures the delete action is never visible during fast scrolling, flip animations, or expand/collapse transitions.
+All swipeable components (PlaceCard, PlaceListItem, Collections index) share the same layered DOM pattern: an outer `overflow: hidden` row-root owns the border radius and clips all children; a `z-0` absolute-positioned delete-background layer holds the delete button pinned right; a `z-[1]` relative-positioned swipe-foreground layer receives the swipe `translateX` and contains all content. The delete-background layer is **conditionally rendered** -- it only enters the DOM when `swipeX < 0 || swiping`, so it cannot flash through during fast scrolling, flip animations, or state changes. PlaceCard uses the full 3D `rotateY` flip on both mobile and desktop, with the delete layer's conditional rendering preventing any compositing artifacts.
 
 ### TagInput -- Portal Dropdown
 
@@ -827,14 +855,6 @@ A reusable avatar component for collection icons. Displays either an emoji chara
 
 A categorized emoji picker component with ~794 emojis across 8 categories (Food & Drink, Travel & Places, Activities, Nature, Objects, Smileys, Symbols, Flags). Features category tab navigation, text search filtering, and a "no icon" option to clear the selection. Used in the collection create/edit forms for selecting collection icons.
 
-### AddPlaceModal
-
-A modal with two tabs: "Paste URL" and "Upload CSV". The CSV tab simply links to the `/upload` page rather than embedding the upload flow.
-
-**Status flow**: The URL tab uses a state machine: `idle` → `loading` → `success` | `duplicate` | `error`. Each state shows different UI (input field, spinner, success message with place title, or error message). After success/duplicate, the modal can be closed.
-
-**Single entry point**: The modal is rendered once in the root layout (`+layout.svelte`), toggled by the bottom dock's "+" button. This is the sole explicit add-place entry point (the search bar's inline URL paste is a complementary quick-add path). When a place is added via this modal, it dispatches a `place-added` CustomEvent on `window`, which the places page listens for to refresh its local state via `loadData()`. This avoids the need for a second modal instance on the places page.
-
 ### Toast Notification System
 
 Lightweight in-page toasts for URL add and action feedback, implemented as a shared Svelte 5 store (`src/lib/stores/toasts.svelte.ts`):
@@ -861,16 +881,36 @@ Google Fonts (Nunito, weights 400--800) is loaded via `<link>` tags in the root 
 
 ### Navigation: AppBottomDock
 
-The top nav bar has been replaced by a floating bottom dock (`AppBottomDock.svelte`). The dock is a `fixed inset-x-0 bottom-0 z-50` bar with a frosted-glass pill (`bg-warm-50/95 backdrop-blur-lg rounded-[1.75rem]`) containing four navigation tabs and a central add button:
+The top nav bar has been replaced by a floating bottom dock (`AppBottomDock.svelte`) with **three rendering modes**:
+
+#### 1. Desktop Bottom Bar (default, ≥ 640px, no custom position)
+A `fixed inset-x-0 bottom-0 z-50` bar with a frosted-glass pill (`bg-warm-50/95 backdrop-blur-lg rounded-[1.25rem]`) containing a 6-dot drag handle, three navigation tabs, and (when custom-positioned) a reset button:
 
 - **Places** tab — map pin icon, links to `/places`
 - **Collections** tab — grid icon, links to `/collections`
-- **"+" add button** — centered `bg-brand-600` circle (`h-11 w-11` / `sm:h-12 sm:w-12`), opens `AddPlaceModal`
 - **Settings** tab — gear icon, links to `/settings`
 
-Active tab: `bg-brand-100 text-brand-800`. Idle tab: `text-warm-500 hover:bg-warm-100`. The dock is visible only when authenticated and on an app-shell route (`/places`, `/collections`, `/upload`, `/settings`, or any sub-path of `/collections` or `/settings`). A `bottomDockSuppressed` writable store (`src/lib/stores/bottom-dock-suppressed.ts`) lets modals like `PlaceActionMenu` temporarily hide the dock.
+Active tab: `bg-brand-100 text-brand-800`. Idle tab: `text-warm-500 hover:bg-warm-100`. Tab dimensions: `min-h-[2.5rem] w-[4.5rem] sm:w-[5rem]`, label: `text-[9px] sm:text-[10px]`. The dock is visible only when authenticated and on an app-shell route (`/places`, `/collections`, `/upload`, `/settings`, or any sub-path of `/collections` or `/settings`). A `bottomDockSuppressed` writable store (`src/lib/stores/bottom-dock-suppressed.ts`) lets modals like `PlaceActionMenu` temporarily hide the dock.
 
-The root layout injects a `--app-dock-reserve` CSS custom property (equal to the dock height plus safe-area inset) so pages can add bottom padding to avoid content being obscured by the dock.
+**Drag-to-reposition**: The left-side 6-dot grip handle (`cursor-grab`) starts a pointer drag that repositions the entire dock to any point on screen, clamped to 8px from viewport edges. The position is persisted to localStorage (`dock-position`). When custom-positioned, a reset button (↻ icon) clears the stored position, returning the dock to the default bottom bar. The `dockMode` is forced to `'active'` when the user starts dragging. `pointerenter` on the pill also immediately restores active mode.
+
+**Scroll-aware passive mode** (`src/lib/stores/dock-scroll-state.ts`): The dock transitions between `'active'` and `'passive'` modes based on scroll direction. During downward scroll (cumulative delta > 8px threshold), the dock fades to 45% opacity and translates 10px downward; scrolling up or idle (400ms timeout) restores it. The watcher uses `requestAnimationFrame`-based throttling, captures both window scroll and inner-element scroll events, and handles touch-end idle resets. A direction lock delta of 3px prevents jittery toggling. The root layout initializes the watcher via `$effect` when the dock is visible and tears it down on unmount.
+
+#### 2. Custom-Positioned Draggable (any screen size, after user drags)
+When the user drags the dock, the mode switches from the bottom bar to a freely-positioned `fixed` pill rendered at `left:{x}px;top:{y}px`. The layout is identical to the desktop bottom bar (horizontal tabs, drag handle, reset button) but it floats at the user's chosen position.
+
+#### 3. Mobile Collapsible Right-Edge Drawer (< 640px, no custom position)
+On mobile (detected via `window.innerWidth < 640`), the dock renders as a collapsible vertical drawer on the right edge of the screen instead of the bottom bar.
+
+- **Expanded state**: A vertical `flex-col` dock with `rounded-l-[1.25rem]` slides in from the right via `transform: translateX(0/100%)` with a 250ms ease-out transition. Contains a horizontal drag handle (for vertical repositioning), a collapse chevron button, and 3 navigation links stacked vertically using a separate `dockLinksMobileVertical` snippet. Each link is `3.5rem` wide, `2.75rem` min-height with `text-[8px]` labels. Active/idle states use CSS classes (`mobile-dock-link-active`/`mobile-dock-link-idle`). Padded for `env(safe-area-inset-right)`.
+- **Collapsed state**: A slim hint tab (`rounded-l-xl`, `bg-brand-50/95`) fixed on the right edge at the persisted Y position, showing a chevron and map pin icon. Tapping expands the dock.
+- **Vertical drag**: Both states support vertical repositioning via pointer drag. The Y position defaults to 65% of viewport height, is clamped to 60px from top/bottom edges, and persisted to localStorage (`dock-mobile-y`).
+- **Tap-outside-to-close**: A document `click` listener (registered via `$effect`) collapses the expanded dock when tapping outside the pill element. Drag events are excluded to avoid accidental collapse.
+- **First-visit hint animation**: On first load (if `dock-hint-seen` not in localStorage and `prefers-reduced-motion` is not active), a subtle 800ms nudge animation (`@keyframes mobile-nudge-hint`) shifts the expanded dock 10px toward the right and back after a 1.2s delay, then persists the `dock-hint-seen` flag. All animations are suppressed when `prefers-reduced-motion: reduce` is active.
+
+Adding places is handled by the search bar on the Places page, which detects Google Maps URLs inline.
+
+The root layout injects a `--app-dock-reserve` CSS custom property (equal to the dock height plus safe-area inset) so pages can add bottom padding to avoid content being obscured by the dock. On mobile (< 640px), the right-edge dock means content does not need bottom padding, but the variable remains set by the layout (pages use `max()` expressions that account for it).
 
 ### Settings Page
 
@@ -879,10 +919,6 @@ The `/settings` route is a simple account page (`max-w-lg`) with:
 - Full-width "Sign out" button (`rounded-xl border-warm-200 bg-warm-50`)
 
 This replaces the former "Sign out" button that lived in the nav bar.
-
-### Layout-Level AddPlaceModal
-
-The root layout renders the single `AddPlaceModal` instance (toggled by the dock's "+" button). This serves as the primary explicit add-place entry point alongside the search bar's inline URL paste. The layout version uses `invalidate('supabase:auth')` for auth refresh and dispatches a `window` `place-added` CustomEvent so the places page can call its local `loadData()` to refresh the place list immediately.
 
 ### Auth State Subscription
 
@@ -914,8 +950,8 @@ The app has distinct mobile and desktop layouts rather than just reflowing:
 - **PlaceCard**: Mobile uses a compact layout with smaller text, fewer visible details, and swipe-to-delete. Desktop shows price level, more metadata, and hover-reveal delete. Both show an inline personal rating display (`4.5 ★` / `Not rated`) that opens a star scrubber popover on click. The card grid uses 1-2 columns (reduced from 3 to accommodate the map panel).
 - **PlaceListItem**: Mobile has swipe-to-delete; desktop has hover-reveal action buttons.
 - **Tag filtering**: Mobile uses a single horizontally scrollable row of custom tag pills. Desktop shows a labeled row ("Custom") with tag pills.
-- **Navigation**: A floating bottom dock (`AppBottomDock`) replaces the former sticky top nav bar. Four tabs (Places, Collections, +Add, Settings) with safe-area inset padding.
-- **Safe areas**: The layout respects `env(safe-area-inset-*)` for notched devices. Pages use `--app-dock-reserve` to pad content above the bottom dock.
+- **Navigation**: A floating bottom dock (`AppBottomDock`) replaces the former sticky top nav bar. Three tabs (Places, Collections, Settings) with safe-area inset padding and scroll-aware passive mode. Three rendering modes: (1) desktop bottom bar with drag-to-reposition and scroll-aware passive mode, (2) custom-positioned draggable pill after user drags, (3) mobile right-edge collapsible drawer (< 640px) with vertical layout, drag-to-reposition vertically, first-visit hint animation, and tap-outside-to-close.
+- **Safe areas**: The layout respects `env(safe-area-inset-*)` for notched devices. Pages use `--app-dock-reserve` to pad content above the bottom dock. On mobile where the dock is on the right edge, pages still reference the variable but content padding is minimal.
 
 ---
 
@@ -1205,22 +1241,26 @@ A comprehensive query optimization pass was performed across all server loads, c
 
 **Fix**: Changed the cookie option in `hooks.server.ts` from `httpOnly: true` to `httpOnly: false`. This allows the Supabase browser client to read and manage the session cookie directly. The security trade-off is that the session token becomes accessible to client-side JavaScript (and therefore to XSS attacks), but this is the expected configuration for `@supabase/ssr` where the browser client needs cookie access for session management.
 
-### 17. Swipe-to-Delete Layer Visible During Scroll, Flip, and State Changes
+### 17. Swipe-to-Delete Layer Visible During Scroll, Flip, and State Changes (Compositing / Transform-Boundary Bug)
 
-**Problem**: On mobile, the red delete action behind swipeable list items and grid cards was not truly hidden. The delete button would flash into view during fast vertical scrolling, appear momentarily during card flip animations, and bleed through during expand/collapse transitions. The root cause was a layering/overflow/transform-boundary issue across all three swipeable components (PlaceCard, PlaceListItem, and the Collections index page):
+**Problem**: On mobile, the red delete action behind swipeable list items and grid cards was not truly hidden. The delete button would flash into view during fast vertical scrolling, appear momentarily during card flip animations, and bleed through during expand/collapse transitions. This persisted even after adding explicit z-index separation because the root cause was a **compositing / transform-boundary issue**, not a simple paint-order problem:
 
-1. The collections page used `bg-danger-500` as the outer row container's background color, meaning the red was always painted as the row itself -- any sub-pixel gap or repaint glitch exposed it
-2. The delete button was a direct child of the row container at the same stacking level as the foreground content, with no explicit z-index separation
-3. In PlaceCard, the 3D flip transform (`transform-style: preserve-3d`) created a new stacking context that interfered with the delete layer's visual ordering
-4. The foreground content layer lacked an explicit z-index, relying on DOM order alone for paint order -- unreliable when CSS transforms create new stacking contexts
+1. In PlaceCard, the mobile layout used `perspective`, `transform-style: preserve-3d`, and `rotateY()` for the 3D card flip. These CSS properties force the browser to promote child elements to independent composited layers. During fast scrolling, the compositor can paint these layers independently from the `overflow: hidden` clipping ancestor, causing the delete button (which sits behind in the DOM) to flash through.
+2. `transform-style: preserve-3d` specifically tells the browser not to flatten child layers into the parent's paint -- it preserves the full 3D rendering context. This means `z-index` and `overflow: hidden` on ancestor elements are not respected in the same way during GPU compositing, because children are rendered in 3D space rather than being flattened into the parent's 2D layer.
+3. Even with the delete layer as a sibling outside the 3D context, the `translateX` on the swipe-foreground combined with `preserve-3d` on a descendant creates overlapping compositing boundaries that the GPU compositor resolves unpredictably during rapid frame updates (e.g., momentum scrolling).
+4. The collections page previously used `bg-danger-500` on the row container itself, painting the red as the row's own background rather than isolating it in a separate layer.
 
-**Fix**: Refactored all three swipeable components into a strict 3-layer DOM structure:
+**Fix**: The fix required two changes:
 
-- **Outer row container**: `position: relative; overflow: hidden` with the final border radius. No background color -- this is purely a clipping boundary.
-- **Delete background layer**: `position: absolute; inset: 0; z-index: 0` wrapping the delete button, pinned behind the foreground. The button is right-aligned within this layer. This layer never receives any transforms.
-- **Foreground content layer**: `position: relative; z-index: 10` with an opaque background (white/brand). This is the only layer that receives the horizontal `translateX` during swipe. All flip/rotate/3D transforms are nested inside this layer, so they cannot affect the stacking relationship with the delete layer.
+1. **Conditionally render the delete-background layer**: The delete layer only enters the DOM when `swipeX < 0 || swiping`. When the card is at rest (not being swiped), there is literally no delete element to flash through -- not hidden behind the foreground, but absent from the DOM entirely. This eliminates all compositing artifacts regardless of what 3D transforms exist elsewhere in the tree.
+2. **3D flip preserved on both mobile and desktop**: With the delete layer conditionally rendered, the full `perspective` + `preserve-3d` + `rotateY(180deg)` flip animation works safely on mobile because during flip animations (when no swipe is active), the delete element does not exist in the DOM.
 
-This is not a simple z-index tweak -- the fix required restructuring the DOM hierarchy to ensure the delete layer sits outside all transform boundaries (perspective, preserve-3d, translateX) while the outer container's `overflow: hidden` clips everything cleanly at the rounded corners.
+All swipeable components (PlaceCard, PlaceListItem, Collections index) now use:
+- **row-root**: `position: relative; overflow: hidden; border-radius`. No background color, no transforms. Pure clipping container.
+- **delete-background**: `position: absolute; inset: 0; z-index: 0; flex; justify-end`. **Conditionally rendered** only during active swipe. Never receives any transform, perspective, or will-change.
+- **swipe-foreground**: `position: relative; z-index: 1; bg-white`. The **only** element that receives `translateX()` for swipe. Contains the 3D flip structure (perspective + preserve-3d + rotateY) inside it.
+
+This is a compositing architecture fix, not a z-index tweak. The key insight is that removing the delete element from the DOM entirely when not swiping is more robust than trying to hide it with z-index or overflow -- GPU compositing can bypass both of those during fast scroll passes, but it cannot render an element that does not exist.
 
 ---
 

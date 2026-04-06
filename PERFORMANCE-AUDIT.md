@@ -162,3 +162,165 @@ Before merging a new `+page.server.ts` or store function, verify:
 - [ ] No junction table is queried without a user-scoping filter
 - [ ] No full table scan exists where a filtered query would do
 - [ ] Count the total sequential round-trips — the target is **1**
+
+---
+
+## Round 2: Client-Side & API Performance
+
+**Date:** April 6, 2026
+**Scope:** Client-side reactivity, API route efficiency, and data transfer volume
+
+### How We Identified It
+
+After the initial query optimization pass, the app remained sluggish as the dataset grew. We audited three additional layers:
+
+1. **Data transfer volume** — are we fetching more rows than the view actually needs?
+2. **Client-side reactivity** — do `$effect` and `$derived` blocks fire too often or too broadly?
+3. **Write-path efficiency** — are mutations using more round-trips than necessary?
+
+### Root Causes Found
+
+#### 6. Full table scan for URL deduplication
+
+The `add-by-url` API route fetched **every place the user owns** (with `select('*')`) into memory, then searched for a matching URL in JavaScript. As the library grows, this sends an ever-growing payload over the wire just to check for a duplicate.
+
+```
+// Before: fetches ALL places to loop through in JS
+const { data: existingPlaces } = await supabase
+  .from('places').select('*').eq('user_id', user.id).not('url', 'is', null);
+const urlMatch = existingPlaces.find(p => normalizeUrl(p.url) === normalizedUrl);
+
+// After: targeted DB query, zero client-side iteration
+const { data: urlMatch } = await supabase
+  .from('places').select('*').eq('user_id', user.id).eq('url', normalizedUrl).limit(1).maybeSingle();
+```
+
+URLs are now normalized before storage so the DB-level equality check works reliably.
+
+| | Before | After |
+|---|--------|-------|
+| `add-by-url` dedup | Fetch all rows → JS filter | Single indexed query |
+
+#### 7. Server load fetching data the page doesn't need yet
+
+`/collections/[id]` server load fetched **every place the user owns** (with tags) on page load, solely to populate the "Add Places" modal — which most users never open during a visit.
+
+| | Before | After |
+|---|--------|-------|
+| `/collections/[id]` server load | 3 parallel queries (collection + tags + **all places**) | 2 parallel queries (collection + tags) |
+| "Add Places" modal data | Pre-loaded on every visit | Lazy-loaded on modal open |
+
+#### 8. N individual UPDATEs for reorder operations
+
+`reorderCollections()` and `reorderSavedViews()` ran one `.update()` call per item. Reordering 10 collections meant 10 HTTP round-trips.
+
+```
+// Before: N round-trips
+const updates = orderedIds.map((id, i) =>
+  supabase.from('lists').update({ sort_order: i }).eq('id', id));
+await Promise.all(updates);
+
+// After: 1 round-trip
+const rows = orderedIds.map((id, i) => ({ id, sort_order: i }));
+await supabase.from('lists').upsert(rows, { onConflict: 'id' });
+```
+
+#### 9. Aggressive full re-fetches after mutations
+
+The `/places` page called `loadData()` (which re-fetches **all** places, tags, and collections) after every URL add, every tag apply, and every tag remove. The API response already contains the new place — adding it to local state is instant.
+
+| Trigger | Before | After |
+|---------|--------|-------|
+| URL add (new place) | `loadData()` → 3 queries | Optimistic insert into local array |
+| URL add (duplicate + tags applied) | `loadData()` → 3 queries | `refreshTags()` → 2 queries |
+| Tag remove / apply from context | `loadData()` → 3 queries | `refreshTags()` → 2 queries |
+
+#### 10. Reactive `$effect` firing on every data invalidation
+
+```
+$effect(() => {
+  void supabase;          // tracks the supabase derived value
+  refreshSavedViews();    // fires a network request
+});
+```
+
+This effect re-runs whenever the layout data changes (e.g. on any SvelteKit `invalidate()` call), causing a redundant saved-views fetch on every navigation. Fixed by guarding it to run only once.
+
+#### 11. Map marker reconciliation on unrelated state changes
+
+The MapView `$effect` tracked the entire `places` array by reference. Editing a note, changing a rating, or toggling tags would re-run `syncMarkers()` — iterating every place and touching DOM elements — even though no coordinates changed.
+
+```
+// Before: triggers on ANY places mutation
+$effect(() => {
+  const _p = places;
+  syncMarkers();
+});
+
+// After: only triggers when geographic data changes
+let markerKey = $derived(
+  places.filter(p => p.lat != null && p.lng != null)
+    .map(p => `${p.id}:${p.lat}:${p.lng}`).sort().join(',')
+);
+$effect(() => {
+  const _key = markerKey;
+  syncMarkers();
+});
+```
+
+#### 12. N individual DELETEs for tag removal
+
+`removeTagsFromPlace()` fired one `DELETE` per tag. Removing 5 tags = 5 round-trips.
+
+```
+// Before: N round-trips
+await Promise.all(tagIds.map(tagId =>
+  supabase.from('place_tags').delete().eq('place_id', placeId).eq('tag_id', tagId)));
+
+// After: 1 round-trip
+await supabase.from('place_tags').delete().eq('place_id', placeId).in('tag_id', tagIds);
+```
+
+#### 13. Sequential enrichment blocking the response
+
+`enrich-all` processed places one-at-a-time with a 200ms delay between each. 10 places took 5–10+ seconds. Changed to batch 3 concurrently with 200ms delay only between batches.
+
+### Round 2 Impact Summary
+
+| Area | Before | After |
+|------|--------|-------|
+| `add-by-url` dedup | Full table scan | 1 indexed query |
+| `/collections/[id]` page load | 3 queries (all places) | 2 queries (no eager all-places) |
+| Reorder (N items) | N round-trips | 1 upsert |
+| URL add re-fetch | 3 queries | 0 (optimistic) |
+| Saved views init | Fires on every invalidation | Fires once |
+| Map marker sync | Every `places` mutation | Only geo changes |
+| Tag removal (N tags) | N round-trips | 1 query |
+| Enrich-all (10 places) | ~10 sequential fetches | ~4 batched rounds |
+
+---
+
+## Updated Guidelines
+
+### Rule 7: Never fetch a full table to search in JavaScript
+
+If you're fetching rows just to `.find()` or `.filter()` in JS, you can almost always push that predicate into the query itself. Normalize data before storage so equality checks work at the DB level.
+
+### Rule 8: Lazy-load data for modals and secondary UI
+
+If a panel, modal, or drawer is only opened by explicit user action, don't fetch its data in the server load. Fetch it on-demand when the UI opens.
+
+### Rule 9: Use `upsert` for batch writes, `.in()` for batch deletes
+
+Any mutation that operates on a list of IDs should be a single query:
+- **Writes:** `.upsert(rows, { onConflict: '...' })`
+- **Deletes:** `.delete().in('column', ids)`
+- **Never** loop `.update()` or `.delete()` per item.
+
+### Rule 10: Scope reactive effects to the narrowest dependency
+
+If an `$effect` only needs to react to coordinate changes, derive a stable key from coordinates — don't track the entire object array. Use guards (`if (!loaded) { loaded = true; ... }`) to prevent one-time init effects from re-firing.
+
+### Rule 11: Optimistic-first for mutations with known results
+
+When the server response already contains the created/updated object, insert it directly into local state. Reserve full `loadData()` calls for initial page loads or explicit "refresh" actions.

@@ -9,7 +9,7 @@ MapOrganizer is a web app that helps you manage and organize places you've saved
 ## Features
 
 - **CSV Import** -- Bulk-import saved places from a Google Takeout CSV export with drag-and-drop
-- **Inline URL Import** -- Paste a Google Maps link (including `share.google` links) directly into the search bar on the Places page and press Enter to add a place instantly, with toast notifications for success/duplicate/error feedback. The same flow is also available in the bottom dock's "+" add-place modal
+- **Inline URL Import** -- Paste a Google Maps link (including `share.google` links) directly into the search bar on the Places page and press Enter to add a place instantly, with toast notifications for success/duplicate/error feedback
 - **Place Enrichment** -- Fetch ratings, addresses, phone numbers, coordinates, and more from the Google Places API (single or batch). Uses a three-strategy lookup: Place ID, text search with location bias, and coordinate fallback
 - **Personal Ratings** -- Rate any place on a 0.5–5.0 half-star scale. Click the compact rating display on any card to open a drag-to-rate star editor. Saves instantly with optimistic UI updates
 - **Interactive Map** -- All enriched places are plotted on a MapLibre GL map (powered by MapTiler). Click a marker to scroll to the card; click a card to fly to its pin. Shows a pastel base map style with custom pin markers, popups, and a geolocate control styled to match the app palette
@@ -21,13 +21,13 @@ MapOrganizer is a web app that helps you manage and organize places you've saved
 - **Grid & List Views** -- Switch between card grid and compact list layouts. Cards flip (3D animation) to reveal a notes editor on the back
 - **Notes** -- Attach personal notes to any place with debounced auto-save (800ms)
 - **Deduplication** -- Three-layer duplicate detection by Google Place ID, normalized URL, and title + address
-- **Swipe to Delete** -- Swipe cards or list items left on mobile to reveal a delete action. Destructive actions stay fully hidden until intentionally revealed -- the delete layer never flashes during scrolling, card flips, or state transitions
+- **Swipe to Delete** -- Swipe cards or list items left on mobile to reveal a delete action. Mobile swipe interactions are hardened so destructive actions stay fully hidden until intentionally revealed -- the delete layer never flashes during scrolling, card face changes, or state transitions
 - **Contextual Capture** -- When viewing a custom tag filter, new places added via URL are automatically tagged to match. Includes an auto-tag toggle and undo support
-- **Saved Views** -- Save the current filter/sort/layout state as a named preset. Clicking a view applies its filters; changing any filter afterward simply deactivates the view (the saved definition is never touched). To update a view's filters, use the 3-dot menu → Edit View: the view's filters are applied and you can adjust tags freely with Save/Cancel buttons. The 3-dot menu also offers "New Collection" (creates a collection from all matching places) and "Add to Collection..." (batch-adds matching places to an existing collection). Persisted per-user in Supabase
-- **Collections** -- Create curated, shareable groups of places. Collections are independent from filters: add places individually, from the collection detail "Add Places" modal (with tag filtering), or from a saved view's 3-dot menu. Share a collection via a public link (`/c/slug`) with a read-only view showing place details, ratings, notes, and an interactive map. Toggle between private and link-accessible visibility, and browse any collection with the same grid/list view and sort options as the main places page
+- **Saved Views** -- Save the current filter/sort/layout state as a named preset. Clicking a view applies its filters; changing any filter afterward simply deactivates the view (the saved definition is never touched). The 3-dot menu offers Rename, "New Collection" (creates a collection from all matching places), "Add to Collection..." (batch-adds matching places to an existing collection), and Delete. Saved view pills support drag-to-reorder. When the active view's underlying data has been changed since it was applied, a dashed-border dirty indicator appears on the pill. Persisted per-user in Supabase
+- **Collections** -- Create curated, shareable groups of places backed by persistent `lists + list_places`. The `/collections` page auto-selects the first collection on load, immediately showing a full map + list browse experience scoped to that collection (same split layout as Places: desktop sticky map, mobile draggable MobileMapShell). The collection tab selector is a horizontal row of pills with drag-to-reorder, so the page feels like a quick switcher. The selected collection header (`CollectionScopeHeader`) shows avatar, name (editable inline), description (editable inline), place count, visibility status, and actions: share/copy link, visibility toggle, add places, and overflow menu (delete). URL state synced via `?collection=<id>` for deep-linkability. Creating a new collection opens a modal with name, emoji, and color pickers. The "Add Places" modal features smart search/URL input (auto-detects Google Maps URLs), tag filter pills, and a scrollable place list. Collections are independent from filters: add places individually, from the modal, or from a saved view's 3-dot menu. Remove-from-collection and delete-place are distinct actions. Share a collection via a public link (`/c/slug`) with a read-only view — logged-in users can "Save" a shared collection to duplicate it into their own account. The deep-linkable `/collections/[id]` route provides the canonical editable detail page with the same split map layout, including an "Add by URL" option in the add-places modal
 - **Intel Tagging** -- Structured intelligence layer that maps Google Place types to internal classifications (primary category, operational status, market niche, discussion pillar, suggested tags). Pure computation engine with a full Google Place type catalog (100+ types) and editable mapping rules. Optional database persistence and admin seeding endpoint
 - **Auth** -- Email/password authentication via Supabase with server-side route protection, proactive token refresh, and resilient session validation. Email confirmation callback endpoint. Sign-out available from the Settings page
-- **Responsive** -- Distinct mobile and desktop layouts: split map+list on desktop, collapsible map (MobileMapShell) on mobile. A floating bottom dock provides app-wide navigation (Places, Collections, Add, Settings). Inline filter chips, safe-area support for notched devices
+- **Responsive** -- Distinct mobile and desktop layouts: split map+list on desktop, collapsible map (MobileMapShell) on mobile. A floating bottom dock (`AppBottomDock`) provides app-wide navigation (Places, Collections, Settings) with three rendering modes: desktop bottom bar with drag-to-reposition and scroll-aware passive mode, custom-positioned draggable pill, and mobile collapsible right-edge drawer (< 640px) with vertical layout, first-visit hint animation, and tap-outside-to-close. Inline filter chips, safe-area support for notched devices
 
 ## Tech Stack
 
@@ -71,14 +71,16 @@ src/
 │   │   ├── collections.svelte.ts  # Collection CRUD, membership & sharing helpers
 │   │   ├── saved-views.svelte.ts  # Saved Views CRUD & filter snapshot
 │   │   ├── toasts.svelte.ts       # Toast notification store
-│   │   └── bottom-dock-suppressed.ts # Writable store to hide dock during modals
+│   │   ├── bottom-dock-suppressed.ts # Writable store to hide dock during modals
+│   │   └── dock-scroll-state.ts   # Dock scroll-aware passive/active mode
 │   ├── types/
-│   │   └── database.ts            # Supabase type definitions (11 tables)
+│   │   └── database.ts            # Supabase type definitions (10 tables)
 │   └── components/
-│       ├── AddPlaceModal.svelte    # URL/CSV add place modal
 │       ├── AddToCollectionModal.svelte # Add place to collection picker
 │       ├── AppBottomDock.svelte    # Floating bottom navigation dock
 │       ├── CollectionAvatar.svelte  # Ringed circle/emoji avatar for collections
+│       ├── CollectionScopeHeader.svelte # Sticky header for collection browse mode
+│       ├── CollectionSwitcher.svelte # Modal for switching between collections
 │       ├── EmojiPicker.svelte       # Categorized emoji picker with search
 │       ├── MapView.svelte          # MapLibre GL map with markers
 │       ├── MobileMapShell.svelte   # Collapsible mobile map wrapper
@@ -87,6 +89,7 @@ src/
 │       ├── PlaceListItem.svelte    # List row (expand, swipe, rating, collections)
 │       ├── RatingDisplay.svelte    # Compact rating trigger (4.5 ★ / Not rated)
 │       ├── RatingEditor.svelte     # Popover star scrubber (half-star drag)
+│       ├── SaveViewButton.svelte   # Extracted save-view inline input button
 │       ├── SavedViewsBar.svelte    # Saved Views preset pill bar
 │       ├── TagContextMenu.svelte   # Right-click tag menu
 │       ├── TagInput.svelte         # Inline tag add/remove
@@ -116,6 +119,8 @@ src/
     └── api/
         ├── admin/
         │   └── intel-catalog/+server.ts  # Seed/refresh intel catalog tables
+        ├── collections/
+        │   └── save-shared/+server.ts    # Duplicate shared collection into user account
         └── places/
             ├── add-by-url/+server.ts     # URL import + dedup
             ├── [id]/
@@ -176,9 +181,11 @@ supabase/add_intel_tag_system.sql
 supabase/add_user_rating.sql
 supabase/fix_rls_data_isolation.sql
 supabase/add_emoji_column.sql
+supabase/add_list_sort_order.sql
+supabase/add_saved_views_order.sql
 ```
 
-The first migration creates the `places`, `lists`, and `list_places` tables along with row-level security policies and indexes. The second adds the `order_index` column to `tags` for drag-to-reorder persistence. The third creates the `profiles` table with auto-sync triggers from Supabase Auth. The fourth creates the `saved_views` table for user-defined filter/sort/layout presets. The fifth extends `lists` with `visibility` and `share_slug` columns for collections sharing, plus public-access RLS policies. The sixth adds a `position` column to `list_places` for manual ordering within collections. The seventh creates the `google_place_type_catalog`, `intel_tag_mappings`, and `place_intel_tags` tables for the intel tagging system. The eighth adds `user_rating` and `user_rated_at` columns to `places` with a CHECK constraint enforcing 0.5–5.0 half-star values. The ninth enables RLS on the `tags` and `place_tags` tables and creates user-scoped CRUD policies plus read-only policies for shared collections. The tenth adds an optional `emoji` column to `lists` for collection icons.
+The first migration creates the `places`, `lists`, and `list_places` tables along with row-level security policies and indexes. The second adds the `order_index` column to `tags` for drag-to-reorder persistence. The third creates the `profiles` table with auto-sync triggers from Supabase Auth. The fourth creates the `saved_views` table for user-defined filter/sort/layout presets. The fifth extends `lists` with `visibility` and `share_slug` columns for collections sharing, plus public-access RLS policies. The sixth adds a `position` column to `list_places` for manual ordering within collections. The seventh creates the `google_place_type_catalog`, `intel_tag_mappings`, and `place_intel_tags` tables for the intel tagging system. The eighth adds `user_rating` and `user_rated_at` columns to `places` with a CHECK constraint enforcing 0.5–5.0 half-star values. The ninth enables RLS on the `tags` and `place_tags` tables and creates user-scoped CRUD policies plus read-only policies for shared collections. The tenth adds an optional `emoji` column to `lists` for collection icons. The eleventh adds a `sort_order` integer column to `lists` for user-defined collection ordering with backfill by `created_at`. The twelfth adds an `order_index` column to `saved_views` for user-defined saved view ordering.
 
 You will also need to create the `tags` and `place_tags` tables (used by the tagging system but not yet in the migration file). The expected schema is defined in `src/lib/types/database.ts`.
 
@@ -193,7 +200,7 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 ## Usage
 
 1. **Sign up** with email/password on the login page
-2. **Import places** via the bottom dock's "+" button (paste a Google Maps URL or go to CSV upload), or paste a Google Maps URL directly into the search bar on the Places page and press Enter
+2. **Import places** by pasting a Google Maps URL directly into the search bar on the Places page and pressing Enter, or go to the CSV upload page via Settings → Import from CSV
 3. **Enrich** imported places by clicking "Fetch Details" to pull ratings, addresses, coordinates, and category data from Google
 4. **Rate** places by clicking the rating display on any card to open the star editor — drag or tap to set a 0.5–5.0 rating
 5. **Tag** places with custom tags directly on each card or via the Tag Manager
