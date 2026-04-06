@@ -154,9 +154,19 @@
 	let nonMemberPlaces = $derived(
 		allPlaces.filter((p) => !placeIds.includes(p.id)).filter((p) => {
 			if (addSearch && !isUrlMode) {
-				const s = addSearch.toLowerCase();
-				const matchesText = p.title.toLowerCase().includes(s) || (p.area ?? '').toLowerCase().includes(s) || (p.category ?? '').toLowerCase().includes(s);
-				if (!matchesText) return false;
+				const pTags = placeTagsMap[p.id] ?? [];
+				const terms = addSearch.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+				if (terms.length > 0) {
+					const haystack = [
+						p.title,
+						p.description ?? '',
+						p.address ?? '',
+						p.category ?? '',
+						p.area ?? '',
+						...pTags.map((t) => t.name)
+					].join(' ').toLowerCase();
+					if (!terms.every((term) => haystack.includes(term))) return false;
+				}
 			}
 			if (addSelectedTagIds.length > 0) {
 				const pTagIds = (placeTagsMap[p.id] ?? []).map((t) => t.id);
@@ -455,7 +465,7 @@
 	</div>
 	<MobileMapShell places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} {maptilerKey} />
 	<div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
-		<div class="mx-auto px-2.5 pt-1 pb-[max(2.5rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+0.25rem))]">
+		<div class="mx-auto px-2.5 pt-1 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]">
 	<!-- Places -->
 	{#if sortedPlaces.length === 0}
 		<div class="py-16 text-center">
@@ -609,7 +619,7 @@
 			<MapView places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} {maptilerKey} />
 		</div>
 		<div class="min-w-0 flex-1 lg:order-1">
-			<div class="mx-auto px-2.5 py-3 sm:px-6 sm:py-4 lg:px-4 pb-[max(5rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+2rem))]">
+			<div class="mx-auto px-2.5 py-3 sm:px-6 sm:py-4 lg:px-4 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]">
 	{#if sortedPlaces.length === 0}
 		<div class="py-16 text-center">
 			<svg class="mx-auto h-12 w-12 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
@@ -706,7 +716,7 @@
 					<input
 						type="text"
 						bind:value={addSearch}
-						placeholder="Search places or paste a Google Maps URL..."
+						placeholder="Search places, tags, or paste a Google Maps URL..."
 						class="w-full rounded-lg border bg-warm-50 py-1.5 pl-8 text-sm font-medium text-warm-700 placeholder:text-warm-300 focus:outline-none focus:ring-1 focus:ring-brand-400/20
 							{isUrlMode ? 'border-brand-300 pr-16 focus:border-brand-400' : 'border-warm-200 pr-3 focus:border-brand-400'}"
 						onkeydown={(e) => { if (e.key === 'Enter' && isUrlMode) handleAddByUrl(); }}
@@ -728,12 +738,12 @@
 
 			<!-- Tag filter pills -->
 			{#if userTags.length > 0 && !isUrlMode && urlStatus === 'idle'}
-				<div class="mt-2 flex flex-wrap items-center gap-1.5">
-					<span class="text-xs font-semibold text-warm-400">Tags:</span>
+				<div class="mt-2 flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+					<span class="shrink-0 text-xs font-semibold text-warm-400">Tags:</span>
 					{#each userTags as tag (tag.id)}
 						<button
 							onclick={() => toggleAddTagFilter(tag.id)}
-						class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold transition-all
+						class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold transition-all
 							{addTagFilter[tag.id]
 								? 'shadow-sm ring-1 ring-offset-1'
 								: 'opacity-60 hover:opacity-90'}"
@@ -762,32 +772,28 @@
 					{@const pTags = (placeTagsMap[p.id] ?? []).filter((t) => t.source === 'user')}
 					<button
 						onclick={() => handleAddPlace(p.id)}
-						class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-warm-50"
+						class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-warm-50"
 					>
 						<svg class="h-4 w-4 shrink-0 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
 						</svg>
 						<div class="min-w-0 flex-1">
 							<p class="truncate text-sm font-semibold text-warm-800">{p.title}</p>
-							<div class="flex items-center gap-1.5">
-							<span class="shrink-0 truncate text-xs text-warm-400">{p.area ? `${p.area} · ` : ''}{p.category ?? ''}</span>
-							{#if pTags.length > 0}
-								<span class="text-warm-300">·</span>
+							<p class="truncate text-xs text-warm-400">{p.area ? `${p.area} · ` : ''}{p.category ?? ''}</p>
+						</div>
+						{#if pTags.length > 0}
+							<div class="flex shrink-0 items-center gap-1">
 								{#each pTags.slice(0, 2) as tag (tag.id)}
-								<span
-									class="shrink-0 rounded-full px-1.5 py-px text-xs font-semibold"
-									style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
+									<span
+										class="rounded-full px-1.5 py-px text-xs font-semibold"
+										style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
 									>{tag.name}</span>
 								{/each}
 								{#if pTags.length > 2}
 									<span class="text-xs font-bold text-warm-400">+{pTags.length - 2}</span>
-									{/if}
 								{/if}
 							</div>
-						</div>
-					{#if p.user_rating}
-						<span class="shrink-0 text-xs font-bold text-warm-500"><span class="text-brand-500">★</span> {p.user_rating.toFixed(1)}</span>
-					{/if}
+						{/if}
 					</button>
 				{:else}
 					<p class="py-8 text-center text-sm text-warm-400">

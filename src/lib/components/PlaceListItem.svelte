@@ -263,10 +263,6 @@
 
 					<h3 class="min-w-0 flex-1 text-base font-extrabold text-warm-800 {expanded ? '' : 'truncate'}">{place.title}</h3>
 
-					{#if selected && !expanded}
-						<span class="shrink-0 text-xs font-medium text-brand-400 animate-pulse">Tap to expand</span>
-					{/if}
-
 					<div class="w-16 shrink-0 text-right">
 						<RatingDisplay
 							placeId={place.id}
@@ -277,18 +273,6 @@
 						/>
 					</div>
 
-					{#if place.url}
-						<a
-							href={place.url}
-							target="_blank"
-							class="shrink-0 rounded p-1 text-warm-300 transition-colors hover:text-warm-600"
-							aria-label="Open in Maps"
-						>
-							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-							</svg>
-						</a>
-					{/if}
 				</div>
 
 				<!-- Secondary row: Area • Category | Tag summary -->
@@ -339,7 +323,7 @@
 
 	<!-- Desktop: standard row -->
 	<div
-		class="group hidden h-11 cursor-pointer items-center gap-3 px-4 transition-colors sm:flex {selected ? 'bg-brand-50/70' : 'hover:bg-warm-50/80'}"
+		class="group hidden min-h-[2.75rem] cursor-pointer items-center gap-3 px-4 transition-colors sm:flex {selected ? 'bg-brand-50/70' : 'hover:bg-warm-50/80'}"
 		onclick={handleDesktopRowClick}
 	>
 		<svg
@@ -349,7 +333,7 @@
 			<polyline points="9 18 15 12 9 6" />
 		</svg>
 
-		<h3 class="min-w-0 flex-[2] truncate text-base font-extrabold text-warm-800">{place.title}</h3>
+		<h3 class="min-w-0 flex-[2] text-base font-extrabold text-warm-800 {expanded ? '' : 'truncate'}">{place.title}</h3>
 
 		<div class="flex w-44 shrink-0 items-center gap-1 text-xs lg:w-52">
 			{#if place.area}
@@ -361,16 +345,6 @@
 			{#if place.category}
 				<span class="truncate text-warm-400">{place.category}</span>
 			{/if}
-		</div>
-
-		<div class="w-16 shrink-0 text-right">
-			<RatingDisplay
-				placeId={place.id}
-				userRating={place.user_rating}
-				{supabase}
-				onRatingChanged={(id, r) => onRatingChanged?.(id, r)}
-				compact
-			/>
 		</div>
 
 		<div class="flex w-28 shrink-0 items-center gap-1">
@@ -389,62 +363,14 @@
 			{/if}
 		</div>
 
-		<div class="flex w-16 shrink-0 items-center justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-			{#if onToggleCollection}
-				<button
-					onclick={(e) => { e.stopPropagation(); showCollectionPicker = true; }}
-					class="rounded p-1 text-warm-300 transition-colors hover:bg-brand-50 hover:text-brand-500"
-					aria-label="Add to collection"
-				>
-				<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<rect x="3" y="3" width="7" height="7" rx="1" />
-					<rect x="14" y="3" width="7" height="7" rx="1" />
-					<rect x="3" y="14" width="7" height="7" rx="1" />
-					<rect x="14" y="14" width="7" height="7" rx="1" />
-				</svg>
-				</button>
-			{/if}
-			{#if place.url}
-				<a
-					href={place.url}
-					target="_blank"
-					class="rounded p-1 text-warm-300 transition-colors hover:bg-warm-100 hover:text-warm-600"
-					aria-label="Open in Maps"
-				>
-					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-					</svg>
-				</a>
-			{/if}
-			{#if onDelete}
-				{#if isCollectionContext}
-					<button
-						onclick={(e) => { e.stopPropagation(); const rect = e.currentTarget.getBoundingClientRect(); actionMenuAnchor = { x: rect.right - 224, y: rect.bottom }; actionMenuOpen = true; }}
-						class="rounded p-1 text-warm-300 transition-colors hover:bg-warm-100 hover:text-warm-500"
-						aria-label="Place actions"
-					>
-						<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-						</svg>
-					</button>
-				{:else if confirmDelete}
-					<button
-						onclick={() => { onDelete(place.id); confirmDelete = false; }}
-						class="rounded px-1 py-0.5 text-xs font-bold text-danger-600 hover:bg-danger-50"
-					>Yes</button>
-					<button onclick={() => { confirmDelete = false; }} class="rounded px-0.5 py-0.5 text-xs text-warm-400 hover:text-warm-600">No</button>
-				{:else}
-					<button
-						onclick={() => { confirmDelete = true; }}
-						class="rounded p-1 text-warm-300 transition-colors hover:bg-danger-50 hover:text-danger-600"
-						aria-label="Delete"
-					>
-						<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-						</svg>
-					</button>
-				{/if}
-			{/if}
+		<div class="w-16 shrink-0 text-right">
+			<RatingDisplay
+				placeId={place.id}
+				userRating={place.user_rating}
+				{supabase}
+				onRatingChanged={(id, r) => onRatingChanged?.(id, r)}
+				compact
+			/>
 		</div>
 	</div>
 
@@ -474,7 +400,69 @@
 
 				<!-- Tags -->
 				<div class="flex-1">
-					<p class="mb-1 text-xs font-bold uppercase tracking-wide text-warm-400">Tags</p>
+					<div class="mb-1 flex items-center justify-between">
+						<p class="text-xs font-bold uppercase tracking-wide text-warm-400">Tags</p>
+						<div class="flex items-center gap-0.5">
+							{#if onToggleCollection}
+								<button
+									onclick={(e) => { e.stopPropagation(); showCollectionPicker = true; }}
+									class="rounded p-1 text-warm-300 transition-colors hover:bg-brand-50 hover:text-brand-500"
+									aria-label="Add to collection"
+								>
+									<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<rect x="3" y="3" width="7" height="7" rx="1" />
+										<rect x="14" y="3" width="7" height="7" rx="1" />
+										<rect x="3" y="14" width="7" height="7" rx="1" />
+										<rect x="14" y="14" width="7" height="7" rx="1" />
+									</svg>
+								</button>
+							{/if}
+							{#if place.url}
+								<a
+									href={place.url}
+									target="_blank"
+									onclick={(e) => e.stopPropagation()}
+									class="rounded p-1 text-warm-300 transition-colors hover:bg-warm-100 hover:text-warm-600"
+									aria-label="Open in Maps"
+								>
+									<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+									</svg>
+								</a>
+							{/if}
+							<div class="hidden sm:flex">
+							{#if onDelete}
+								{#if isCollectionContext}
+									<button
+										onclick={(e) => { e.stopPropagation(); const rect = e.currentTarget.getBoundingClientRect(); actionMenuAnchor = { x: rect.right - 224, y: rect.bottom }; actionMenuOpen = true; }}
+										class="rounded p-1 text-warm-300 transition-colors hover:bg-warm-100 hover:text-warm-500"
+										aria-label="Place actions"
+									>
+										<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+										</svg>
+									</button>
+								{:else if confirmDelete}
+									<button
+										onclick={() => { onDelete(place.id); confirmDelete = false; }}
+										class="rounded px-1 py-0.5 text-xs font-bold text-danger-600 hover:bg-danger-50"
+									>Yes</button>
+									<button onclick={() => { confirmDelete = false; }} class="rounded px-0.5 py-0.5 text-xs text-warm-400 hover:text-warm-600">No</button>
+								{:else}
+									<button
+										onclick={() => { confirmDelete = true; }}
+										class="rounded p-1 text-warm-300 transition-colors hover:bg-danger-50 hover:text-danger-600"
+										aria-label="Delete"
+									>
+										<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+										</svg>
+									</button>
+								{/if}
+							{/if}
+							</div>
+						</div>
+					</div>
 					<TagInput
 						{supabase}
 						placeId={place.id}

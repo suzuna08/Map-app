@@ -843,9 +843,9 @@
 				/>
 {/snippet}
 
-{#snippet placesFiltersAndListBlock()}
+{#snippet placesControlsBlock()}
 				<!-- Reserved filter summary area (always present to prevent layout shift) -->
-				<div class="mb-1 min-h-[28px] sm:mb-3 sm:min-h-[32px]">
+				<div class="mb-1 min-h-[28px] sm:mb-1 sm:min-h-[32px]">
 					{#if hasActiveFilters || selectedSource !== 'all' || (activeSavedViewId && viewIsDirty)}
 						{@const showChipsRow = hasActiveFilters || selectedSource !== 'all'}
 						{@const isEditingSavedView = !!(activeSavedViewId && viewIsDirty)}
@@ -1069,7 +1069,7 @@
 				</div>
 
 				<!-- ======== DESKTOP tag filter (md+) ======== -->
-				<div class="relative z-10 mb-4 hidden space-y-1.5 md:block">
+				<div class="relative z-10 mb-1 hidden space-y-1.5 md:block">
 					<div class="flex items-baseline gap-2.5">
 						<span class="w-16 shrink-0 text-sm font-bold text-warm-400">Custom</span>
 						<div
@@ -1153,7 +1153,7 @@
 				{/if}
 
 				<!-- Results count + sort + view toggle -->
-				<div class="mb-1.5 flex flex-wrap items-center justify-between gap-2 sm:mb-4">
+				<div class="mb-1 flex flex-wrap items-center justify-between gap-2 sm:mb-0">
 					<p class="shrink-0 text-xs font-semibold text-warm-500 sm:text-sm">{filteredPlaces.length} places</p>
 					<div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
 						<select
@@ -1199,6 +1199,9 @@
 					</div>
 				</div>
 
+{/snippet}
+
+{#snippet placesFiltersAndListBlock()}
 				<!-- Places -->
 				{#if loading}
 					<div class="flex items-center justify-center py-20">
@@ -1292,8 +1295,9 @@
 			/>
 			<div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
 				<div
-					class="mx-auto px-2.5 pt-1 pb-[max(2.5rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+0.25rem))]"
+					class="mx-auto px-2.5 pt-1 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]"
 				>
+					{@render placesControlsBlock()}
 					{@render placesFiltersAndListBlock()}
 				</div>
 			</div>
@@ -1308,9 +1312,10 @@
 					{@render placesSearchBlock()}
 					{@render placesContextualBlock()}
 					{@render placesSavedViewsBlock()}
+					{@render placesControlsBlock()}
 				</div>
 				<div
-					class="mx-auto px-2.5 sm:px-6 sm:py-4 lg:px-4 pb-[max(2.5rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+0.25rem))]"
+					class="mx-auto px-2.5 sm:px-6 sm:py-1 lg:px-4 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]"
 				>
 					{@render placesFiltersAndListBlock()}
 				</div>

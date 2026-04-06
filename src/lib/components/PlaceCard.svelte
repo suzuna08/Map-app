@@ -300,9 +300,6 @@
 						</div>
 
 						<div class="mt-1.5 flex items-center gap-1 border-t border-warm-100 pt-1.5">
-							{#if selected && !flipped && !isCollectionContext}
-								<span class="text-xs font-medium text-brand-400 animate-pulse">Tap to flip</span>
-							{/if}
 							{#if place.url}
 								<a
 									href={place.url}

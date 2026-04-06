@@ -132,6 +132,13 @@ a,
 	font-weight: 700;
 }
 
+/* On mobile (<640px) the dock is on the right edge, not bottom — zero out bottom reserve */
+@media (max-width: 639px) {
+	:root {
+		--app-dock-reserve: 0px !important;
+	}
+}
+
 @theme {
 	--font-sans: 'Nunito', ui-sans-serif, system-ui, sans-serif;
 	--color-brand-50: #f9f6f1;
