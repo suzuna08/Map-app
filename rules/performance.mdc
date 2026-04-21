@@ -1,0 +1,72 @@
+---
+description: Performance rules from project audit — Supabase queries, reactivity, mutations
+alwaysApply: true
+---
+
+# Performance Rules (from PERFORMANCE-AUDIT.md)
+
+## Supabase Query Rules
+
+**Join, don't chain.** If query B depends on IDs from query A, use an embedded join:
+
+```ts
+// BAD: two round-trips
+const { data: parents } = await supabase.from('lists').select('id').eq('user_id', uid);
+const { data: children } = await supabase.from('list_places').select('*').in('list_id', parents.map(p => p.id));
+
+// GOOD: one round-trip
+const { data } = await supabase.from('lists').select('*, list_places(*)').eq('user_id', uid);
+```
+
+**Always scope by user.** Every query on a user-owned table needs `.eq('user_id', userId)`. Junction tables without `user_id` must be accessed through a joined parent — never queried directly unfiltered.
+
+**Filter in the DB, not in JS.** Never fetch a full table to `.find()` or `.filter()` client-side. Push predicates into the query. Normalize data before storage so equality checks work at the DB level.
+
+**Use `upsert` instead of check-then-insert.**
+
+```ts
+await supabase.from('place_tags')
+  .upsert(rows, { onConflict: 'place_id,tag_id', ignoreDuplicates: true });
+```
+
+**Batch writes and deletes.** Never loop `.update()` or `.delete()` per item:
+- Writes: `.upsert(rows, { onConflict: '...' })`
+- Deletes: `.delete().in('column', ids)`
+
+## Auth
+
+**Trust the JWT for reads.** Use `getSession()` (zero network cost) for read operations. Reserve `getUser()` (network round-trip) for sensitive writes only.
+
+## Data Loading
+
+**Parallel, not sequential.** Wrap independent queries in `Promise.all()`.
+
+**Lazy-load secondary UI.** Don't fetch modal/drawer data in server load — fetch on-demand when the user opens it.
+
+## Svelte Reactivity
+
+**Narrow your `$effect` dependencies.** Derive a stable key from only the fields that matter:
+
+```ts
+let markerKey = $derived(
+  places.filter(p => p.lat != null).map(p => `${p.id}:${p.lat}:${p.lng}`).sort().join(',')
+);
+$effect(() => { void markerKey; syncMarkers(); });
+```
+
+**Guard one-time effects** so they don't re-fire on every `invalidate()`.
+
+## Mutations
+
+**Optimistic-first.** When the server response already contains the created/updated object, insert it into local state directly. Reserve full `loadData()` for initial page loads or explicit refresh.
+
+**Don't re-fetch after optimistic updates.** Only re-fetch if you need data you don't already have locally.
+
+## New Server Load Checklist
+
+Before merging a new `+page.server.ts` or store function:
+- All parallelizable queries use `Promise.all()`
+- No query depends on the result of a prior query (use joins)
+- No junction table queried without a user-scoping filter
+- No full table scan where a filtered query would do
+- Target: **1 sequential round-trip**

@@ -1,0 +1,34 @@
+---
+description: Core project conventions for the MapOrganizer SvelteKit app
+alwaysApply: true
+---
+
+# MapOrganizer — Project Conventions
+
+## Tech Stack
+- **SvelteKit 2** with **Svelte 5** (Runes mode enforced globally)
+- **TypeScript** in strict mode
+- **Tailwind CSS v4** (theme in `app.css` `@theme` block)
+- **Supabase** for auth, database (PostgreSQL + RLS), and client SDK
+- **MapLibre GL JS** for maps, **MapTiler** for tile service
+- **Google Places API (New)** v1 — server-side only
+- **PapaParse** for CSV import
+- Deployed on **Vercel** (Node.js 22.x)
+
+## Code Style
+- Tab indentation, single quotes, trailing commas
+- No ESLint/Prettier — follow existing patterns
+- Console log with bracketed tags: `console.log('[context]', ...)`
+- Avoid redundant comments — only explain non-obvious logic
+
+## File Naming
+- Components: **PascalCase** `.svelte` (e.g., `PlaceCard.svelte`)
+- Stores/utilities: **kebab-case** `.ts` or `.svelte.ts`
+- Types: defined in `$lib/types/database.ts`
+
+## Environment Variables
+- `PUBLIC_` prefix = client-safe (Supabase URL, MapTiler key)
+- No prefix = server-only (Google Places API key)
+
+## Key Aliases
+- `$lib` resolves to `src/lib/`

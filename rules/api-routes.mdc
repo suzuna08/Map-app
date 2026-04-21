@@ -1,0 +1,45 @@
+---
+description: API route and Google Places integration patterns
+globs: "src/routes/api/**"
+alwaysApply: false
+---
+
+# API Routes & Google Places
+
+## SvelteKit API Route Pattern
+
+```ts
+import { json, error } from '@sveltejs/kit';
+import type { RequestHandler } from './$types';
+
+export const POST: RequestHandler = async ({ request, locals }) => {
+  const session = await locals.getSession();
+  if (!session) throw error(401, 'Unauthorized');
+
+  const body = await request.json();
+  // ... logic ...
+  return json({ success: true, data });
+};
+```
+
+## Google Places API (New) v1
+- Server-side only — key in `GOOGLE_PLACES_API_KEY` (never expose to client)
+- Implementation in `$lib/google-places.ts`
+- Three-strategy place lookup: (1) Place ID direct, (2) Text search with location bias, (3) Coordinate fallback
+- URL resolution handles shortened links (`maps.app.goo.gl`, `share.google`)
+
+## API Routes in This Project
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/places/add-by-url` | POST | Resolve Google Maps URL → insert place |
+| `/api/places/enrich-all` | POST | Batch-enrich unenriched places |
+| `/api/places/[id]/enrich` | POST | Enrich single place via Google |
+| `/api/places/[id]/intel-tags` | POST | Compute intel tags for a place |
+| `/api/collections/save-shared` | POST | Save shared collection to user account |
+| `/api/admin/intel-catalog` | GET | Admin intel tag catalog |
+
+## Conventions
+- Always check auth via `locals.getSession()` before processing
+- Return `json()` responses with consistent shape: `{ success, data?, error? }`
+- Use batching with delays for bulk API calls to avoid rate limits
+- Log with bracketed tags: `console.log('[add-by-url]', ...)`

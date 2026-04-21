@@ -1,0 +1,38 @@
+---
+description: Supabase database, auth, and RLS conventions
+globs: "**/*.{ts,svelte,sql}"
+alwaysApply: false
+---
+
+# Supabase & Database Patterns
+
+## Client Access
+- **Server**: `locals.supabase` (from `hooks.server.ts`)
+- **Browser**: `data.supabase` (created in `+layout.ts`)
+- Client factory in `$lib/supabase.ts`
+
+## Core Tables
+| Table | Purpose |
+|-------|---------|
+| `places` | Imported/added places with Google data |
+| `lists` | User-created collections |
+| `list_places` | Junction: places ↔ lists |
+| `tags_table` | User tags with color, source, order |
+| `place_tags` | Junction: places ↔ tags |
+| `profiles` | User profiles |
+| `place_intel_tags` | Computed intelligence tags |
+| `saved_views` | Persisted filter/sort configs |
+
+## Types
+- All DB types live in `$lib/types/database.ts` (manually maintained, not auto-generated)
+- When adding new tables/columns, update `database.ts` AND create a SQL migration in `supabase/`
+
+## Row Level Security
+- **Every table** has RLS enabled
+- Policies enforce `auth.uid() = user_id` for user data
+- Shared collections use `visibility = 'link_access'` for public read
+- Always include `user_id` when inserting rows
+
+## SQL Migrations
+- Place incremental migration files in `supabase/` directory
+- Name descriptively (e.g., `add_collections_columns.sql`)

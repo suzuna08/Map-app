@@ -1,0 +1,41 @@
+---
+description: Svelte 5 runes-based component patterns
+globs: "**/*.svelte"
+alwaysApply: false
+---
+
+# Svelte 5 Component Patterns
+
+This project uses **Svelte 5 Runes mode** (enforced in `svelte.config.js`). Never use legacy Svelte 4 APIs (`export let`, `$:`, stores via `$store`).
+
+## Props
+
+```svelte
+<script lang="ts">
+interface Props {
+  title: string;
+  onSelect?: (id: string) => void;
+  children?: import('svelte').Snippet;
+}
+let { title, onSelect, children }: Props = $props();
+</script>
+```
+
+## Reactivity
+
+- **State**: `let count = $state(0);`
+- **Derived**: `let doubled = $derived(count * 2);`
+- **Effects**: `$effect(() => { ... })` — use sparingly, prefer derived values
+- **Event callbacks**: pass as props (`onSomething`), not via `createEventDispatcher`
+
+## Component Files
+- Always use `<script lang="ts">`
+- Keep component-scoped `<style>` blocks when needed (MapView, etc.)
+- Prefer Tailwind classes over scoped CSS for most styling
+- Dynamic imports for heavy libraries to avoid SSR issues:
+
+```ts
+onMount(async () => {
+  const mod = await import('heavy-lib');
+});
+```

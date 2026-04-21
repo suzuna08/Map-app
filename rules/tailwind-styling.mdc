@@ -1,0 +1,28 @@
+---
+description: Tailwind CSS v4 styling and design system conventions
+globs: "**/*.{svelte,css}"
+alwaysApply: false
+---
+
+# Tailwind CSS v4 & Design System
+
+## Setup
+- Tailwind v4 is loaded via `@import 'tailwindcss'` in `app.css`
+- Vite plugin: `@tailwindcss/vite` (not PostCSS)
+- Custom theme defined in `@theme` block in `app.css`
+
+## Color Palettes
+Use the project's custom palettes, not default Tailwind colors:
+- `brand-*` — primary brand blues (50–900)
+- `sage-*` — neutral greens for backgrounds/text (50–900)
+- `warm-*` — warm neutrals (50–900)
+- `danger-*` — reds for destructive actions (50–700)
+
+Example: `bg-brand-600`, `text-sage-700`, `border-warm-200`
+
+## Styling Guidelines
+- Prefer Tailwind utility classes over custom CSS
+- Use `<style>` blocks only when Tailwind can't cover it (e.g., map markers, complex animations)
+- Mobile-first: design for small screens, use `sm:`, `md:`, `lg:` for larger
+- Safe area insets are handled via `env(safe-area-inset-*)` in global CSS
+- Font: **Nunito** (loaded via Google Fonts in layout head)

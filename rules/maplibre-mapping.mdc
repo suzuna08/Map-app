@@ -1,0 +1,31 @@
+---
+description: MapLibre GL JS and mapping conventions
+globs: "**/*{map,Map}*.{svelte,ts}"
+alwaysApply: false
+---
+
+# MapLibre & Mapping
+
+## Setup
+- **MapLibre GL JS** v5 for rendering, **MapTiler** pastel style for tiles
+- MapTiler key: `PUBLIC_MAPTILER_KEY` (client-safe)
+- MapLibre CSS imported in layout: `maplibre-gl/dist/maplibre-gl.css`
+
+## SSR Safety
+MapLibre requires the DOM. Always dynamic-import inside `onMount`:
+
+```ts
+import { onMount } from 'svelte';
+
+onMount(async () => {
+  const maplibregl = await import('maplibre-gl');
+  const map = new maplibregl.Map({ container, style, center, zoom });
+});
+```
+
+## Patterns
+- Map instance managed in `MapView.svelte` component
+- Custom markers use HTML elements styled with Tailwind/CSS
+- Popups use MapLibre's `Popup` class
+- Geolocate control for user location
+- Map style URL pattern: `https://api.maptiler.com/maps/pastel-v2/style.json?key={key}`

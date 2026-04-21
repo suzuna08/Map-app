@@ -1,0 +1,38 @@
+---
+description: SvelteKit routing, data loading, and auth patterns
+globs: "src/routes/**"
+alwaysApply: false
+---
+
+# SvelteKit Routing & Data Loading
+
+## File Conventions
+- `+page.svelte` — page UI component
+- `+page.server.ts` — server-side data loading (has access to `locals.supabase`)
+- `+layout.svelte` / `+layout.server.ts` — shared layout and data
+- `+server.ts` — API endpoint (JSON responses)
+
+## Server Load Functions
+
+Fetch data from Supabase via the server client. Use `Promise.all()` for parallel queries:
+
+```ts
+export const load: PageServerLoad = async ({ locals }) => {
+  const { supabase, session } = locals;
+  const [{ data: places }, { data: tags }] = await Promise.all([
+    supabase.from('places').select('*').eq('user_id', session.user.id),
+    supabase.from('tags_table').select('*').eq('user_id', session.user.id),
+  ]);
+  return { serverPlaces: places ?? [], serverTags: tags ?? [] };
+};
+```
+
+## Auth & Route Protection
+- Auth is handled in `hooks.server.ts` — it creates the Supabase client, gets the session, and redirects unauthenticated users away from protected routes
+- Protected routes: `/places`, `/upload`, `/api/places`, `/collections`, `/settings`
+- Public routes: `/`, `/login`, `/auth/confirm`, `/c/[slug]`
+- The browser Supabase client is created in `+layout.ts` and passed via `data`
+
+## Page State
+- Initialize page state from server data: `let places = $state(data.serverPlaces)`
+- Keep heavy logic in the page or extract to `$lib/stores/` utility modules
