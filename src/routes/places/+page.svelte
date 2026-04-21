@@ -16,6 +16,7 @@
 	import { loadPlacesData, refreshTagsData, buildPlaceTagsMap, removeTagsFromPlace, applyTagsToPlace } from '$lib/stores/places.svelte';
 	import { loadCollections, addPlaceToCollection, addPlacesToCollection, removePlaceFromCollection, isPlaceInCollection, optimisticAdd, optimisticRemove, createCollection } from '$lib/stores/collections.svelte';
 	import { loadSavedViews, updateSavedView, buildFiltersSnapshot, reorderSavedViews } from '$lib/stores/saved-views.svelte';
+	import { isUrlTimingEnabled, logTimingObject } from '$lib/url-timing';
 	import type { CollectionMemberMap } from '$lib/stores/collections.svelte';
 
 	let { data } = $props();
@@ -141,9 +142,13 @@
 		const tagNamesToApply = shouldApply ? [...selectedCustomTagNames] : [];
 		const tagLabel = tagNamesToApply.join(' + ');
 
+		const debug = isUrlTimingEnabled();
+		const t0 = performance.now();
+
 		console.log('[addPlace] submitting url:', url, '| contextTags:', tagIdsToApply.length, '| autoApply:', shouldApply);
 		urlAdding = true;
 		try {
+			const tFetch0 = performance.now();
 			const res = await fetch('/api/places/add-by-url', {
 				method: 'POST',
 				cache: 'no-store',
@@ -157,7 +162,9 @@
 					autoApplyContextTags: shouldApply
 				})
 			});
+			const tFetch1 = performance.now();
 			const result = await res.json();
+			const tParse = performance.now();
 			console.log('[addPlace] response:', res.status, result.duplicate, result.place?.title, 'tagsApplied:', result.contextTagsApplied);
 
 			if (!res.ok) {
@@ -170,6 +177,8 @@
 			const place = result.place as Place;
 			const tagsApplied = result.contextTagsApplied ?? 0;
 			const tagsRequested = result.contextTagsRequested ?? 0;
+
+			const tRender0 = performance.now();
 
 			if (result.duplicate) {
 				if (shouldApply && tagsApplied > 0) {
@@ -207,6 +216,25 @@
 				}
 			}
 			search = '';
+
+			if (debug) {
+				const tRender1 = performance.now();
+				const round = (n: number) => Math.round(n * 100) / 100;
+				const clientTiming: Record<string, number> = {
+					'frontend prep (submit → fetch)': round(tFetch0 - t0),
+					'network round-trip (fetch → response)': round(tFetch1 - tFetch0),
+					'response parse (JSON)': round(tParse - tFetch1),
+					'frontend render + state update': round(tRender1 - tRender0),
+					'total client-side': round(tRender1 - t0),
+				};
+				if (result.__timing) {
+					clientTiming['--- SERVER BREAKDOWN ---'] = 0;
+					for (const [k, v] of Object.entries(result.__timing as Record<string, number>)) {
+						clientTiming[`  server: ${k}`] = v;
+					}
+				}
+				logTimingObject('addPlace', clientTiming);
+			}
 		} catch {
 			showToast('error', '', 'Network error. Please try again.');
 		}

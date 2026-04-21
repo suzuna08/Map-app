@@ -1,4 +1,5 @@
 import { GOOGLE_PLACES_API_KEY } from '$env/static/private';
+import type { TimingContext } from '$lib/url-timing';
 
 const TYPE_TO_CATEGORY: Record<string, string> = {
 	restaurant: 'Restaurants',
@@ -177,44 +178,90 @@ export function isShareGoogleUrl(url: string): boolean {
 	return /^https?:\/\/(www\.)?share\.google\//i.test(url);
 }
 
-export async function resolveGoogleMapsUrl(url: string): Promise<string> {
+const resolvedUrlCache = new Map<string, { url: string; ts: number }>();
+const RESOLVE_CACHE_TTL = 10 * 60 * 1000;
+
+function getCachedResolvedUrl(raw: string): string | null {
+	const entry = resolvedUrlCache.get(raw);
+	if (!entry) return null;
+	if (Date.now() - entry.ts > RESOLVE_CACHE_TTL) {
+		resolvedUrlCache.delete(raw);
+		return null;
+	}
+	return entry.url;
+}
+
+function cacheResolvedUrl(raw: string, resolved: string): void {
+	resolvedUrlCache.set(raw, { url: resolved, ts: Date.now() });
+}
+
+export async function resolveGoogleMapsUrl(url: string, timing?: TimingContext): Promise<string> {
 	if (/goo\.gl|maps\.app\.goo\.gl|share\.google/.test(url)) {
+		const cached = getCachedResolvedUrl(url);
+		if (cached) {
+			timing?.mark('resolve:cache-hit');
+			return cached;
+		}
+
+		timing?.mark('resolve:start');
 		const cleaned = cleanGoogleMapsUrl(url);
 		const noCache: RequestInit = { cache: 'no-store' };
 
 		for (const candidate of [cleaned, ...(cleaned !== url ? [url] : [])]) {
 			try {
+				timing?.mark('resolve:fetch-follow');
 				const res = await fetch(candidate, { redirect: 'follow', ...noCache });
-				if (isGoogleMapsUrl(res.url) && !isShareGoogleUrl(res.url)) return res.url;
+				timing?.mark('resolve:fetch-follow-done');
+				if (isGoogleMapsUrl(res.url) && !isShareGoogleUrl(res.url)) {
+					cacheResolvedUrl(url, res.url);
+					return res.url;
+				}
 
-				// share.google pages may embed the destination URL in the HTML body
 				if (isShareGoogleUrl(candidate)) {
+					timing?.mark('resolve:read-html');
 					const html = await res.text();
+					timing?.mark('resolve:read-html-done');
 					const metaRefresh = html.match(/content=["']\d*;\s*url=(https?:\/\/[^"']+)/i);
-					if (metaRefresh && isGoogleMapsUrl(metaRefresh[1])) return metaRefresh[1];
+					if (metaRefresh && isGoogleMapsUrl(metaRefresh[1])) {
+						cacheResolvedUrl(url, metaRefresh[1]);
+						return metaRefresh[1];
+					}
 
 					const mapsLink = html.match(/https:\/\/www\.google\.[a-z.]+\/maps\/place\/[^\s"'<>]+/);
-					if (mapsLink) return mapsLink[0];
+					if (mapsLink) {
+						cacheResolvedUrl(url, mapsLink[0]);
+						return mapsLink[0];
+					}
 
 					const dataLink = html.match(/https:\/\/maps\.google\.[a-z.]+\/[^\s"'<>]+/);
-					if (dataLink) return dataLink[0];
+					if (dataLink) {
+						cacheResolvedUrl(url, dataLink[0]);
+						return dataLink[0];
+					}
 				}
 			} catch { /* try next */ }
 		}
 
 		try {
+			timing?.mark('resolve:fetch-manual');
 			const res = await fetch(cleaned, { redirect: 'manual', ...noCache });
+			timing?.mark('resolve:fetch-manual-done');
 			const location = res.headers.get('location');
-			if (location && isGoogleMapsUrl(location) && !isShareGoogleUrl(location)) return location;
+			if (location && isGoogleMapsUrl(location) && !isShareGoogleUrl(location)) {
+				cacheResolvedUrl(url, location);
+				return location;
+			}
 			if (location) {
+				timing?.mark('resolve:fetch-location');
 				const res2 = await fetch(location, { redirect: 'follow', ...noCache });
-				if (isGoogleMapsUrl(res2.url) && !isShareGoogleUrl(res2.url)) return res2.url;
+				timing?.mark('resolve:fetch-location-done');
+				if (isGoogleMapsUrl(res2.url) && !isShareGoogleUrl(res2.url)) {
+					cacheResolvedUrl(url, res2.url);
+					return res2.url;
+				}
 			}
 		} catch { /* fall through */ }
 
-		// share.google URLs often can't be resolved via HTTP redirects alone.
-		// Return the original URL and let the caller fall back to search-based
-		// place lookup using whatever context is available.
 		if (isShareGoogleUrl(url)) {
 			return url;
 		}
@@ -244,20 +291,26 @@ export interface PlaceDetails {
 
 export async function fetchPlaceDetails(
 	googleMapsUrl: string,
-	placeName: string
+	placeName: string,
+	timing?: TimingContext,
+	opts?: { hexPlaceId?: string | null },
 ): Promise<PlaceDetails | null> {
+	timing?.mark('fetchDetails:start');
 	const fieldMask =
 		'places.id,places.displayName,places.types,places.primaryType,places.rating,places.userRatingCount,places.priceLevel,places.formattedAddress,places.addressComponents,places.editorialSummary,places.location,places.nationalPhoneNumber,places.websiteUri';
+	const singleFieldMask = fieldMask.replace(/places\./g, '');
 
 	let searchText = extractSearchTextFromUrl(googleMapsUrl) || placeName;
 	const coords = extractCoordsFromUrl(googleMapsUrl);
 	const chipPlaceId = extractChipPlaceId(googleMapsUrl);
+	const hexPlaceId = opts?.hexPlaceId ?? null;
 
-	// For share.google URLs, try scraping the page for place name / metadata
-	if (!searchText && !coords && !chipPlaceId && isShareGoogleUrl(googleMapsUrl)) {
+	if (!searchText && !coords && !chipPlaceId && !hexPlaceId && isShareGoogleUrl(googleMapsUrl)) {
 		try {
+			timing?.mark('fetchDetails:scrape-share-page');
 			const res = await fetch(googleMapsUrl, { redirect: 'follow', cache: 'no-store' as RequestCache });
 			const html = await res.text();
+			timing?.mark('fetchDetails:scrape-share-page-done');
 
 			const ogTitle = html.match(/<meta\s+property=["']og:title["']\s+content=["']([^"']+)/i);
 			if (ogTitle) searchText = ogTitle[1];
@@ -272,29 +325,31 @@ export async function fetchPlaceDetails(
 		} catch { /* fall through */ }
 	}
 
-	// Strategy 1: Look up by Place ID (ChIJ...) if found in URL
+	// Strategy 1: Direct GET using ChIJ place ID (from URL or converted from hex)
 	if (chipPlaceId && chipPlaceId.startsWith('ChIJ')) {
 		try {
+			timing?.mark('fetchDetails:strategy1-placeId-GET');
 			const placeRes = await fetch(
 				`https://places.googleapis.com/v1/places/${chipPlaceId}`,
 				{
 					cache: 'no-store' as RequestCache,
 					headers: {
 						'X-Goog-Api-Key': GOOGLE_PLACES_API_KEY,
-						'X-Goog-FieldMask': fieldMask.replace(/places\./g, '')
+						'X-Goog-FieldMask': singleFieldMask,
 					}
 				}
 			);
+			timing?.mark('fetchDetails:strategy1-placeId-GET-done');
 			if (placeRes.ok) {
 				const directPlace = await placeRes.json();
 				if (directPlace?.displayName) {
+					timing?.mark('fetchDetails:done');
 					return parsePlaceResult(directPlace);
 				}
 			}
 		} catch { /* fall through to text search */ }
 	}
 
-	// Strategy 2: Text search with place name extracted from URL
 	if (searchText) {
 		const body: any = { textQuery: searchText, maxResultCount: 1 };
 		if (coords) {
@@ -303,6 +358,7 @@ export async function fetchPlaceDetails(
 			};
 		}
 
+		timing?.mark('fetchDetails:strategy2-textSearch-POST');
 		const searchResponse = await fetch(
 			'https://places.googleapis.com/v1/places:searchText',
 			{
@@ -316,15 +372,19 @@ export async function fetchPlaceDetails(
 				body: JSON.stringify(body)
 			}
 		);
+		timing?.mark('fetchDetails:strategy2-textSearch-POST-done');
 
 		if (searchResponse.ok) {
 			const data = await searchResponse.json();
-			if (data.places?.[0]) return parsePlaceResult(data.places[0]);
+			if (data.places?.[0]) {
+				timing?.mark('fetchDetails:done');
+				return parsePlaceResult(data.places[0]);
+			}
 		}
 	}
 
-	// Strategy 3: Coordinate-based nearby search as final fallback
 	if (coords) {
+		timing?.mark('fetchDetails:strategy3-nearby-POST');
 		const nearbyResponse = await fetch(
 			'https://places.googleapis.com/v1/places:searchText',
 			{
@@ -344,13 +404,18 @@ export async function fetchPlaceDetails(
 				})
 			}
 		);
+		timing?.mark('fetchDetails:strategy3-nearby-POST-done');
 
 		if (nearbyResponse.ok) {
 			const data = await nearbyResponse.json();
-			if (data.places?.[0]) return parsePlaceResult(data.places[0]);
+			if (data.places?.[0]) {
+				timing?.mark('fetchDetails:done');
+				return parsePlaceResult(data.places[0]);
+			}
 		}
 	}
 
+	timing?.mark('fetchDetails:done-null');
 	return null;
 }
 

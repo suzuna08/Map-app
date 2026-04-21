@@ -11,6 +11,8 @@ import {
 } from '$lib/google-places';
 import type { Place } from '$lib/types/database';
 import { computeIntelTags, buildMarketDiscussionOutput } from '$lib/intel-tagging';
+import { createTimingContext, logTimingSummary, setUrlTimingEnabled, isUrlTimingEnabled } from '$lib/url-timing';
+import { env } from '$env/dynamic/private';
 
 const NO_CACHE_HEADERS = {
 	'Cache-Control': 'no-store, no-cache, must-revalidate',
@@ -71,6 +73,11 @@ async function applyContextTags(
 }
 
 export const POST: RequestHandler = async ({ request, locals }) => {
+	setUrlTimingEnabled(!!env.DEBUG_URL_TIMING);
+	const timing = createTimingContext();
+	const debug = isUrlTimingEnabled();
+	timing.mark('req:received');
+
 	const session = locals.session;
 	const user = locals.user ?? session?.user;
 	if (!session || !user) {
@@ -88,6 +95,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		throw error(400, 'Please provide a URL');
 	}
 
+	timing.mark('parse:clean');
 	rawUrl = cleanGoogleMapsUrl(rawUrl);
 	console.log('[add-by-url] cleaned:', rawUrl);
 
@@ -95,119 +103,117 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		throw error(400, 'Please paste a valid Google Maps URL');
 	}
 
+	timing.mark('resolve:start');
 	let resolvedUrl: string;
 	try {
-		resolvedUrl = await resolveGoogleMapsUrl(rawUrl);
+		resolvedUrl = await resolveGoogleMapsUrl(rawUrl, debug ? timing : undefined);
 	} catch {
 		throw error(400, 'Could not resolve this shortened link');
 	}
+	timing.mark('resolve:done');
 
 	console.log('[add-by-url] resolved:', resolvedUrl);
 
-	// share.google URLs may not resolve to a standard Maps URL.
-	// In that case, resolvedUrl will still be the share.google link.
-	// We skip URL-based extraction and rely on the Places API search.
 	const isUnresolvableShareUrl = isShareGoogleUrl(resolvedUrl);
 
 	if (!isGoogleMapsUrl(resolvedUrl)) {
 		throw error(400, 'The resolved link is not a valid Google Maps URL');
 	}
 
-	// --- Deduplication ---
+	timing.mark('dedup1+api:start');
 	const placeIdFromUrl = isUnresolvableShareUrl ? null : extractPlaceIdFromUrl(resolvedUrl);
 	const normalizedUrl = isUnresolvableShareUrl ? null : normalizeUrl(resolvedUrl);
 	console.log('[add-by-url] placeIdFromUrl:', placeIdFromUrl, 'normalizedUrl:', normalizedUrl, 'isShareUrl:', isUnresolvableShareUrl);
 
-	// Helper: handle duplicate place with optional context tag application
 	async function handleDuplicate(dupPlace: Place) {
 		if (autoApplyContextTags && contextTagIds.length > 0) {
 			const applied = await applyContextTags(locals.supabase, user!.id, dupPlace.id, contextTagIds);
 			console.log('[add-by-url] DUPLICATE, context tags applied:', applied);
+			timing.mark('req:done-dup');
+			if (debug) logTimingSummary('add-by-url', timing);
 			return json(
-				{ place: dupPlace, duplicate: true, contextTagsApplied: applied, contextTagsRequested: contextTagIds.length },
+				{ place: dupPlace, duplicate: true, contextTagsApplied: applied, contextTagsRequested: contextTagIds.length, ...(debug ? { __timing: timing.summary() } : {}) },
 				{ headers: NO_CACHE_HEADERS }
 			);
 		}
-		return json({ place: dupPlace, duplicate: true, contextTagsApplied: 0, contextTagsRequested: 0 }, { headers: NO_CACHE_HEADERS });
+		timing.mark('req:done-dup');
+		if (debug) logTimingSummary('add-by-url', timing);
+		return json({ place: dupPlace, duplicate: true, contextTagsApplied: 0, contextTagsRequested: 0, ...(debug ? { __timing: timing.summary() } : {}) }, { headers: NO_CACHE_HEADERS });
 	}
 
-	if (placeIdFromUrl) {
-		const { data: byPlaceId } = await locals.supabase
-			.from('places')
-			.select('*')
-			.eq('user_id', user.id)
-			.eq('google_place_id', placeIdFromUrl)
-			.limit(1)
-			.single();
+	// Run dedup round 1 (parallel queries) AND Google API call simultaneously
+	const dedup1Promise = (async () => {
+		timing.mark('dedup1:start');
+		const results = await Promise.all([
+			placeIdFromUrl
+				? locals.supabase
+					.from('places').select('*')
+					.eq('user_id', user.id).eq('google_place_id', placeIdFromUrl)
+					.limit(1).single().then(r => r.data as Place | null)
+				: Promise.resolve(null),
+			normalizedUrl
+				? locals.supabase
+					.from('places').select('*')
+					.eq('user_id', user.id).eq('url', normalizedUrl)
+					.limit(1).maybeSingle().then(r => r.data as Place | null)
+				: Promise.resolve(null),
+		]);
+		timing.mark('dedup1:done');
+		return results[0] ?? results[1] ?? null;
+	})();
 
-		if (byPlaceId) {
-			console.log('[add-by-url] DUPLICATE by placeId:', (byPlaceId as any).title);
-			return handleDuplicate(byPlaceId as Place);
-		}
+	const googleApiPromise = (async () => {
+		timing.mark('google-api:start');
+		const result = await fetchPlaceDetails(
+			resolvedUrl, '',
+			debug ? timing : undefined,
+			{ hexPlaceId: placeIdFromUrl },
+		);
+		timing.mark('google-api:done');
+		return result;
+	})();
+
+	const [dedup1Match, details] = await Promise.all([dedup1Promise, googleApiPromise]);
+	timing.mark('dedup1+api:done');
+
+	if (dedup1Match) {
+		console.log('[add-by-url] DUPLICATE by dedup1:', (dedup1Match as any).title);
+		return handleDuplicate(dedup1Match);
 	}
 
-	if (normalizedUrl) {
-		const { data: urlMatch } = await locals.supabase
-			.from('places')
-			.select('*')
-			.eq('user_id', user.id)
-			.eq('url', normalizedUrl)
-			.limit(1)
-			.maybeSingle();
-
-		if (urlMatch) {
-			console.log('[add-by-url] DUPLICATE by URL:', (urlMatch as any).title);
-			return handleDuplicate(urlMatch as Place);
-		}
-	}
-
-	// --- Fetch place details from Google ---
-	const details = await fetchPlaceDetails(resolvedUrl, '');
 	console.log('[add-by-url] fetched details:', details?.display_name, details?.google_place_id);
 
 	if (!details) {
 		throw error(422, 'Could not find this place on Google Maps');
 	}
 
-	// For share.google URLs, we only get the google_place_id after the API call,
-	// so check for duplicates by google_place_id now.
-	if (isUnresolvableShareUrl && details.google_place_id) {
-		const { data: byPlaceId } = await locals.supabase
-			.from('places')
-			.select('*')
-			.eq('user_id', user.id)
-			.eq('google_place_id', details.google_place_id)
-			.limit(1)
-			.single();
+	// Dedup round 2: parallel queries for post-fetch checks
+	timing.mark('dedup2:start');
+	const dedup2Results = await Promise.all([
+		(isUnresolvableShareUrl && details.google_place_id)
+			? locals.supabase
+				.from('places').select('*')
+				.eq('user_id', user.id).eq('google_place_id', details.google_place_id)
+				.limit(1).single().then(r => r.data as Place | null)
+			: Promise.resolve(null),
+		(details.display_name && details.address)
+			? locals.supabase
+				.from('places').select('*')
+				.eq('user_id', user.id).eq('title', details.display_name).eq('address', details.address)
+				.limit(1).single().then(r => r.data as Place | null)
+			: Promise.resolve(null),
+	]);
+	timing.mark('dedup2:done');
 
-		if (byPlaceId) {
-			console.log('[add-by-url] DUPLICATE by placeId (post-fetch):', (byPlaceId as any).title);
-			return handleDuplicate(byPlaceId as Place);
-		}
+	const dedup2Match = dedup2Results[0] ?? dedup2Results[1] ?? null;
+	if (dedup2Match) {
+		console.log('[add-by-url] DUPLICATE by dedup2:', (dedup2Match as any).title);
+		return handleDuplicate(dedup2Match);
 	}
 
-	// Title+address fallback dedupe (for places already enriched via CSV import)
-	if (details.display_name && details.address) {
-		const { data: byNameAddr } = await locals.supabase
-			.from('places')
-			.select('*')
-			.eq('user_id', user.id)
-			.eq('title', details.display_name)
-			.eq('address', details.address)
-			.limit(1)
-			.single();
-
-		if (byNameAddr) {
-			console.log('[add-by-url] DUPLICATE by name+addr:', (byNameAddr as any).title);
-			return handleDuplicate(byNameAddr as Place);
-		}
-	}
-
-	// --- Insert ---
+	timing.mark('insert:start');
 	const { display_name, types: _types, ...dbFields } = details;
 
-	// Build a canonical Google Maps URL from the place ID when the input
-	// was a share.google link or other URL that doesn't work as a permalink.
 	const storedUrl = (isUnresolvableShareUrl && details.google_place_id)
 		? buildGoogleMapsUrl(details.google_place_id, display_name)
 		: normalizeUrl(resolvedUrl);
@@ -224,6 +230,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		} as any)
 		.select()
 		.single();
+	timing.mark('insert:done');
 
 	if (insertError) {
 		throw error(500, insertError.message);
@@ -234,11 +241,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	let contextTagsApplied = 0;
 	if (autoApplyContextTags && contextTagIds.length > 0) {
+		timing.mark('tags:start');
 		contextTagsApplied = await applyContextTags(locals.supabase, user.id, place.id, contextTagIds);
+		timing.mark('tags:done');
 		console.log('[add-by-url] NEW, context tags applied:', contextTagsApplied);
 	}
 
 	const intelResult = computeIntelTags(details.primary_type, details.types);
+
+	timing.mark('req:done');
+	if (debug) logTimingSummary('add-by-url', timing);
 
 	return json(
 		{
@@ -252,7 +264,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				market_niche: intelResult.market_niche,
 				discussion_pillar: intelResult.discussion_pillar,
 				suggested_tags: intelResult.suggested_tags,
-			}
+			},
+			...(debug ? { __timing: timing.summary() } : {}),
 		},
 		{ status: 201, headers: NO_CACHE_HEADERS }
 	);
