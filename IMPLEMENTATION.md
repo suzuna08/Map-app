@@ -40,13 +40,13 @@ The app follows SvelteKit's file-based routing with a clear separation:
 - **Pages** (`src/routes/`) handle layout, navigation, and page-level state
 - **Components** (`src/lib/components/`) are reusable UI elements (PlaceCard, TagInput, MapView, MobileMapShell, etc.)
 - **Stores** (`src/lib/stores/`) contain shared reactive state and data-access helpers (places data loading, toast notifications)
-- **Library code** (`src/lib/`) contains business logic (CSV parsing, Google API, tag colors & ordering, intel tagging engine)
+- **Library code** (`src/lib/`) contains business logic (CSV parsing, Google API, tag colors & ordering, tag name normalization, intel tagging engine, URL timing instrumentation)
 - **Actions** (`src/lib/actions/`) contain Svelte actions (drag-and-drop sortable)
 - **API routes** (`src/routes/api/`) are server-side endpoints for operations that need secrets (Google Places API key) and admin operations (intel catalog seeding)
 
 All data fetching on the places page happens client-side via the Supabase JS client, while enrichment and URL import go through server-side API routes because they need the private `GOOGLE_PLACES_API_KEY`. The map view uses MapLibre GL JS with MapTiler tiles, loaded client-side only via dynamic import to avoid SSR issues.
 
-**Server-side data preloading**: Pages with heavy data requirements (`places`, `collections`, `collections/[id]`, `c/[slug]`) use `+page.server.ts` files to preload data on the server before hydration. All server loads use Supabase's embedded resource syntax (e.g., `places.select('..., place_tags(tag_id)')`) to fetch parent rows and their related junction data in a single query, eliminating sequential round-trips. Independent queries are wrapped in `Promise.all()` for parallel execution. For example, `places/+page.server.ts` runs three parallel queries — places (with embedded place_tags), tags, and lists (with embedded list_places) — in a single wall-clock round-trip. `collections/[id]/+page.server.ts` uses a deep nested join (`list_places(place_id, places(...))`) to fetch the collection, its member place IDs, and full place details in one query, alongside parallel queries for tags and lightweight all-places data for the "Add Places" modal. `c/[slug]/+page.server.ts` uses the same deep nested join pattern to load the public collection and all its places in a single query. See [PERFORMANCE-AUDIT.md](./PERFORMANCE-AUDIT.md) for the full optimization history.
+**Server-side data preloading**: Pages with heavy data requirements (`places`, `collections`, `collections/[id]`, `c/[slug]`) use `+page.server.ts` files to preload data on the server before hydration. All server loads use Supabase's embedded resource syntax (e.g., `places.select('..., place_tags(tag_id)')`) to fetch parent rows and their related junction data in a single query, eliminating sequential round-trips. Independent queries are wrapped in `Promise.all()` for parallel execution. For example, `places/+page.server.ts` runs three parallel queries — places (with embedded place_tags), tags, and lists (with embedded list_places) — in a single wall-clock round-trip. `collections/+page.server.ts` fetches lists with embedded `list_places(place_id)`, ordered by `updated_at` descending. `collections/[id]/+page.server.ts` uses a deep nested join (`list_places(place_id, places(...))`) to fetch the collection, its member places, and full place details in one query, alongside a parallel tags query. `c/[slug]/+page.server.ts` uses the same deep nested join pattern to load the public collection and all its places in a single query. See [PERFORMANCE-AUDIT.md](./PERFORMANCE-AUDIT.md) for the full optimization history.
 
 State management uses Svelte 5 runes throughout:
 - `$state` for mutable reactive variables
@@ -55,8 +55,12 @@ State management uses Svelte 5 runes throughout:
 - `$props` for component inputs (replaces Svelte 4's `export let`)
 
 Shared state is extracted into `.svelte.ts` modules in `src/lib/stores/`:
-- **`places.svelte.ts`**: Data-access functions (`loadPlacesData`, `refreshTagsData`, `buildPlaceTagsMap`, `removeTagsFromPlace`, `applyTagsToPlace`) that encapsulate Supabase queries and the placeTagsMap join logic. Queries use embedded joins (e.g., `places.select('..., place_tags(tag_id)')`) to fetch junction data through user-scoped parent rows rather than scanning unfiltered junction tables. `applyTagsToPlace` uses a single `.upsert()` call with `ignoreDuplicates: true` instead of per-tag check-then-insert. These are plain async functions, not Svelte stores -- the reactive state lives in the page components that call them.
+- **`places.svelte.ts`**: Data-access functions (`loadPlacesData`, `refreshTagsData`, `buildPlaceTagsMap`, `removeTagsFromPlace`, `applyTagsToPlace`, `applyTagToPlaces`) that encapsulate Supabase queries and the placeTagsMap join logic. Queries use embedded joins (e.g., `places.select('..., place_tags(tag_id)')`) to fetch junction data through user-scoped parent rows rather than scanning unfiltered junction tables. `applyTagsToPlace` uses a single `.upsert()` call with `ignoreDuplicates: true` instead of per-tag check-then-insert. These are plain async functions, not Svelte stores -- the reactive state lives in the page components that call them.
+- **`collections.svelte.ts`**: Async CRUD module for the `lists` / `list_places` tables. Provides `loadCollections`, `createCollection`, `updateCollection`, `deleteCollection`, `reorderCollections`, `addPlaceToCollection`, `addPlacesToCollection`, `removePlaceFromCollection`, `enableSharing`, `disableSharing`, `loadCollectionBySlug`, `loadCollectionPlaces`, and optimistic client-side helpers. See [Collections](#collections).
+- **`saved-views.svelte.ts`**: Async CRUD for the `saved_views` table. Provides `loadSavedViews`, `createSavedView`, `updateSavedView`, `deleteSavedView`, `reorderSavedViews`, and `buildFiltersSnapshot`. See [Saved Views](#saved-views).
 - **`toasts.svelte.ts`**: A module-level `$state` array of toast notifications with `showToast()`, `getToasts()`, and `dismissToast()` exports. This enables toasts to be triggered from any component (page, API callback, undo handler) without prop-drilling.
+- **`bottom-dock-suppressed.ts`**: A classic Svelte `writable` boolean store. Set to `true` by modals (e.g., `PlaceActionMenu`) that need to temporarily hide the `AppBottomDock`.
+- **`dock-scroll-state.ts`**: Scroll-direction-aware dock visibility controller. Exports `dockMode` (writable `'active'` | `'passive'`) and `initDockScrollWatcher()` which attaches scroll/touch listeners and returns a cleanup function. See [Navigation: AppBottomDock](#navigation-appbottomdock).
 
 Runes are enabled project-wide via `svelte.config.js` with `dynamicCompileOptions` -- all non-`node_modules` files are compiled in runes mode. There is no per-file `<svelte:options runes />` needed.
 
@@ -196,11 +200,13 @@ There's special handling for Japanese addresses: values that are purely numeric 
 
 ### Batch Enrichment
 
-The `/api/places/enrich-all` endpoint processes up to 10 unenriched places per request. After each place, it waits 200ms to avoid hitting Google's rate limits. The frontend shows the result count and reloads data on completion.
+The `/api/places/enrich-all` endpoint processes up to 10 unenriched places per request. Places are processed in batches of 3 concurrent requests via `Promise.allSettled`, with a 200ms delay between batches to stay under Google's rate limits. The frontend shows the result count and reloads data on completion.
 
 ### System Tag Creation
 
-System tags (category and area) are no longer auto-created during enrichment. The `tag-utils.ts` module (which contained `upsertSystemTags`) has been removed. Category and area information from Google Places enrichment is stored directly on the `places` row (`category`, `area` columns) and used for filtering without creating separate tag rows. The intel tagging system provides richer classification via `suggested_tags` in the enrichment response.
+System tags (category and area) are no longer auto-created during enrichment. The original `upsertSystemTags` function has been removed. Category and area information from Google Places enrichment is stored directly on the `places` row (`category`, `area` columns) and used for filtering without creating separate tag rows. The intel tagging system provides richer classification via `suggested_tags` in the enrichment response.
+
+The `tag-utils.ts` module still exists and exports two utility functions used throughout the tagging system: `normalizeTagName(name)` (lowercases, trims, collapses whitespace for deduplication) and `toDisplayName(name)` (title-cases all-lowercase input while preserving mixed-case). These are used by TagInput, TagManager, TagContextMenu, and the upload page for consistent tag name handling.
 
 ---
 
@@ -229,6 +235,8 @@ When adding a place by URL, the system checks for duplicates in three ways:
 3. **Title + Address**: After fetching details from Google, check if a place with the exact same title and address already exists (catches CSV-imported places that were later enriched)
 
 If a duplicate is found at any layer, the API returns `{ duplicate: true }` with the existing place data instead of inserting. If context tagging is active (see [Contextual Capture](#contextual-capture-auto-tagging)), the duplicate response also includes `contextTagsApplied` indicating how many new tags were linked to the existing place.
+
+For newly inserted places, the endpoint also computes intel tags via `computeIntelTags()` using the Google-returned `primary_type` and `types` array. The intel result (`primary_category`, `operational_status`, `market_niche`, `discussion_pillar`, `suggested_tags`) is included in the response for client-side consumption.
 
 ### URL Normalization
 
@@ -469,7 +477,7 @@ RLS policies restrict all operations to `auth.uid() = user_id`.
 
 Follows the same patterns as the existing codebase:
 
-- **Data-access helpers** (`src/lib/stores/saved-views.svelte.ts`): Pure async functions (`loadSavedViews`, `createSavedView`, `updateSavedView`, `deleteSavedView`, `reorderSavedViews`, `buildFiltersSnapshot`) matching the style of `places.svelte.ts` and `collections.svelte.ts`. No module-level reactive state. `loadSavedViews()` sorts by `order_index` ascending then `created_at` ascending. `reorderSavedViews()` writes the new `order_index` values via parallel updates. `buildFiltersSnapshot()` accepts an optional `tagGroups` parameter and stores it in the filters for the multi-group model.
+- **Data-access helpers** (`src/lib/stores/saved-views.svelte.ts`): Pure async functions (`loadSavedViews`, `createSavedView`, `updateSavedView`, `deleteSavedView`, `reorderSavedViews`, `buildFiltersSnapshot`) matching the style of `places.svelte.ts` and `collections.svelte.ts`. No module-level reactive state. `loadSavedViews()` sorts by `order_index` ascending then `created_at` ascending. `reorderSavedViews()` writes the new `order_index` values via a single `.upsert()` call with `onConflict: 'id'`. `buildFiltersSnapshot()` accepts an optional `tagGroups` parameter and stores it in the filters for the multi-group model.
 - **Types** (`src/lib/types/database.ts`): `SavedView`, `SavedViewInsert`, `SavedViewFilters` interface (includes `tagGroups?: TagGroup[]`), `TagGroup` interface (`{ id, tagIds, mode: 'any' | 'all' }`), `BrowseScope` type.
 - **Component** (`src/lib/components/SavedViewsBar.svelte`): Reusable bar component receiving all needed state as props and calling back via `onApply`, `onViewsChanged`, and `onReorder`. Supports drag-to-reorder via the `sortable` action. Accepts a `viewIsDirty` prop: when the active view's data has changed, the pill shows a dashed border with a dot indicator. The three-dot menu uses `position: fixed` to escape the `overflow-x-auto` scrollable container (same approach as TagInput's portal dropdown).
 - **SaveViewButton** (`src/lib/components/SaveViewButton.svelte`): Extracted component that handles saved view creation with an inline name input, Google Maps URL detection (excluded from snapshots), and tag group snapshot. Accepts filter state as props and calls `createSavedView` with a `buildFiltersSnapshot` of the current state.
@@ -576,11 +584,11 @@ URL state is synced via `?collection=<id>` so the selected collection is deep-li
 
 `src/lib/stores/collections.svelte.ts` follows the same async-helper pattern as `places.svelte.ts` and `saved-views.svelte.ts`:
 
-- **`loadCollections()`**: Fetches all user collections with embedded `list_places(place_id)` join in a single query (scoped by `user_id`), ordered by `sort_order` ascending. Note: the server load in `collections/+page.server.ts` sorts by `updated_at` instead — the server sort takes precedence on initial page load, while the store sort applies to client-side refreshes
+- **`loadCollections()`**: Fetches all user collections with embedded `list_places(place_id)` join in a single query (scoped by `user_id`), ordered by `sort_order` ascending. Note: the server load in `collections/+page.server.ts` sorts by `updated_at` descending instead — the server sort takes precedence on initial page load, while the store sort applies to client-side refreshes
 - **`createCollection()`**: Creates a collection, optionally bulk-inserting place IDs
 - **`updateCollection()`**: Updates name, description, color, emoji, visibility, share_slug, or sort_order
 - **`deleteCollection()`**: Deletes a collection (cascade removes `list_places` rows)
-- **`reorderCollections()`**: Accepts an ordered array of collection IDs and writes `sort_order` values via parallel updates
+- **`reorderCollections()`**: Accepts an ordered array of collection IDs and writes `sort_order` values via a single `.upsert()` call with `onConflict: 'id'`
 - **`addPlaceToCollection()` / `addPlacesToCollection()`**: Single or batch membership insert using `.upsert()` with `onConflict: 'list_id,place_id'` and `ignoreDuplicates: true`
 - **`removePlaceFromCollection()`**: Removes a place from a collection
 - **`enableSharing()` / `disableSharing()`**: Toggles visibility and generates/clears the share slug
@@ -594,7 +602,7 @@ Three entry points for adding places to collections:
 
 1. **From PlaceCard / PlaceListItem**: A folder+plus icon button in the action row opens `AddToCollectionModal`, which lists all collections with checkmarks for current membership. Toggling adds/removes instantly with optimistic updates and toast feedback.
 
-2. **From collection detail page**: The "+ Add Places" button opens a modal showing all user places not yet in the collection, with search and tag filter pills for narrowing results. Users can toggle individual user tags to filter the list (AND logic across selected tags). The server preloads a lightweight `allPlaces` list and all `place_tags` for the modal via `collections/[id]/+page.server.ts`.
+2. **From collection detail page**: The "+ Add Places" button opens a modal showing all user places not yet in the collection, with search and tag filter pills for narrowing results. Users can toggle individual user tags to filter the list (AND logic across selected tags). Place data for the modal is lazy-loaded on demand when the user opens it, not preloaded in the server load.
 
 3. **From Saved View**: The three-dot menu on any saved view pill offers "New Collection" (creates a collection from all matching places) and "Add to Collection..." (opens `AddToCollectionModal` in batch mode). The `getPlaceIdsForView()` function re-evaluates the view's filters against `scopedPlaces` to compute matching place IDs.
 
@@ -640,7 +648,7 @@ The system has three layers:
 
 1. **Google Place Type Catalog** (`src/lib/google-place-types.ts`): A complete registry of 100+ official Google Places API (New) type keys, split into Table A (searchable/primary types) and Table B (returned-only types). Each entry has `type_key`, `can_be_primary`, `table_group`, and `status`. Provides `lookupGoogleType()` and `isKnownGoogleType()` for fast lookups.
 
-2. **Intel Tag Mappings** (`src/lib/intel-tag-mappings.ts`): An editable mapping table of ~80 entries that maps Google type keys to internal classifications across categories like Dining, Cafe, Nightlife, Fitness, Wellness, Attractions, Shopping, Lodging, Services, and Entertainment. Each mapping specifies: `primary_category`, `operational_status`, `market_niche`, `discussion_pillar`, `suggested_tags`, and `market_context`. Provides `lookupMapping()`, `getAllMappings()`, and `getMappingOrDefault()`.
+2. **Intel Tag Mappings** (`src/lib/intel-tag-mappings.ts`): An editable mapping table of ~138 entries that maps Google type keys to internal classifications across categories like Dining, Cafe, Sweets, Nightlife, Fitness, Wellness, Attractions, Parks, Worship, Shopping, Lodging, Services, and Entertainment. Each mapping specifies: `primary_category`, `operational_status`, `market_niche`, `discussion_pillar`, `suggested_tags`, and `market_context`. Provides `lookupMapping()`, `getAllMappings()`, and `getMappingOrDefault()`.
 
 3. **Intel Tagging Engine** (`src/lib/intel-tagging.ts`): Pure computation that takes raw Google Place data (`primaryType` + `types` array) and produces a structured `IntelTagResult` with six output layers:
    - Primary Category -- top-level bucket
@@ -989,7 +997,9 @@ Public vars (prefixed `PUBLIC_`) are safe to expose to the browser. The Google A
 
 ## Performance Optimization
 
-A comprehensive query optimization pass was performed across all server loads, client-side stores, and API routes. The audit identified and fixed five classes of performance issues. See [PERFORMANCE-AUDIT.md](./PERFORMANCE-AUDIT.md) for the full analysis and prevention guidelines.
+Two comprehensive optimization passes were performed across all server loads, client-side stores, and API routes. The first audit identified and fixed five classes of query-level performance issues (sequential queries, unfiltered junction scans, N+1 patterns). The second audit addressed client-side reactivity, data transfer volume, and write-path efficiency (full table scans for dedup, eager loading of modal data, N individual mutations, aggressive re-fetches, reactive effects firing too broadly). See [PERFORMANCE-AUDIT.md](./PERFORMANCE-AUDIT.md) for the full analysis and prevention guidelines.
+
+A separate latency investigation documented the add-by-url pipeline end-to-end, resulting in parallel dedup/API overlap and shortlink URL caching. See [PERFORMANCE-URL-SEARCH.md](./PERFORMANCE-URL-SEARCH.md) for the pipeline breakdown and instrumentation guide.
 
 ### Optimized Query Patterns
 
@@ -1008,12 +1018,15 @@ A comprehensive query optimization pass was performed across all server loads, c
 | Route / Function | Before | After |
 |---|:-:|:-:|
 | Any route (auth hook) | 1 network call (`getUser()`) | 0 (`getSession()` only) |
-| `/collections` server load | 2 sequential | 1 (embedded join) |
+| `/collections` server load | 2 sequential | 1 (embedded join, ordered by `updated_at`) |
 | `/places` server load | 2 sequential | 1 (`Promise.all` with 3 joined queries) |
-| `/collections/[id]` server load | 4 sequential | 1 (`Promise.all` with 3 joined queries) |
+| `/collections/[id]` server load | 4 sequential | 1 (`Promise.all` with deep nested join + tags) |
 | `/c/[slug]` server load | 3 sequential | 1 (deep nested join) |
 | `applyTagsToPlace` | 2N per action | 1 (upsert) |
 | `applyContextTags` | 2 + N | 2 (validate + upsert) |
+| Reorder (N items) | N round-trips | 1 (upsert) |
+| Tag removal (N tags) | N round-trips | 1 (`.in()` delete) |
+| Batch enrichment (10 places) | 10 sequential | ~4 batches of 3 concurrent |
 
 ---
 

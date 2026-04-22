@@ -1,5 +1,7 @@
 # URL Search Latency — Instrumentation & Analysis
 
+> **Part of the performance documentation suite.** See also: [PERFORMANCE-AUDIT.md](./PERFORMANCE-AUDIT.md) for Supabase query optimizations.
+
 ## Overview
 
 When a user pastes a Google Maps URL into the search field and presses Enter,
@@ -79,12 +81,13 @@ Server
        (parallel via Promise.all)
   7. insert place                                        20–50 ms
   8. apply context tags                                  20–40 ms (if any)
+  9. compute intel tags (pure CPU)                          <1 ms
 
 Frontend
-  9. network: server → client                           50–150 ms
- 10. JSON parse                                            <5 ms
- 11. state update + Svelte render                         5–20 ms
- 12. MapView: syncMarkers + fitToMarkers                  5–15 ms
+ 10. network: server → client                           50–150 ms
+ 11. JSON parse                                            <5 ms
+ 12. state update + Svelte render                         5–20 ms
+ 13. MapView: syncMarkers + fitToMarkers                  5–15 ms
 ```
 
 Because steps 5a and 5b overlap, dedup round 1 is effectively free — its
@@ -193,10 +196,10 @@ const RESOLVE_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 | Flow              | Typical latency | Google API? | Notes |
 |-------------------|-----------------|-------------|-------|
-| **Add by URL**    | 800–1,200 ms    | Yes         | Full pipeline: resolve + dedup + fetch + insert |
+| **Add by URL**    | 800–1,200 ms    | Yes         | Full pipeline: resolve + dedup + fetch + insert + intel tags |
 | **CSV import**    | 50–200 ms/batch | No          | Client-side parse + Supabase insert; places arrive unenriched |
-| **Enrich single** | 400–700 ms      | Yes         | 1 Supabase read + 1 API call + 1 update; no URL resolution or dedup |
-| **Enrich all**    | 2–4 s (10 places) | Yes       | Batches of 3 concurrent, 200 ms gap between batches |
+| **Enrich single** | 400–700 ms      | Yes         | 1 Supabase read + 1 API call + 1 update + intel tags; no URL resolution or dedup |
+| **Enrich all**    | 2–4 s (10 places) | Yes       | Batches of 3 concurrent via `Promise.allSettled`, 200 ms gap between batches |
 
 Add-by-URL is the slowest single-place operation because it includes URL
 resolution and two rounds of dedup that other flows skip. The Google Places
@@ -234,7 +237,7 @@ wait feel shorter. Tricky on mobile where keyboard takes up half the screen.
 |------|--------|
 | `src/lib/url-timing.ts` | **New** — timing utility (`createTimingContext`, `mark`, `summary`, `logTimingSummary`); server flag via `setUrlTimingEnabled` |
 | `src/lib/google-places.ts` | Added `timing` param to `resolveGoogleMapsUrl` and `fetchPlaceDetails`; added in-memory shortlink cache (`resolvedUrlCache` with 10-min TTL) |
-| `src/routes/api/places/add-by-url/+server.ts` | Timing marks throughout; `Promise.all` for dedup1 + Google API overlap; parallel queries within each dedup round; returns `__timing` in debug mode |
+| `src/routes/api/places/add-by-url/+server.ts` | Timing marks throughout; `Promise.all` for dedup1 + Google API overlap; parallel queries within each dedup round; intel tag computation for new places; returns `__timing` in debug mode |
 | `src/routes/places/+page.svelte` | Client-side `performance.now()` measurements around fetch, parse, render; logs combined client+server breakdown |
 
 All instrumentation is gated behind the `DEBUG_URL_TIMING` flag and has zero

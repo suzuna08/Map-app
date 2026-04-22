@@ -24,7 +24,7 @@ MapOrganizer is a web app that helps you manage and organize places you've saved
 - **Swipe to Delete** -- Swipe cards or list items left on mobile to reveal a delete action. Mobile swipe interactions are hardened so destructive actions stay fully hidden until intentionally revealed -- the delete layer never flashes during scrolling, card face changes, or state transitions
 - **Contextual Capture** -- When viewing a custom tag filter, new places added via URL are automatically tagged to match. Includes an auto-tag toggle and undo support
 - **Saved Views** -- Save the current filter/sort/layout state as a named preset. Clicking a view applies its filters; changing any filter afterward simply deactivates the view (the saved definition is never touched). The 3-dot menu offers Rename, "New Collection" (creates a collection from all matching places), "Add to Collection..." (batch-adds matching places to an existing collection), and Delete. Saved view pills support drag-to-reorder. When the active view's underlying data has been changed since it was applied, a dashed-border dirty indicator appears on the pill. Persisted per-user in Supabase
-- **Collections** -- Create curated, shareable groups of places backed by persistent `lists + list_places`. The `/collections` page auto-selects the first collection on load, immediately showing a full map + list browse experience scoped to that collection (same split layout as Places: desktop sticky map, mobile draggable MobileMapShell). The collection tab selector is a horizontal row of pills with drag-to-reorder, so the page feels like a quick switcher. The selected collection header (`CollectionScopeHeader`) shows avatar, name (editable inline), description (editable inline), place count, visibility status, and actions: share/copy link, visibility toggle, add places, and overflow menu (delete). URL state synced via `?collection=<id>` for deep-linkability. Creating a new collection opens a modal with name, emoji, and color pickers. The "Add Places" modal features smart search/URL input (auto-detects Google Maps URLs), tag filter pills, and a scrollable place list. Collections are independent from filters: add places individually, from the modal, or from a saved view's 3-dot menu. Remove-from-collection and delete-place are distinct actions. Share a collection via a public link (`/c/slug`) with a read-only view — logged-in users can "Save" a shared collection to duplicate it into their own account. The deep-linkable `/collections/[id]` route provides the canonical editable detail page with the same split map layout, including an "Add by URL" option in the add-places modal
+- **Collections** -- Create curated, shareable groups of places backed by persistent `lists + list_places`. The `/collections` page auto-selects the first collection on load, immediately showing a full map + list browse experience scoped to that collection (same split layout as Places: desktop sticky map, mobile draggable MobileMapShell). The collection tab selector is a horizontal row of pills with drag-to-reorder, so the page feels like a quick switcher. The selected collection header (`CollectionScopeHeader`) shows avatar, name (editable inline), description (editable inline), place count, visibility status, and actions: share/copy link, visibility toggle, add places, and overflow menu (delete). URL state synced via `?collection=<id>` for deep-linkability. Creating a new collection opens a modal with name, emoji, and color pickers. The "Add Places" modal features smart search/URL input (auto-detects Google Maps URLs), tag filter pills, and a scrollable place list. Collections are independent from filters: add places individually, from the modal, or from a saved view's 3-dot menu. Remove-from-collection and delete-place are distinct actions. Share a collection via a public link (`/c/slug`) with a read-only view — logged-in users can "Save" a shared collection to duplicate it into their own account (deep-copies all places with `source_list: 'shared-import'`). The deep-linkable `/collections/[id]` route provides the canonical editable detail page with the same split map layout, including an "Add by URL" option in the add-places modal
 - **Intel Tagging** -- Structured intelligence layer that maps Google Place types to internal classifications (primary category, operational status, market niche, discussion pillar, suggested tags). Pure computation engine with a full Google Place type catalog (100+ types) and editable mapping rules. Optional database persistence and admin seeding endpoint
 - **Auth** -- Email/password authentication via Supabase with server-side route protection, proactive token refresh, and resilient session validation. Email confirmation callback endpoint. Sign-out available from the Settings page
 - **Responsive** -- Distinct mobile and desktop layouts: split map+list on desktop, collapsible map (MobileMapShell) on mobile. A floating bottom dock (`AppBottomDock`) provides app-wide navigation (Places, Collections, Settings) with three rendering modes: desktop bottom bar with drag-to-reposition and scroll-aware passive mode, custom-positioned draggable pill, and mobile collapsible right-edge drawer (< 640px) with vertical layout, first-visit hint animation, and tap-outside-to-close. Inline filter chips, safe-area support for notched devices
@@ -37,11 +37,11 @@ MapOrganizer is a web app that helps you manage and organize places you've saved
 | UI           | Svelte 5 (runes)                    |
 | Styling      | Tailwind CSS v4                     |
 | Database     | Supabase (PostgreSQL + Auth + RLS)  |
-| Maps         | MapLibre GL + MapTiler              |
+| Maps         | MapLibre GL JS + MapTiler           |
 | Build        | Vite 7                              |
-| Deployment   | Vercel                              |
+| Deployment   | Vercel (Node.js 22.x)              |
 | CSV Parsing  | PapaParse                           |
-| External API | Google Places API (New)             |
+| External API | Google Places API (New) v1          |
 
 ## Project Structure
 
@@ -52,16 +52,18 @@ src/
 ├── app.d.ts                       # SvelteKit app types (Locals, PageData)
 ├── hooks.server.ts                # Supabase auth middleware
 ├── lib/
-│   ├── index.ts                  # SvelteKit lib index
+│   ├── index.ts                   # SvelteKit lib index
 │   ├── supabase.ts                # Supabase client helpers
 │   ├── csv-parser.ts              # Google Takeout CSV parsing
 │   ├── google-places.ts           # Google Places API client
 │   ├── google-place-types.ts      # Full Google Place type catalog (Table A + B)
 │   ├── intel-tagging.ts           # Intel tagging engine (pure computation)
-│   ├── intel-tag-mappings.ts      # Google type → internal classification mappings
+│   ├── intel-tag-mappings.ts      # Google type → internal classification mappings (138 entries)
 │   ├── intel-tagging.verify.ts    # Verification tests for intel tagging
 │   ├── tag-colors.ts              # Tag color palette & hash
 │   ├── tag-order.ts               # Tag reorder persistence
+│   ├── tag-utils.ts               # Tag name normalization & display helpers
+│   ├── url-timing.ts              # URL add-by-url latency instrumentation
 │   ├── actions/
 │   │   └── sortable.ts            # Drag-to-reorder Svelte action
 │   ├── assets/
@@ -126,7 +128,7 @@ src/
             ├── [id]/
             │   ├── enrich/+server.ts     # Single place enrichment
             │   └── intel-tags/+server.ts  # Intel tag computation per place
-            └── enrich-all/+server.ts     # Batch enrichment (10 at a time)
+            └── enrich-all/+server.ts     # Batch enrichment (3-concurrent, 10 max)
 ```
 
 ## Getting Started
@@ -165,6 +167,7 @@ PUBLIC_MAPTILER_KEY=your-maptiler-api-key-here
 | `PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anonymous/public key |
 | `GOOGLE_PLACES_API_KEY` | Yes | Server-side key for Google Places API (New) |
 | `PUBLIC_MAPTILER_KEY` | No | MapTiler API key for the map. Without it, the map panel shows a setup prompt |
+| `DEBUG_URL_TIMING` | No | When set, enables server-side latency instrumentation for the add-by-url pipeline (see [PERFORMANCE-URL-SEARCH.md](./PERFORMANCE-URL-SEARCH.md)) |
 
 ### 3. Set up the database
 
@@ -217,6 +220,7 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 | `npm run dev`         | Start development server     |
 | `npm run build`       | Create production build      |
 | `npm run preview`     | Preview production build     |
+| `npm run prepare`     | Sync SvelteKit types         |
 | `npm run check`       | Run type checking            |
 | `npm run check:watch` | Type checking in watch mode  |
 
@@ -229,12 +233,14 @@ Set the following environment variables in your Vercel project settings:
 - `PUBLIC_SUPABASE_ANON_KEY`
 - `GOOGLE_PLACES_API_KEY`
 - `PUBLIC_MAPTILER_KEY`
+- `DEBUG_URL_TIMING` (optional — enables server-side latency logging)
 
 ## Documentation
 
 - [IMPLEMENTATION.md](./IMPLEMENTATION.md) — Detailed documentation of architecture decisions, trade-offs, and bugs encountered during development.
 - [UI-DESIGN.md](./UI-DESIGN.md) — Visual design specification covering color palettes, component anatomy, page layouts, responsive behavior, and interaction patterns.
 - [PERFORMANCE-AUDIT.md](./PERFORMANCE-AUDIT.md) — Supabase query optimization audit documenting the elimination of sequential round-trips, unfiltered junction scans, and N+1 patterns across all server loads and stores.
+- [PERFORMANCE-URL-SEARCH.md](./PERFORMANCE-URL-SEARCH.md) — URL search latency instrumentation and analysis documenting the add-by-url pipeline stages, measured latency by scenario, and optimizations (parallel dedup, shortlink cache).
 
 ## License
 

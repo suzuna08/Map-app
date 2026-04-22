@@ -3,6 +3,8 @@
 **Date:** April 4, 2026
 **Scope:** All server loads, client-side stores, and API routes
 
+> **Note**: The guidelines from this audit have been codified into `.cursor/rules/performance.mdc` for automated enforcement during development.
+
 ---
 
 ## Problem
@@ -283,7 +285,7 @@ await supabase.from('place_tags').delete().eq('place_id', placeId).in('tag_id', 
 
 #### 13. Sequential enrichment blocking the response
 
-`enrich-all` processed places one-at-a-time with a 200ms delay between each. 10 places took 5–10+ seconds. Changed to batch 3 concurrently with 200ms delay only between batches.
+`enrich-all` processed places one-at-a-time with a 200ms delay between each. 10 places took 5–10+ seconds. Changed to batch 3 concurrently via `Promise.allSettled` with 200ms delay only between batches.
 
 ### Round 2 Impact Summary
 
@@ -296,7 +298,9 @@ await supabase.from('place_tags').delete().eq('place_id', placeId).in('tag_id', 
 | Saved views init | Fires on every invalidation | Fires once |
 | Map marker sync | Every `places` mutation | Only geo changes |
 | Tag removal (N tags) | N round-trips | 1 query |
-| Enrich-all (10 places) | ~10 sequential fetches | ~4 batched rounds |
+| Enrich-all (10 places) | ~10 sequential fetches | ~4 batches of 3 concurrent |
+
+> **See also**: [PERFORMANCE-URL-SEARCH.md](./PERFORMANCE-URL-SEARCH.md) for a detailed latency instrumentation and analysis of the add-by-url pipeline (parallel dedup/API overlap, shortlink caching, per-stage timing).
 
 ---
 
