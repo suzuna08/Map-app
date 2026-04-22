@@ -3,6 +3,7 @@
 	import type { Tag } from '$lib/types/database';
 	import { colorForTag, textColorForBg } from '$lib/tag-colors';
 	import { getNextOrderIndex, saveTagOrder } from '$lib/tag-order';
+	import { normalizeTagName, toDisplayName } from '$lib/tag-utils';
 	import { sortable } from '$lib/actions/sortable';
 
 	interface Props {
@@ -76,17 +77,6 @@
 		e.preventDefault();
 		e.stopPropagation();
 		onTagContextMenu?.(tag, e.clientX, e.clientY);
-	}
-
-	function normalizeTagName(name: string): string {
-		return name.toLowerCase().trim().replace(/\s+/g, ' ');
-	}
-
-	function toDisplayName(name: string): string {
-		const cleaned = name.trim().replace(/\s+/g, ' ');
-		const isAllLowercase = cleaned === cleaned.toLowerCase();
-		if (!isAllLowercase) return cleaned;
-		return cleaned.replace(/\b\w/g, (c) => c.toUpperCase());
 	}
 
 	let suggestions = $derived(

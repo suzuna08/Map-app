@@ -3,6 +3,7 @@
 	import type { Tag } from '$lib/types/database';
 	import { colorForTag } from '$lib/tag-colors';
 	import { getNextOrderIndex } from '$lib/tag-order';
+	import { normalizeTagName, toDisplayName } from '$lib/tag-utils';
 
 	interface Props {
 		supabase: SupabaseClient;
@@ -21,16 +22,6 @@
 	let anchorEl = $state<HTMLElement | null>(null);
 	let dropdownPos = $state<{ top: number; left: number; maxWidth: number } | null>(null);
 	let rafId = 0;
-
-	function normalizeTagName(name: string): string {
-		return name.toLowerCase().trim().replace(/\s+/g, ' ');
-	}
-
-	function toDisplayName(name: string): string {
-		const cleaned = name.trim().replace(/\s+/g, ' ');
-		if (cleaned !== cleaned.toLowerCase()) return cleaned;
-		return cleaned.replace(/\b\w/g, (c) => c.toUpperCase());
-	}
 
 	let userTags = $derived(allTags.filter((t) => t.source === 'user'));
 

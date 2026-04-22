@@ -101,3 +101,16 @@ export async function applyTagsToPlace(
 		.upsert(rows, { onConflict: 'place_id,tag_id', ignoreDuplicates: true });
 	if (error) console.error('[applyTagsToPlace]', error);
 }
+
+export async function applyTagToPlaces(
+	supabase: SupabaseClient<Database>,
+	tagId: string,
+	placeIds: string[]
+) {
+	if (placeIds.length === 0) return;
+	const rows = placeIds.map((place_id) => ({ place_id, tag_id: tagId }));
+	const { error } = await supabase
+		.from('place_tags')
+		.upsert(rows, { onConflict: 'place_id,tag_id', ignoreDuplicates: true });
+	if (error) console.error('[applyTagToPlaces]', error);
+}

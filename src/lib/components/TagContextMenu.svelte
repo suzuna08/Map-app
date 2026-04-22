@@ -3,6 +3,7 @@
 	import type { Tag } from '$lib/types/database';
 	import { TAG_PALETTE } from '$lib/tag-colors';
 	import { reindexAfterDelete } from '$lib/tag-order';
+	import { normalizeTagName, toDisplayName } from '$lib/tag-utils';
 
 	interface Props {
 		tag: Tag;
@@ -21,16 +22,6 @@
 	let saving = $state(false);
 	let warning = $state('');
 	let inputEl = $state<HTMLInputElement | null>(null);
-
-	function normalizeTagName(name: string): string {
-		return name.toLowerCase().trim().replace(/\s+/g, ' ');
-	}
-
-	function toDisplayName(name: string): string {
-		const cleaned = name.trim().replace(/\s+/g, ' ');
-		if (cleaned !== cleaned.toLowerCase()) return cleaned;
-		return cleaned.replace(/\b\w/g, (c) => c.toUpperCase());
-	}
 
 	let adjustedX = $derived(Math.min(x, (typeof window !== 'undefined' ? window.innerWidth : 800) - 216));
 	let adjustedY = $derived(Math.min(y, (typeof window !== 'undefined' ? window.innerHeight : 600) - 220));

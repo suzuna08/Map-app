@@ -3,6 +3,7 @@
 	import type { Tag } from '$lib/types/database';
 	import { colorForTag, TAG_PALETTE } from '$lib/tag-colors';
 	import { getNextOrderIndex, saveTagOrder, reindexAfterDelete } from '$lib/tag-order';
+	import { normalizeTagName, toDisplayName } from '$lib/tag-utils';
 	import { sortable } from '$lib/actions/sortable';
 
 	interface Props {
@@ -27,16 +28,6 @@
 	let duplicateWarning = $state('');
 	let editInputEl = $state<HTMLInputElement | null>(null);
 	let newInputEl = $state<HTMLInputElement | null>(null);
-
-	function normalizeTagName(name: string): string {
-		return name.toLowerCase().trim().replace(/\s+/g, ' ');
-	}
-
-	function toDisplayName(name: string): string {
-		const cleaned = name.trim().replace(/\s+/g, ' ');
-		if (cleaned !== cleaned.toLowerCase()) return cleaned;
-		return cleaned.replace(/\b\w/g, (c) => c.toUpperCase());
-	}
 
 	function startInlineEdit(tag: Tag) {
 		editingId = tag.id;
