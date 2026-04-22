@@ -16,6 +16,7 @@
 	let viewMode = $state<'grid' | 'list'>('grid');
 	let search = $state('');
 	let selectedPlaceId = $state<string | null>(null);
+	let flippedPlaceId = $state<string | null>(null);
 	let mapExpanded = $state(true);
 	let saving = $state(false);
 	let saved = $state(false);
@@ -85,7 +86,23 @@
 	}
 
 	function handleCardClick(placeId: string) {
-		selectedPlaceId = selectedPlaceId === placeId ? null : placeId;
+		if (selectedPlaceId === placeId) {
+			const place = places.find(p => p.id === placeId);
+			if (place?.note?.trim()) {
+				flippedPlaceId = flippedPlaceId === placeId ? null : placeId;
+			} else {
+				selectedPlaceId = null;
+				flippedPlaceId = null;
+			}
+		} else {
+			flippedPlaceId = null;
+			selectedPlaceId = placeId;
+		}
+	}
+
+	function flipToFront(e: MouseEvent) {
+		e.stopPropagation();
+		flippedPlaceId = null;
 	}
 </script>
 
@@ -235,54 +252,117 @@
 	{:else if viewMode === 'grid'}
 		<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4">
 			{#each filteredPlaces as place (place.id)}
+				{@const isFlipped = flippedPlaceId === place.id}
+				{@const isSelected = selectedPlaceId === place.id}
+				{@const hasNote = !!place.note?.trim()}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<article
+				<div
 					data-place-id={place.id}
-					class="flex cursor-pointer flex-col rounded-xl border bg-white p-3 transition-all hover:shadow-md hover:shadow-warm-200/50 sm:rounded-2xl sm:p-5 {selectedPlaceId === place.id ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}"
+					class="shared-flip-card [perspective:800px]"
 					onclick={() => handleCardClick(place.id)}
 				>
-					<div class="mb-2 flex items-center justify-between sm:mb-3">
-						<div class="flex flex-wrap items-center gap-1.5">
-							{#if place.category}
-							<span class="rounded-full bg-warm-200 px-2 py-0.5 text-xs font-bold text-warm-600">{place.category}</span>
-						{/if}
-						{#if place.area}
-							<span class="rounded-full bg-sage-200 px-2 py-0.5 text-xs font-bold text-sage-700">{place.area}</span>
-						{/if}
-						{#if place.price_level}
-							<span class="text-xs font-bold text-brand-600">{place.price_level}</span>
-							{/if}
-						</div>
-						{#if place.user_rating}
-							<span class="text-xs font-extrabold text-warm-700 sm:text-sm">{place.user_rating.toFixed(1)}<span class="text-brand-500">★</span></span>
+					<div
+						class="shared-flip-inner relative transition-transform duration-500 [transform-style:preserve-3d]"
+						class:is-flipped={isFlipped}
+					>
+						<!-- FRONT -->
+						<article
+							class="flex h-[190px] cursor-pointer flex-col rounded-xl border bg-white p-3 [backface-visibility:hidden] sm:h-[240px] sm:rounded-2xl sm:p-5 {isSelected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}"
+						>
+							<div class="mb-2 flex items-center justify-between sm:mb-3">
+								<div class="flex flex-wrap items-center gap-1.5">
+									{#if place.category}
+									<span class="rounded-full bg-warm-200 px-2 py-0.5 text-xs font-bold text-warm-600">{place.category}</span>
+								{/if}
+								{#if place.area}
+									<span class="rounded-full bg-sage-200 px-2 py-0.5 text-xs font-bold text-sage-700">{place.area}</span>
+								{/if}
+								{#if place.price_level}
+									<span class="text-xs font-bold text-brand-600">{place.price_level}</span>
+									{/if}
+								</div>
+								{#if place.user_rating}
+									<span class="text-xs font-extrabold text-warm-700 sm:text-sm">{place.user_rating.toFixed(1)}<span class="text-brand-500">★</span></span>
+								{/if}
+							</div>
+
+							<h3 class="mb-1 line-clamp-1 text-sm font-extrabold leading-snug text-warm-800 sm:text-lg">{place.title}</h3>
+
+							<div class="min-h-0 flex-1">
+								{#if hasNote}
+									<p class="line-clamp-2 text-xs font-medium italic leading-[1.4em] text-brand-500 sm:text-sm">
+										{place.note?.trim()}
+									</p>
+								{/if}
+							</div>
+
+							<div class="mt-auto flex items-center gap-1 pt-2 sm:pt-2.5">
+								{#if place.url}
+									<a
+										href={place.url}
+										target="_blank"
+										class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+										onclick={(e) => e.stopPropagation()}
+									>
+										<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+										</svg>
+										Maps
+									</a>
+								{/if}
+								{#if hasNote}
+									<span class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-warm-300">
+										<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+										</svg>
+										Tap for notes
+									</span>
+								{/if}
+							</div>
+						</article>
+
+						<!-- BACK (read-only notes) -->
+						{#if hasNote}
+							<div class="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
+								<article
+									class="flex h-[190px] cursor-pointer flex-col rounded-xl border bg-white p-3 sm:h-[240px] sm:rounded-2xl sm:p-5 {isSelected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}"
+								>
+									<div class="mb-2 flex items-center justify-between">
+										<h3 class="line-clamp-1 flex-1 text-sm font-extrabold text-warm-800 sm:text-lg">{place.title}</h3>
+										<button
+											onclick={flipToFront}
+											class="ml-2 shrink-0 rounded-md p-1 text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+											aria-label="Flip back"
+										>
+											<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+												<path d="M19 12H5" /><polyline points="12 19 5 12 12 5" />
+											</svg>
+										</button>
+									</div>
+									<div class="flex-1 overflow-y-auto rounded-lg border border-warm-100 bg-warm-50 p-2.5 sm:p-3">
+										<p class="whitespace-pre-wrap text-xs leading-relaxed text-warm-700 sm:text-sm">{place.note?.trim()}</p>
+									</div>
+									<div class="mt-auto flex items-center gap-1 pt-2 sm:pt-2.5">
+										{#if place.url}
+											<a
+												href={place.url}
+												target="_blank"
+												class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
+												onclick={(e) => e.stopPropagation()}
+											>
+												<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+													<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+												</svg>
+												Maps
+											</a>
+										{/if}
+									</div>
+								</article>
+							</div>
 						{/if}
 					</div>
-
-					<h3 class="mb-1 line-clamp-1 text-sm font-extrabold leading-snug text-warm-800 sm:text-lg">{place.title}</h3>
-
-					{#if place.note?.trim()}
-						<p class="line-clamp-2 text-xs font-medium italic leading-[1.4em] text-brand-500 sm:text-sm">
-							{place.note.trim()}
-						</p>
-					{/if}
-
-					<div class="mt-auto flex items-center gap-1 pt-2 sm:pt-2.5">
-						{#if place.url}
-							<a
-								href={place.url}
-								target="_blank"
-								class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
-								onclick={(e) => e.stopPropagation()}
-							>
-								<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-									<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-								</svg>
-								Maps
-							</a>
-						{/if}
-					</div>
-				</article>
+				</div>
 			{/each}
 		</div>
 	{:else}
@@ -333,3 +413,9 @@
 		</p>
 	</div>
 </div>
+
+<style>
+	.is-flipped {
+		transform: rotateY(180deg);
+	}
+</style>
