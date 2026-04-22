@@ -95,7 +95,12 @@
 	let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 	$effect(() => {
-		noteText = place.note ?? '';
+		const incoming = place.note ?? '';
+		if (!saveTimer && !saving) noteText = incoming;
+	});
+
+	$effect(() => {
+		return () => flushPendingSave();
 	});
 
 	// Swipe state (mobile only)
@@ -161,6 +166,10 @@
 		onDelete?.(place.id);
 	}
 
+	function flushPendingSave() {
+		if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; autoSave(); }
+	}
+
 	function handleMobileRowTap(e: MouseEvent) {
 		const target = e.target as HTMLElement;
 		if (target.closest('a, button, input, textarea')) return;
@@ -169,6 +178,7 @@
 			onSelect?.(place.id);
 			return;
 		}
+		if (expanded) flushPendingSave();
 		expanded = !expanded;
 	}
 
@@ -176,6 +186,7 @@
 		const target = e.target as HTMLElement;
 		if (target.closest('a, button, input, textarea')) return;
 		onSelect?.(place.id);
+		if (expanded) flushPendingSave();
 		expanded = !expanded;
 	}
 
@@ -183,7 +194,7 @@
 	$effect(() => {
 		if (prevSelected && !selected) {
 			if (expanded) {
-				if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; autoSave(); }
+				flushPendingSave();
 				expanded = false;
 			}
 			if (swipeX !== 0) { swipeX = 0; swipeConfirm = false; }
@@ -194,7 +205,7 @@
 	function scheduleAutoSave() {
 		saved = false;
 		if (saveTimer) clearTimeout(saveTimer);
-		saveTimer = setTimeout(autoSave, 800);
+		saveTimer = setTimeout(autoSave, 300);
 	}
 
 	async function autoSave() {

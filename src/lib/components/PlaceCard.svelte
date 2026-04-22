@@ -132,8 +132,17 @@
 	let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 	$effect(() => {
-		noteText = place.note ?? '';
+		const incoming = place.note ?? '';
+		if (!saveTimer && !saving) noteText = incoming;
 	});
+
+	$effect(() => {
+		return () => flushPendingSave();
+	});
+
+	function flushPendingSave() {
+		if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; autoSave(); }
+	}
 
 	function handleMobileTap(e: MouseEvent) {
 		const target = e.target as HTMLElement;
@@ -143,6 +152,7 @@
 			onSelect?.(place.id);
 			return;
 		}
+		if (flipped) flushPendingSave();
 		flipped = !flipped;
 	}
 
@@ -153,6 +163,7 @@
 			onSelect?.(place.id);
 			return;
 		}
+		if (flipped) flushPendingSave();
 		flipped = !flipped;
 	}
 
@@ -164,7 +175,7 @@
 
 	function flipToFront(e: MouseEvent) {
 		e.stopPropagation();
-		if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; autoSave(); }
+		flushPendingSave();
 		flipped = false;
 	}
 
@@ -172,7 +183,7 @@
 	$effect(() => {
 		if (prevSelected && !selected) {
 			if (flipped) {
-				if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; autoSave(); }
+				flushPendingSave();
 				flipped = false;
 			}
 			if (swipeX !== 0) { swipeX = 0; swipeConfirm = false; }
@@ -183,7 +194,7 @@
 	function scheduleAutoSave() {
 		saved = false;
 		if (saveTimer) clearTimeout(saveTimer);
-		saveTimer = setTimeout(autoSave, 800);
+		saveTimer = setTimeout(autoSave, 300);
 	}
 
 	async function autoSave() {

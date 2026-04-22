@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 
 	let { data } = $props();
@@ -15,6 +15,14 @@
 	const DEFAULT_REDIRECT = '/places';
 
 	const confirmError = $derived(page.url.searchParams.get('error') === 'invalid-confirmation-link');
+	const confirmSuccess = $derived(page.url.searchParams.get('confirmed') === 'true');
+
+	$effect(() => {
+		if (data.session) {
+			const redirectTo = getSafeRedirect(page.url.searchParams.get('redirect'));
+			goto(redirectTo, { replaceState: true });
+		}
+	});
 
 	function getSafeRedirect(url: string | null): string {
 		if (!url) return DEFAULT_REDIRECT;
@@ -30,7 +38,7 @@
 	}
 
 	function getEmailRedirectTo(): string {
-		return `${page.url.origin}/auth/confirm?next=/login`;
+		return `${page.url.origin}/auth/confirm?next=${encodeURIComponent('/login?confirmed=true')}`;
 	}
 
 	async function handleSubmit(e: Event) {
@@ -54,10 +62,11 @@
 			const { error: err } = await supabase.auth.signInWithPassword({ email, password });
 			if (err) {
 				error = err.message;
-			} else {
-				const redirectTo = getSafeRedirect(page.url.searchParams.get('redirect'));
-				goto(redirectTo);
-			}
+		} else {
+			const redirectTo = getSafeRedirect(page.url.searchParams.get('redirect'));
+			await invalidate('supabase:auth');
+			goto(redirectTo);
+		}
 		}
 
 		loading = false;
@@ -84,6 +93,12 @@
 		{#if confirmError}
 			<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
 				Your confirmation link was invalid or has expired. Please sign up again.
+			</div>
+		{/if}
+
+		{#if confirmSuccess}
+			<div class="mb-4 rounded-lg bg-sage-100 p-3 text-sm text-sage-800">
+				Email confirmed! Sign in with your credentials.
 			</div>
 		{/if}
 
