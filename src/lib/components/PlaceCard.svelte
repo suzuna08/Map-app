@@ -318,23 +318,13 @@
 									class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-bold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
 									aria-label="Open in Google Maps"
 								>
-									<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-										<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-									</svg>
+								<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+								</svg>
 									Maps
 								</a>
-							{/if}
-							<button
-								onclick={flipToBack}
-								class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-bold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
-								aria-label="Notes"
-							>
-								<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-									<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-								</svg>
-								Notes
-							</button>
-							{#if onCollectionPickerToggle}
+						{/if}
+						{#if onCollectionPickerToggle}
 								<button
 									onclick={(e) => { e.stopPropagation(); onCollectionPickerToggle?.(place.id); }}
 									class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-bold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
@@ -355,11 +345,11 @@
 					</article>
 				</div>
 
-				<!-- MOBILE BACK (Notes) -->
+				<!-- MOBILE BACK (Notes only) -->
 				<div class="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
 					<article class="flex h-[190px] cursor-pointer flex-col rounded-xl border border-warm-200 bg-white p-3.5">
 						<div class="mb-1.5 flex items-center justify-between">
-							<h3 class="line-clamp-1 flex-1 text-base font-extrabold text-warm-800">{place.title}</h3>
+							<h3 class="min-w-0 flex-1 truncate text-base font-extrabold leading-snug text-warm-800">{place.title}</h3>
 							<div class="ml-2 flex items-center gap-1.5">
 								{#if saving}
 									<span class="text-xs text-warm-400">Saving...</span>
@@ -469,25 +459,14 @@
 							class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
 							aria-label="Open in Google Maps"
 						>
-							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-								<polyline points="15 3 21 3 21 9" />
-								<line x1="10" y1="14" x2="21" y2="3" />
-							</svg>
+						<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+							<circle cx="12" cy="10" r="3" />
+						</svg>
 							Maps
 						</a>
-					{/if}
-				<button
-					onclick={flipToBack}
-					class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
-					aria-label="Notes"
-					>
-						<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-						</svg>
-						Notes
-					</button>
-					{#if onCollectionPickerToggle}
+				{/if}
+				{#if onCollectionPickerToggle}
 						<button
 							onclick={(e) => { e.stopPropagation(); onCollectionPickerToggle?.(place.id); }}
 							class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
@@ -541,11 +520,11 @@
 			</article>
 		</div>
 
-		<!-- DESKTOP BACK (Notes) -->
+		<!-- DESKTOP BACK (Notes only) -->
 		<div class="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
 			<article class="flex h-[260px] flex-col rounded-2xl border border-warm-200 bg-white p-5">
 				<div class="mb-3 flex items-center justify-between">
-					<h3 class="line-clamp-1 text-lg font-extrabold text-warm-800">{place.title}</h3>
+					<h3 class="min-w-0 flex-1 truncate text-lg font-extrabold leading-snug text-warm-800">{place.title}</h3>
 					<div class="flex shrink-0 items-center gap-2">
 						{#if saving}
 							<span class="text-xs text-warm-400">Saving...</span>

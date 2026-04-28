@@ -18,6 +18,18 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.order('created_at', { ascending: false })
 	]);
 
+	let photosRes: { data: any[] | null; error: any } = { data: [], error: null };
+	try {
+		photosRes = await supabase
+			.from('place_photos')
+			.select('place_id, storage_path, sort_order')
+			.eq('user_id', userId!)
+			.order('sort_order', { ascending: true })
+			.order('created_at', { ascending: true });
+	} catch {
+		// place_photos table may not exist yet
+	}
+
 	const placeTags: { place_id: string; tag_id: string }[] = [];
 	const places = (placesRes.data ?? []).map(({ place_tags, ...p }) => {
 		for (const pt of (place_tags as { tag_id: string }[])) {
@@ -34,11 +46,18 @@ export const load: PageServerLoad = async ({ locals }) => {
 		return col;
 	});
 
+	const placePhotos: Record<string, string[]> = {};
+	for (const row of (photosRes.data ?? []) as { place_id: string; storage_path: string }[]) {
+		const { data: { publicUrl } } = supabase.storage.from('place-photos').getPublicUrl(row.storage_path);
+		(placePhotos[row.place_id] ??= []).push(publicUrl);
+	}
+
 	return {
 		serverPlaces: places,
 		serverTags: tagsRes.data ?? [],
 		serverPlaceTags: placeTags,
 		serverCollections: collections,
-		serverListPlaces: listPlaces
+		serverListPlaces: listPlaces,
+		placePhotos
 	};
 };

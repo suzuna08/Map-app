@@ -6,10 +6,13 @@
 		places: Place[];
 		selectedPlaceId: string | null;
 		onPlaceSelect: (placeId: string) => void;
+		onPopupPhotoAction?: (placeId: string) => void;
+		onPopupPhotoClick?: (placeId: string, photoIndex: number) => void;
 		maptilerKey?: string;
+		placePhotos?: Record<string, string[]>;
 	}
 
-	let { places, selectedPlaceId, onPlaceSelect, maptilerKey = '' }: Props = $props();
+	let { places, selectedPlaceId, onPlaceSelect, onPopupPhotoAction, onPopupPhotoClick, maptilerKey = '', placePhotos = {} }: Props = $props();
 
 	const MIN_HEIGHT = 80;
 	const DEFAULT_HEIGHT = 128;
@@ -76,7 +79,7 @@
 	style="height: {mapHeight}px"
 >
 	<div class="h-full w-full">
-		<MapView {places} {selectedPlaceId} {onPlaceSelect} {maptilerKey} {mapMode} />
+		<MapView {places} {selectedPlaceId} {onPlaceSelect} {onPopupPhotoAction} {onPopupPhotoClick} {maptilerKey} {mapMode} {placePhotos} />
 	</div>
 
 	<!-- Drag handle -->

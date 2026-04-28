@@ -12,9 +12,10 @@
 		allTags: Tag[];
 		onClose: () => void;
 		onTagsChanged: () => void;
+		mode?: 'modal' | 'popover';
 	}
 
-	let { supabase, userId, allTags, onClose, onTagsChanged }: Props = $props();
+	let { supabase, userId, allTags, onClose, onTagsChanged, mode = 'modal' }: Props = $props();
 
 	let editingId = $state<string | null>(null);
 	let editName = $state('');
@@ -133,6 +134,144 @@
 	}
 </script>
 
+{#if mode === 'popover'}
+<!-- Popover (no portal, no backdrop) -->
+<div class="flex max-h-[60vh] flex-col overflow-hidden">
+	<!-- Header -->
+	<div class="flex items-center justify-between px-4 py-3.5">
+		<h2 class="text-base font-bold text-warm-800">Manage Tags</h2>
+		<button
+			onclick={onClose}
+			class="rounded-lg p-1 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600"
+			aria-label="Close"
+		>
+			<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<line x1="18" y1="6" x2="6" y2="18" />
+				<line x1="6" y1="6" x2="18" y2="18" />
+			</svg>
+		</button>
+	</div>
+
+	<!-- New tag input -->
+	<div class="border-b border-warm-200 px-4 pb-2.5">
+		{#if duplicateWarning && !editingId}
+			<p class="mb-1 text-xs font-medium text-amber-600">{duplicateWarning}</p>
+		{/if}
+		<div class="flex items-center gap-2.5">
+			<span
+				class="h-3.5 w-3.5 shrink-0 rounded-full transition-colors"
+				style="background-color: {newTagName.trim() ? newTagColor : '#d1d5db'}"
+			></span>
+			<input
+				bind:this={newInputEl}
+				type="text"
+				bind:value={newTagName}
+				oninput={() => { newTagColorOverride = null; duplicateWarning = ''; }}
+				onkeydown={handleNewKeydown}
+				placeholder="New tag..."
+				class="flex-1 border-0 bg-transparent py-0.5 text-[0.9375rem] text-warm-700 placeholder-warm-400 focus:outline-none"
+			/>
+			{#if newTagName.trim()}
+				<button
+					onclick={createTag}
+					class="rounded-md bg-brand-600 px-2.5 py-0.5 text-xs font-medium text-white hover:bg-brand-700"
+				>Add</button>
+			{/if}
+		</div>
+		{#if newTagName.trim()}
+			<div class="mt-1.5 flex flex-wrap gap-1 pl-5">
+				{#each TAG_PALETTE as color}
+					<button
+						onclick={() => { newTagColorOverride = color; }}
+						class="h-5 w-5 rounded-full transition-transform {newTagColor === color ? 'ring-2 ring-offset-1 ring-warm-400 scale-110' : 'hover:scale-110'}"
+						style="background-color: {color}"
+						aria-label="Select color"
+					></button>
+				{/each}
+			</div>
+		{/if}
+	</div>
+
+	<!-- Tag list -->
+	<div
+		class="flex-1 overflow-y-auto px-2.5 py-1"
+		use:sortable={{
+			onReorder: handleReorder,
+			itemSelector: '[data-tag-id]',
+			idAttribute: 'data-tag-id',
+			longPressMs: 400,
+			disabled: false,
+			ignoreDragFrom: 'button, input, [role="button"]'
+		}}
+	>
+		{#if allTags.length === 0}
+			<p class="py-6 text-center text-xs text-warm-400">No tags yet</p>
+		{/if}
+
+		{#each allTags as tag (tag.id)}
+			{#if confirmDeleteId === tag.id}
+			<div class="flex items-center justify-between rounded-lg bg-danger-50 px-2.5 py-1.5">
+				<span class="text-[0.8125rem] text-danger-700">Delete "{tag.name}"?</span>
+				<div class="flex items-center gap-1">
+					<button onclick={() => { confirmDeleteId = null; }} class="rounded-md px-2 py-0.5 text-xs text-warm-500 hover:bg-white">Cancel</button>
+					<button onclick={() => deleteTag(tag.id)} class="rounded-md bg-danger-600 px-2 py-0.5 text-xs font-medium text-white hover:bg-danger-800">Delete</button>
+				</div>
+			</div>
+			{:else}
+			<div data-tag-id={tag.id} class="group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-colors hover:bg-warm-100/70">
+				<button
+					onclick={() => { colorPickerId = colorPickerId === tag.id ? null : tag.id; editingId = null; }}
+					class="h-3.5 w-3.5 shrink-0 rounded-full transition-transform hover:scale-125"
+					style="background-color: {tag.color ?? '#9a8a70'}"
+					aria-label="Change color"
+				></button>
+				{#if editingId === tag.id}
+					<input
+						bind:this={editInputEl}
+						type="text"
+						bind:value={editName}
+						onkeydown={(e) => handleEditKeydown(e, tag.id)}
+						onblur={() => handleEditBlur(tag.id)}
+						class="flex-1 rounded-md border border-brand-300 bg-white px-2 py-0.5 text-[0.9375rem] text-warm-700 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/40"
+					/>
+				{:else}
+					<button
+						onclick={() => startInlineEdit(tag)}
+						class="flex-1 truncate text-left text-[0.9375rem] text-warm-700 hover:text-warm-900"
+					>{tag.name}</button>
+				{/if}
+					{#if duplicateWarning && editingId === tag.id}
+						<span class="shrink-0 text-xs font-medium text-amber-600">{duplicateWarning}</span>
+					{/if}
+				<button
+					onclick={() => { confirmDeleteId = tag.id; editingId = null; colorPickerId = null; }}
+					class="shrink-0 rounded-md p-1 text-warm-300 opacity-0 transition-all hover:bg-danger-50 hover:text-danger-600 group-hover:opacity-100"
+					aria-label="Delete tag"
+				>
+					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<polyline points="3 6 5 6 21 6" />
+							<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+						</svg>
+					</button>
+				</div>
+				{#if colorPickerId === tag.id}
+					<div class="mb-0.5 ml-5 flex flex-wrap gap-1 rounded-lg bg-warm-100/60 px-2.5 py-1.5">
+						{#each TAG_PALETTE as color}
+							<button
+								onclick={() => changeColor(tag.id, color)}
+								class="h-5 w-5 rounded-full transition-transform {(tag.color ?? '#9a8a70') === color ? 'ring-2 ring-offset-1 ring-warm-400 scale-110' : 'hover:scale-110'}"
+								style="background-color: {color}"
+								aria-label="Select color"
+							></button>
+						{/each}
+					</div>
+				{/if}
+			{/if}
+		{/each}
+	</div>
+</div>
+
+{:else}
 <div use:portal>
 <!-- Backdrop -->
 <button
@@ -298,3 +437,4 @@
 	</div>
 </div>
 </div>
+{/if}

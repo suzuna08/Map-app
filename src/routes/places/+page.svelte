@@ -9,6 +9,8 @@
 	import SavedViewsBar from '$lib/components/SavedViewsBar.svelte';
 	import SaveViewButton from '$lib/components/SaveViewButton.svelte';
 	import AddToCollectionModal from '$lib/components/AddToCollectionModal.svelte';
+	import PhotoGrid from '$lib/components/PhotoGrid.svelte';
+	import PhotoLightbox from '$lib/components/PhotoLightbox.svelte';
 	import { sortable } from '$lib/actions/sortable';
 	import { saveTagOrder } from '$lib/tag-order';
 	import { textColorForBg } from '$lib/tag-colors';
@@ -17,6 +19,7 @@
 	import { loadCollections, addPlaceToCollection, addPlacesToCollection, removePlaceFromCollection, isPlaceInCollection, optimisticAdd, optimisticRemove, createCollection } from '$lib/stores/collections.svelte';
 	import { loadSavedViews, updateSavedView, buildFiltersSnapshot, reorderSavedViews } from '$lib/stores/saved-views.svelte';
 	import { isUrlTimingEnabled, logTimingObject } from '$lib/url-timing';
+	import { loadPlacePhotos } from '$lib/photo-storage';
 	import type { CollectionMemberMap } from '$lib/stores/collections.svelte';
 
 	let { data } = $props();
@@ -39,10 +42,11 @@
 				ptMap,
 				colls,
 				cpm,
+				photos: (d.placePhotos ?? {}) as Record<string, string[]>,
 				loaded: true
 			};
 		}
-		return { places: [] as Place[], tags: [] as Tag[], ptMap: {} as Record<string, Tag[]>, colls: [] as Collection[], cpm: {} as CollectionMemberMap, loaded: false };
+		return { places: [] as Place[], tags: [] as Tag[], ptMap: {} as Record<string, Tag[]>, colls: [] as Collection[], cpm: {} as CollectionMemberMap, photos: {} as Record<string, string[]>, loaded: false };
 	}
 
 	const serverData = initFromServer();
@@ -75,6 +79,45 @@
 	let urlAdding = $state(false);
 	let toasts = $derived(getToasts());
 	let searchInputEl = $state<HTMLInputElement | null>(null);
+	let mobileOptionsOpen = $state(false);
+	let photoModalPlaceId = $state<string | null>(null);
+	let placePhotos = $state<Record<string, string[]>>({ ...serverData.photos });
+	let popupLightbox = $state<{ placeId: string; startIndex: number } | null>(null);
+
+	const DESKTOP_MAP_DEFAULT_PCT = 42;
+	const DESKTOP_MAP_MIN_PCT = 25;
+	const DESKTOP_MAP_MAX_PCT = 70;
+	let desktopMapPct = $state(DESKTOP_MAP_DEFAULT_PCT);
+	let desktopMapDragging = $state(false);
+	let desktopMapAnimating = $state(false);
+	let desktopDragStartX = 0;
+	let desktopDragStartPct = 0;
+
+	function onDesktopHandleDown(e: PointerEvent) {
+		if (desktopMapAnimating) return;
+		desktopMapDragging = true;
+		desktopDragStartX = e.clientX;
+		desktopDragStartPct = desktopMapPct;
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+	}
+
+	function onDesktopHandleMove(e: PointerEvent) {
+		if (!desktopMapDragging) return;
+		const deltaX = desktopDragStartX - e.clientX;
+		const deltaPct = (deltaX / window.innerWidth) * 100;
+		desktopMapPct = Math.max(DESKTOP_MAP_MIN_PCT, Math.min(DESKTOP_MAP_MAX_PCT, desktopDragStartPct + deltaPct));
+	}
+
+	function onDesktopHandleUp() {
+		if (!desktopMapDragging) return;
+		desktopMapDragging = false;
+	}
+
+	function onDesktopHandleDblClick() {
+		desktopMapAnimating = true;
+		desktopMapPct = DESKTOP_MAP_DEFAULT_PCT;
+		setTimeout(() => { desktopMapAnimating = false; }, 250);
+	}
 
 	let autoApplyCurrentViewTags = $state(true);
 
@@ -722,6 +765,27 @@
 		});
 	}
 
+	function handlePopupPhotoAction(placeId: string) {
+		photoModalPlaceId = placeId;
+	}
+
+	function handlePopupPhotoClick(placeId: string, photoIndex: number) {
+		popupLightbox = { placeId, startIndex: photoIndex };
+	}
+
+	async function closePhotoModal() {
+		const closingPlaceId = photoModalPlaceId;
+		photoModalPlaceId = null;
+		if (!closingPlaceId) return;
+		try {
+			const results = await loadPlacePhotos(supabase, closingPlaceId);
+			const urls = results.map(r => r.publicUrl);
+			placePhotos = { ...placePhotos, [closingPlaceId]: urls };
+		} catch (e) {
+			console.log('[closePhotoModal] failed to refresh photos', e);
+		}
+	}
+
 	function handleCardSelect(placeId: string) {
 		selectedPlaceId = placeId;
 	}
@@ -764,62 +828,9 @@
 </script>
 
 {#snippet placesSearchBlock()}
-				<!-- Search (top) + Save View button -->
-				<div class="mb-3 sm:mb-4">
-					<div class="flex items-center gap-2">
-						<div class="relative min-w-0 flex-1">
-							<svg
-								class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-warm-400 sm:left-4 sm:h-[1.125rem] sm:w-[1.125rem]"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-							>
-								<circle cx="11" cy="11" r="8" />
-								<line x1="21" y1="21" x2="16.65" y2="16.65" />
-							</svg>
-							<input
-								bind:this={searchInputEl}
-								type="text"
-								bind:value={search}
-								onkeydown={handleSearchKeydown}
-								placeholder="Search places, tags, areas, or paste a link..."
-								class="w-full rounded-full border border-warm-200/90 bg-warm-50 py-2.5 pl-10 pr-9 text-sm font-medium text-warm-800 shadow-sm transition-colors placeholder:text-warm-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:py-3 sm:pl-11 sm:pr-11 sm:text-[15px]"
-							/>
-							{#if urlAdding}
-								<svg class="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-brand-500 sm:right-4" viewBox="0 0 24 24" fill="none">
-									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-								</svg>
-							{:else if detectedUrl}
-								<span class="pointer-events-none absolute right-3 top-1/2 max-w-[38%] -translate-y-1/2 truncate text-right text-[10px] font-semibold text-brand-600 sm:right-4 sm:max-w-[45%] sm:text-xs">Enter to add</span>
-							{:else if search}
-								<button
-									onclick={() => { search = ''; searchInputEl?.focus(); }}
-									class="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600 sm:right-2.5"
-									aria-label="Clear search"
-								>
-									<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-										<line x1="18" y1="6" x2="6" y2="18" />
-										<line x1="6" y1="6" x2="18" y2="18" />
-									</svg>
-								</button>
-							{/if}
-						</div>
-						<SaveViewButton
-							{supabase}
-							userId={session?.user?.id ?? ''}
-							{selectedCustomIds}
-							{filterMode}
-							{selectedSource}
-							{sortBy}
-							{viewMode}
-							{search}
-							onViewsChanged={refreshSavedViews}
-						/>
-					</div>
-				</div>
+{/snippet}
 
+{#snippet placesSearchOverlay()}
 {/snippet}
 
 {#snippet placesContextualBlock()}
@@ -882,7 +893,7 @@
 
 {#snippet placesControlsBlock()}
 				<!-- Reserved filter summary area (always present to prevent layout shift) -->
-				<div class="mb-1 min-h-[28px] sm:mb-1 sm:min-h-[32px]">
+				<div class="mb-1.5 min-h-[28px] sm:mb-1.5 sm:min-h-[32px]">
 					{#if hasActiveFilters || selectedSource !== 'all' || (activeSavedViewId && viewIsDirty)}
 						{@const showChipsRow = hasActiveFilters || selectedSource !== 'all'}
 						{@const isEditingSavedView = !!(activeSavedViewId && viewIsDirty)}
@@ -892,9 +903,10 @@
 								: ''}"
 						>
 							{#if showChipsRow}
-								<div class="flex min-w-0 items-center gap-2">
+								<div class="flex min-w-0 items-center gap-2 lg:items-baseline lg:gap-2.5">
+									<span class="hidden shrink-0 text-sm font-bold text-warm-400 lg:inline" style="width: 3rem">Filters</span>
 									<div
-										class="-mx-0.5 flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto px-0.5 py-0.5 [scrollbar-width:none] sm:mx-0 sm:px-0 md:flex-wrap md:overflow-x-visible [&::-webkit-scrollbar]:hidden"
+										class="-mx-0.5 flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto px-0.5 py-0.5 [scrollbar-width:none] sm:mx-0 sm:px-0 lg:flex-wrap lg:overflow-x-visible [&::-webkit-scrollbar]:hidden"
 									>
 										{#if isEditingSavedView}
 											<span
@@ -903,7 +915,7 @@
 												Editing<span class="hidden sm:inline">{' view'}</span>
 											</span>
 										{/if}
-										<span class="shrink-0 text-xs font-bold text-warm-400 sm:text-sm">Filtered by:</span>
+										<span class="shrink-0 text-xs font-bold text-warm-400 sm:text-sm lg:hidden">Filters</span>
 										{#if activeSearchTerms.length > 0}
 											{#each activeSearchTerms as term, i (i)}
 												<button
@@ -1059,10 +1071,10 @@
 					</div>
 				{/if}
 
-				<!-- ======== MOBILE tag filter (< md) ======== -->
-				<div class="mb-1.5 md:hidden">
+				<!-- ======== MOBILE tag filter (< lg) ======== -->
+				<div class="mb-1.5 lg:hidden">
 					<div
-						class="flex items-center gap-1.5 overflow-x-auto py-0.5 pr-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+						class="flex flex-wrap items-center gap-1.5 py-0.5 pr-4"
 						use:sortable={{
 							onReorder: handleTagReorder,
 							itemSelector: '[data-tag-id]',
@@ -1088,27 +1100,42 @@
 								{/if}
 							</button>
 						{/each}
-						<button
-							onclick={() => { showTagManager = true; }}
-							class="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-warm-300 px-2 py-1 text-xs text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
-							aria-label="Manage tags"
-						>
-							<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<line x1="12" y1="5" x2="12" y2="19" />
-								<line x1="5" y1="12" x2="19" y2="12" />
-							</svg>
-							Manage
-						</button>
+						<div class="relative">
+							<button
+								onclick={() => { showTagManager = !showTagManager; }}
+								class="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-warm-300 px-2 py-1 text-xs text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
+								aria-label="Edit tags"
+							>
+								<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<line x1="12" y1="5" x2="12" y2="19" />
+									<line x1="5" y1="12" x2="19" y2="12" />
+								</svg>
+								Edit
+							</button>
+							{#if showTagManager}
+								<div class="fixed inset-0 z-40" onclick={() => { showTagManager = false; }} role="presentation"></div>
+								<div class="absolute left-0 top-full z-50 mt-2 w-72 rounded-xl border border-warm-200 bg-warm-50 shadow-lg">
+									<TagManager
+										{supabase}
+										userId={session?.user?.id ?? ''}
+										allTags={userTags}
+										onClose={() => { showTagManager = false; }}
+										onTagsChanged={refreshTags}
+										mode="popover"
+									/>
+								</div>
+							{/if}
+						</div>
 						{#if userTags.length === 0}
 							<span class="text-xs text-warm-400">No custom tags yet</span>
 						{/if}
 					</div>
 				</div>
 
-				<!-- ======== DESKTOP tag filter (md+) ======== -->
-				<div class="relative z-10 mb-1 hidden space-y-1.5 md:block">
+				<!-- ======== DESKTOP tag filter (lg+) ======== -->
+				<div class="relative z-10 mb-1.5 hidden space-y-1.5 lg:block">
 					<div class="flex items-baseline gap-2.5">
-						<span class="w-16 shrink-0 text-sm font-bold text-warm-400">Custom</span>
+						<span class="shrink-0 text-sm font-bold text-warm-400" style="width: 3rem">Tags</span>
 						<div
 							class="flex flex-wrap items-center gap-1.5"
 							use:sortable={{
@@ -1138,17 +1165,32 @@
 									{/if}
 								</button>
 							{/each}
+							<div class="relative">
 							<button
-								onclick={() => { showTagManager = true; }}
+								onclick={() => { showTagManager = !showTagManager; }}
 							class="inline-flex items-center gap-1 rounded-full border border-dashed border-warm-300 px-2 py-0.5 text-sm text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
-							aria-label="Manage tags"
+							aria-label="Edit tags"
 							>
 								<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 									<line x1="12" y1="5" x2="12" y2="19" />
 									<line x1="5" y1="12" x2="19" y2="12" />
 								</svg>
-								Manage
+								Edit
 							</button>
+							{#if showTagManager}
+								<div class="fixed inset-0 z-40" onclick={() => { showTagManager = false; }} role="presentation"></div>
+								<div class="absolute left-0 top-full z-50 mt-2 w-72 rounded-xl border border-warm-200 bg-warm-50 shadow-lg">
+									<TagManager
+										{supabase}
+										userId={session?.user?.id ?? ''}
+										allTags={userTags}
+										onClose={() => { showTagManager = false; }}
+										onTagsChanged={refreshTags}
+										mode="popover"
+									/>
+								</div>
+							{/if}
+						</div>
 							{#if userTags.length === 0}
 								<span class="text-xs text-warm-400">No custom tags yet</span>
 							{/if}
@@ -1156,16 +1198,8 @@
 					</div>
 				</div>
 
-				<!-- Tag manager modal -->
-				{#if showTagManager}
-					<TagManager
-						{supabase}
-						userId={session?.user?.id ?? ''}
-						allTags={userTags}
-						onClose={() => { showTagManager = false; }}
-						onTagsChanged={refreshTags}
-					/>
-				{/if}
+				<!-- Saved Views (below tags) -->
+				{@render placesSavedViewsBlock()}
 
 				<!-- Collection scope banner -->
 				{#if browseScope.type === 'collection' && activeCollectionName}
@@ -1189,50 +1223,115 @@
 					</div>
 				{/if}
 
-				<!-- Results count + sort + view toggle -->
-				<div class="mb-1 flex flex-wrap items-center justify-between gap-2 sm:mb-0">
-					<p class="shrink-0 text-xs font-semibold text-warm-500 sm:text-sm">{filteredPlaces.length} places</p>
-					<div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
-						<select
-							bind:value={sortBy}
-							class="rounded-md border border-warm-200 bg-white px-1.5 py-1 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:rounded-lg sm:px-2.5 sm:py-1.5 sm:text-sm"
-						>
-							<option value="newest">Recent</option>
-							<option value="oldest">Oldest</option>
-							<option value="az">A–Z</option>
-							<option value="za">Z–A</option>
-							<option value="rating">Rating</option>
-							<option value="most-tags">Most tagged</option>
-							<option value="tag-group">Tag group</option>
-						</select>
-					<div class="flex items-center gap-0.5 rounded-md border border-warm-200 bg-white p-0.5 sm:gap-1 sm:rounded-lg">
-						<button
-							onclick={() => { viewMode = 'grid'; }}
-							class="rounded p-1.5 transition-colors sm:rounded-md sm:p-2 {viewMode === 'grid' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
-							aria-label="Grid view"
-						>
-							<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<rect x="3" y="3" width="7" height="7" />
-								<rect x="14" y="3" width="7" height="7" />
-								<rect x="3" y="14" width="7" height="7" />
-								<rect x="14" y="14" width="7" height="7" />
+				<!-- Search + sort + view toggle -->
+				<div class="mb-1 mt-1 flex items-center gap-2 sm:mb-0 lg:mt-2.5">
+					<div class="relative min-w-0 flex-1">
+						<input
+							bind:this={searchInputEl}
+							type="text"
+							bind:value={search}
+							onkeydown={(e) => { handleSearchKeydown(e); }}
+							placeholder="Search or paste a link..."
+							class="w-full rounded-full border border-warm-200 bg-warm-50 py-1.5 pl-3.5 pr-8 text-xs font-medium text-warm-800 transition-colors placeholder:text-warm-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:py-2 sm:pl-4 sm:pr-9 sm:text-sm"
+						/>
+						{#if urlAdding}
+							<svg class="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-brand-500 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
 							</svg>
-						</button>
-						<button
-							onclick={() => { viewMode = 'list'; }}
-							class="rounded p-1.5 transition-colors sm:rounded-md sm:p-2 {viewMode === 'list' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
-							aria-label="List view"
-						>
-							<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<line x1="8" y1="6" x2="21" y2="6" />
-								<line x1="8" y1="12" x2="21" y2="12" />
-								<line x1="8" y1="18" x2="21" y2="18" />
-								<line x1="3" y1="6" x2="3.01" y2="6" />
-								<line x1="3" y1="12" x2="3.01" y2="12" />
-								<line x1="3" y1="18" x2="3.01" y2="18" />
-							</svg>
-						</button>
+						{:else if detectedUrl}
+							<span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-brand-600 sm:text-xs">Enter to add</span>
+						{:else if search}
+							<button
+								onclick={() => { search = ''; searchInputEl?.focus(); }}
+								class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600 sm:p-1"
+								aria-label="Clear"
+							>
+								<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+									<line x1="18" y1="6" x2="6" y2="18" />
+									<line x1="6" y1="6" x2="18" y2="18" />
+								</svg>
+							</button>
+						{/if}
 					</div>
+					<div class="flex shrink-0 ml-auto items-center gap-1.5 sm:gap-2">
+						<SaveViewButton
+							{supabase}
+							userId={session?.user?.id ?? ''}
+							{selectedCustomIds}
+							{filterMode}
+							{selectedSource}
+							{sortBy}
+							{viewMode}
+							{search}
+							onViewsChanged={refreshSavedViews}
+						/>
+						<!-- Options button + popover -->
+						<div class="relative">
+							<button
+								onclick={() => { mobileOptionsOpen = !mobileOptionsOpen; }}
+								class="flex items-center justify-center rounded-lg border border-warm-200 bg-white p-1.5 text-warm-400 transition-colors hover:bg-warm-50 hover:text-warm-600 sm:py-1.5 sm:px-2"
+								aria-label="Sort and view options"
+							>
+								<svg class="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+									<line x1="4" y1="6" x2="20" y2="6" />
+									<line x1="4" y1="12" x2="20" y2="12" />
+									<line x1="4" y1="18" x2="20" y2="18" />
+									<circle cx="8" cy="6" r="2" fill="currentColor" />
+									<circle cx="14" cy="12" r="2" fill="currentColor" />
+									<circle cx="10" cy="18" r="2" fill="currentColor" />
+								</svg>
+							</button>
+							{#if mobileOptionsOpen}
+								<div class="fixed inset-0 z-40" onclick={() => { mobileOptionsOpen = false; }} role="presentation"></div>
+								<div class="absolute right-0 top-full z-50 mt-1 w-44 rounded-lg border border-warm-200 bg-white p-2 shadow-lg">
+									<label for="mobile-sort" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">Sort</label>
+									<select
+										id="mobile-sort"
+										bind:value={sortBy}
+										onchange={() => { mobileOptionsOpen = false; }}
+										class="mb-2.5 w-full rounded-md border border-warm-200 bg-warm-50 px-2 py-1.5 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20"
+									>
+										<option value="newest">Recent</option>
+										<option value="oldest">Oldest</option>
+										<option value="az">A–Z</option>
+										<option value="za">Z–A</option>
+										<option value="rating">Rating</option>
+										<option value="most-tags">Most tagged</option>
+										<option value="tag-group">Tag group</option>
+									</select>
+									<span id="mobile-view-label" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">View</span>
+									<div class="flex items-center gap-1 rounded-md border border-warm-200 bg-warm-50 p-0.5" role="group" aria-labelledby="mobile-view-label">
+										<button
+											onclick={() => { viewMode = 'grid'; mobileOptionsOpen = false; }}
+											class="flex-1 flex items-center justify-center rounded px-2 py-1.5 transition-colors {viewMode === 'grid' ? 'bg-white text-warm-700 shadow-sm' : 'text-warm-400 hover:text-warm-600'}"
+											aria-label="Grid view"
+										>
+											<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+												<rect x="3" y="3" width="7" height="7" />
+												<rect x="14" y="3" width="7" height="7" />
+												<rect x="3" y="14" width="7" height="7" />
+												<rect x="14" y="14" width="7" height="7" />
+											</svg>
+										</button>
+										<button
+											onclick={() => { viewMode = 'list'; mobileOptionsOpen = false; }}
+											class="flex-1 flex items-center justify-center rounded px-2 py-1.5 transition-colors {viewMode === 'list' ? 'bg-white text-warm-700 shadow-sm' : 'text-warm-400 hover:text-warm-600'}"
+											aria-label="List view"
+										>
+											<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+												<line x1="8" y1="6" x2="21" y2="6" />
+												<line x1="8" y1="12" x2="21" y2="12" />
+												<line x1="8" y1="18" x2="21" y2="18" />
+												<line x1="3" y1="6" x2="3.01" y2="6" />
+												<line x1="3" y1="12" x2="3.01" y2="12" />
+												<line x1="3" y1="18" x2="3.01" y2="18" />
+											</svg>
+										</button>
+									</div>
+								</div>
+							{/if}
+						</div>
 					</div>
 				</div>
 
@@ -1319,40 +1418,57 @@
 <div class="min-h-[100dvh]">
 	{#if isMobile}
 		<div class="flex h-[100dvh] flex-col overflow-hidden">
-			<div class="shrink-0 border-b border-warm-200/80 bg-sage-100 px-2.5 pt-2 pb-2">
-				{@render placesSearchBlock()}
-				{@render placesContextualBlock()}
-				{@render placesSavedViewsBlock()}
-			</div>
 			<MobileMapShell
 				places={filteredPlaces}
 				{selectedPlaceId}
 				onPlaceSelect={handleMapPlaceSelect}
+				onPopupPhotoAction={handlePopupPhotoAction}
+				onPopupPhotoClick={handlePopupPhotoClick}
 				maptilerKey={data.maptilerKey}
+				{placePhotos}
 			/>
 			<div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
+				<div class="sticky top-0 z-20 border-b border-warm-200/80 bg-sage-100 px-2.5 pt-2 pb-1.5">
+					{@render placesControlsBlock()}
+				</div>
 				<div
 					class="mx-auto px-2.5 pt-1 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]"
 				>
-					{@render placesControlsBlock()}
 					{@render placesFiltersAndListBlock()}
 				</div>
 			</div>
 		</div>
 	{:else}
-		<div class="flex flex-col lg:flex-row">
-			<div class="relative z-0 h-[35vh] shrink-0 border-b border-warm-200 sm:h-[38vh] lg:order-2 lg:sticky lg:top-0 lg:h-[100dvh] lg:w-[42%] lg:self-start lg:border-b-0 lg:border-l">
-				<MapView places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} maptilerKey={data.maptilerKey} />
+		<div class="flex flex-col md:flex-row">
+			<div
+				class="desktop-map-panel relative z-0 h-[35vh] shrink-0 border-b border-warm-200 sm:h-[38vh] md:order-2 md:sticky md:top-0 md:h-[100dvh] md:self-start md:border-b-0 md:border-l"
+				class:desktop-map-animate={desktopMapAnimating}
+				style="--desktop-map-pct: {desktopMapPct}%"
+			>
+				<MapView places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} onPopupPhotoAction={handlePopupPhotoAction} onPopupPhotoClick={handlePopupPhotoClick} maptilerKey={data.maptilerKey} {placePhotos} />
+
+				<!-- Desktop drag handle (left edge) -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div
+					class="absolute inset-y-0 left-0 z-10 hidden w-2 cursor-col-resize items-center md:flex"
+					class:bg-brand-100={desktopMapDragging}
+					onpointerdown={onDesktopHandleDown}
+					onpointermove={onDesktopHandleMove}
+					onpointerup={onDesktopHandleUp}
+					onpointercancel={onDesktopHandleUp}
+					ondblclick={onDesktopHandleDblClick}
+				>
+					<div class="mx-auto h-8 w-1 rounded-full {desktopMapDragging ? 'bg-brand-500' : 'bg-warm-300/70'} transition-colors"></div>
+				</div>
 			</div>
-			<div class="min-w-0 flex-1 lg:order-1">
-				<div class="sticky top-0 z-20 border-b border-warm-200/80 bg-sage-100 px-2.5 pt-3 pb-2 sm:px-6 sm:pt-4 sm:pb-2.5 lg:px-4">
+			<div class="min-w-0 flex-1 md:order-1">
+				<div class="sticky top-0 z-20 border-b border-warm-200/80 bg-sage-100 px-2.5 pt-3 pb-2 sm:px-6 sm:pt-4 sm:pb-2.5 md:px-4">
 					{@render placesSearchBlock()}
 					{@render placesContextualBlock()}
-					{@render placesSavedViewsBlock()}
 					{@render placesControlsBlock()}
 				</div>
 				<div
-					class="mx-auto px-2.5 sm:px-6 sm:py-1 lg:px-4 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]"
+					class="mx-auto px-2.5 sm:px-6 sm:py-1 md:px-4 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]"
 				>
 					{@render placesFiltersAndListBlock()}
 				</div>
@@ -1429,6 +1545,49 @@
 		/>
 	{/if}
 
+	<!-- Photo modal (triggered from map popup camera icon) -->
+	{#if photoModalPlaceId}
+		{@const photoPlace = places.find(p => p.id === photoModalPlaceId)}
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="fixed inset-0 z-[60] flex items-end justify-center sm:items-center" onclick={closePhotoModal}>
+			<div class="absolute inset-0 bg-warm-900/40 backdrop-blur-sm"></div>
+			<div
+				class="relative z-10 flex max-h-[80dvh] w-full flex-col rounded-t-2xl border border-warm-200 bg-white shadow-xl sm:max-w-md sm:rounded-2xl"
+				onclick={(e) => e.stopPropagation()}
+			>
+				<div class="flex items-center justify-between border-b border-warm-100 px-4 py-3 sm:px-5">
+					<div class="flex items-center gap-2 min-w-0">
+						<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+							<circle cx="12" cy="13" r="4"/>
+						</svg>
+						<h2 class="truncate text-sm font-bold text-warm-800 sm:text-base">{photoPlace?.title ?? 'Photos'}</h2>
+					</div>
+					<button onclick={closePhotoModal} class="rounded-lg p-1.5 text-warm-400 hover:bg-warm-100 hover:text-warm-600" aria-label="Close">
+						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+						</svg>
+					</button>
+				</div>
+				<div class="flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
+					<PhotoGrid {supabase} placeId={photoModalPlaceId} userId={session?.user?.id ?? ''} />
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	{#if popupLightbox}
+		{@const urls = placePhotos[popupLightbox.placeId] ?? []}
+		{#if urls.length > 0}
+			<PhotoLightbox
+				{urls}
+				startIndex={popupLightbox.startIndex}
+				onClose={() => { popupLightbox = null; }}
+			/>
+		{/if}
+	{/if}
+
 	<!-- Lightweight toasts for URL add feedback -->
 	{#if toasts.length > 0}
 		<div class="fixed bottom-[calc(var(--app-dock-reserve,0px)+0.75rem)] left-1/2 z-[55] flex -translate-x-1/2 flex-col items-center gap-2">
@@ -1487,4 +1646,20 @@
 			{/each}
 		</div>
 	{/if}
+
+	{@render placesSearchOverlay()}
 </div>
+
+<style>
+	.desktop-map-panel {
+		width: 100%;
+	}
+	@media (min-width: 768px) {
+		.desktop-map-panel {
+			width: var(--desktop-map-pct);
+		}
+	}
+	.desktop-map-animate {
+		transition: width 220ms ease-out;
+	}
+</style>

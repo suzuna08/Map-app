@@ -6,11 +6,14 @@
 		places: Place[];
 		selectedPlaceId: string | null;
 		onPlaceSelect: (placeId: string) => void;
+		onPopupPhotoAction?: (placeId: string) => void;
+		onPopupPhotoClick?: (placeId: string, photoIndex: number) => void;
 		maptilerKey?: string;
 		mapMode?: 'collapsed' | 'expanded' | 'default';
+		placePhotos?: Record<string, string[]>;
 	}
 
-	let { places, selectedPlaceId, onPlaceSelect, maptilerKey = '', mapMode = 'default' }: Props = $props();
+	let { places, selectedPlaceId, onPlaceSelect, onPopupPhotoAction, onPopupPhotoClick, maptilerKey = '', mapMode = 'default', placePhotos = {} }: Props = $props();
 
 	let container = $state<HTMLDivElement | null>(null);
 	let map: any = null;
@@ -55,8 +58,7 @@
 				attributionControl: false,
 			});
 
-			map.addControl(new ml.NavigationControl({ showCompass: false }), 'top-right');
-			map.addControl(
+		map.addControl(
 				new ml.GeolocateControl({
 					positionOptions: { enableHighAccuracy: true },
 					trackUserLocation: true,
@@ -75,6 +77,27 @@
 				mapReady = true;
 				syncMarkers();
 				fitToMarkers(false);
+			});
+
+			container.addEventListener('click', (e: MouseEvent) => {
+				const btn = (e.target as HTMLElement).closest('.map-popup-add-photo');
+				if (btn instanceof HTMLElement) {
+					const placeId = btn.dataset.placeId;
+					if (placeId) {
+						onPlaceSelect(placeId);
+						onPopupPhotoAction?.(placeId);
+					}
+					return;
+				}
+
+				const img = (e.target as HTMLElement).closest('.map-popup-photo-thumb');
+				if (img instanceof HTMLElement) {
+					const placeId = img.dataset.placeId;
+					const photoIndex = img.dataset.photoIndex;
+					if (placeId && photoIndex != null) {
+						onPopupPhotoClick?.(placeId, parseInt(photoIndex, 10));
+					}
+				}
 			});
 
 			ro = new ResizeObserver(() => map?.resize());
@@ -105,6 +128,21 @@
 		if (_key !== prevFitKey) {
 			prevFitKey = _key;
 			fitToMarkers(true);
+		}
+	});
+
+	let prevPhotoKey = '';
+	$effect(() => {
+		if (!mapReady || !map) return;
+		const photoKey = JSON.stringify(placePhotos);
+		if (photoKey === prevPhotoKey) return;
+		prevPhotoKey = photoKey;
+
+		for (const place of places) {
+			const entry = markersMap.get(place.id);
+			if (entry) {
+				entry.marker.getPopup().setHTML(popupHtml(place));
+			}
 		}
 	});
 
@@ -164,7 +202,7 @@
 					offset: 20,
 					closeButton: false,
 					closeOnClick: false,
-					maxWidth: '220px',
+					maxWidth: '360px',
 					className: 'map-popup-warm',
 				}).setHTML(popupHtml(place));
 
@@ -176,7 +214,12 @@
 				const placeId = place.id;
 				el.addEventListener('click', (e: MouseEvent) => {
 					e.stopPropagation();
-					onPlaceSelect(placeId);
+					if (placeId === selectedPlaceId) {
+						marker.togglePopup();
+					} else {
+						onPlaceSelect(placeId);
+						if (!marker.getPopup().isOpen()) marker.togglePopup();
+					}
 				});
 				el.addEventListener('mouseenter', () => {
 					if (mapMode !== 'collapsed' && !marker.getPopup().isOpen()) marker.togglePopup();
@@ -200,9 +243,13 @@
 
 	function popupHtml(place: Place): string {
 		const title = esc(place.title);
-		const cat = place.category ? `<div class="map-popup-meta">${esc(place.category)}</div>` : '';
-		const rating = place.user_rating ? `<div class="map-popup-rating">My rating: ${place.user_rating.toFixed(1)} ★</div>` : '';
-		return `<div class="map-popup-content"><div class="map-popup-title">${title}</div>${cat}${rating}</div>`;
+		const rating = place.user_rating ? `<div class="map-popup-rating">${place.user_rating.toFixed(1)} ★</div>` : '';
+		const photos = placePhotos[place.id];
+		const photoHtml = photos?.length
+			? `<div class="map-popup-photos">${photos.map((url, i) => `<img src="${esc(url)}" alt="" loading="lazy" data-place-id="${esc(place.id)}" data-photo-index="${i}" class="map-popup-photo-thumb" />`).join('')}</div>`
+			: '';
+		const addPhotoBtn = `<button class="map-popup-add-photo" data-place-id="${esc(place.id)}" title="Add / view photos"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button>`;
+		return `<div class="map-popup-content"><div class="map-popup-header"><div class="map-popup-title">${title}</div>${addPhotoBtn}</div>${rating}${photoHtml}</div>`;
 	}
 
 	function fitToMarkers(animate: boolean) {

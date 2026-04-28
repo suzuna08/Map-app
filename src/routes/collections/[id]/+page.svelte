@@ -49,6 +49,7 @@
 			editingName = false;
 			editingDesc = false;
 			search = '';
+			collectionOptionsOpen = false;
 			showAddModal = false;
 			addSearch = '';
 			addTagFilter = {};
@@ -59,6 +60,7 @@
 	let viewMode = $state<'grid' | 'list'>('grid');
 	let sortBy = $state<'newest' | 'az' | 'rating'>('newest');
 	let search = $state('');
+	let collectionOptionsOpen = $state(false);
 	let showAddModal = $state(false);
 	let addSearch = $state('');
 	let addTagFilter = $state<Record<string, boolean>>({});
@@ -465,23 +467,64 @@
 				</div>
 			</div>
 		</div>
-		<div class="flex items-center justify-between border-t border-warm-200/60 px-3 py-1.5">
-			<p class="text-xs font-semibold text-warm-500">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</p>
-			<div class="flex items-center gap-1.5">
-				<div class="relative">
-					<svg class="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-					<input type="text" bind:value={search} placeholder="Search..." class="w-28 rounded-lg border border-warm-200 bg-warm-50 py-1 pl-7 pr-7 text-xs font-medium text-warm-600 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20" />
-					{#if search}<button onclick={() => { search = ''; }} class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600" aria-label="Clear search"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>{/if}
-				</div>
-				<select bind:value={sortBy} class="rounded-md border border-warm-200 bg-white px-1.5 py-1 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none"><option value="newest">Recent</option><option value="az">A–Z</option><option value="rating">My Rating</option></select>
-				<div class="flex items-center gap-0.5 rounded-md border border-warm-200 bg-white p-0.5">
-					<button onclick={() => { viewMode = 'grid'; }} class="rounded p-1.5 transition-colors {viewMode === 'grid' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}" aria-label="Grid view"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg></button>
-					<button onclick={() => { viewMode = 'list'; }} class="rounded p-1.5 transition-colors {viewMode === 'list' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}" aria-label="List view"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg></button>
-				</div>
+		<div class="flex items-center gap-2 border-t border-warm-200/60 px-3 py-1.5">
+			<p class="shrink-0 text-xs font-semibold text-warm-500">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</p>
+			<div class="relative min-w-0 flex-1">
+				<input type="text" bind:value={search} placeholder="Search..." class="w-full rounded-full border border-warm-200 bg-warm-50 py-1.5 pl-3.5 pr-8 text-xs font-medium text-warm-800 transition-colors placeholder:text-warm-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20" />
+				{#if search}<button onclick={() => { search = ''; }} class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600" aria-label="Clear search"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>{/if}
+			</div>
+			<div class="relative shrink-0">
+				<button
+					onclick={() => { collectionOptionsOpen = !collectionOptionsOpen; }}
+					class="flex items-center justify-center rounded-lg border border-warm-200 bg-white p-1.5 text-warm-400 transition-colors hover:bg-warm-50 hover:text-warm-600"
+					aria-label="Sort and view options"
+				>
+					<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+						<line x1="4" y1="6" x2="20" y2="6" />
+						<line x1="4" y1="12" x2="20" y2="12" />
+						<line x1="4" y1="18" x2="20" y2="18" />
+						<circle cx="8" cy="6" r="2" fill="currentColor" />
+						<circle cx="14" cy="12" r="2" fill="currentColor" />
+						<circle cx="10" cy="18" r="2" fill="currentColor" />
+					</svg>
+				</button>
+				{#if collectionOptionsOpen}
+					<div class="fixed inset-0 z-40" onclick={() => { collectionOptionsOpen = false; }} role="presentation"></div>
+					<div class="absolute right-0 top-full z-50 mt-1 w-44 rounded-lg border border-warm-200 bg-white p-2 shadow-lg">
+						<label for="coll-sort" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">Sort</label>
+						<select
+							id="coll-sort"
+							bind:value={sortBy}
+							onchange={() => { collectionOptionsOpen = false; }}
+							class="mb-2.5 w-full rounded-md border border-warm-200 bg-warm-50 px-2 py-1.5 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20"
+						>
+							<option value="newest">Recent</option>
+							<option value="az">A–Z</option>
+							<option value="rating">My Rating</option>
+						</select>
+						<span id="coll-view-label" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">View</span>
+						<div class="flex items-center gap-1 rounded-md border border-warm-200 bg-warm-50 p-0.5" role="group" aria-labelledby="coll-view-label">
+							<button
+								onclick={() => { viewMode = 'grid'; collectionOptionsOpen = false; }}
+								class="flex flex-1 items-center justify-center rounded px-2 py-1.5 transition-colors {viewMode === 'grid' ? 'bg-white text-warm-700 shadow-sm' : 'text-warm-400 hover:text-warm-600'}"
+								aria-label="Grid view"
+							>
+								<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
+							</button>
+							<button
+								onclick={() => { viewMode = 'list'; collectionOptionsOpen = false; }}
+								class="flex flex-1 items-center justify-center rounded px-2 py-1.5 transition-colors {viewMode === 'list' ? 'bg-white text-warm-700 shadow-sm' : 'text-warm-400 hover:text-warm-600'}"
+								aria-label="List view"
+							>
+								<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
+							</button>
+						</div>
+					</div>
+				{/if}
 			</div>
 		</div>
 	</div>
-	<MobileMapShell places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} {maptilerKey} />
+	<MobileMapShell places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} {maptilerKey} placePhotos={data.placePhotos} />
 	<div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
 		<div class="mx-auto px-2.5 pt-1 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]">
 	<!-- Places -->
@@ -615,26 +658,67 @@
 				</div>
 			</div>
 		</div>
-		<div class="mx-auto flex max-w-none items-center justify-between border-t border-warm-200/60 px-3 py-1.5 sm:px-6 sm:py-2 lg:px-4">
-			<p class="text-xs font-semibold text-warm-500 sm:text-base">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</p>
-			<div class="flex items-center gap-1.5 sm:gap-2">
-				<div class="relative">
-					<svg class="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-					<input type="text" bind:value={search} placeholder="Search..." class="w-28 rounded-lg border border-warm-200 bg-warm-50 py-1 pl-7 pr-7 text-xs font-medium text-warm-600 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:w-40 sm:text-sm" />
-					{#if search}<button onclick={() => { search = ''; }} class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600" aria-label="Clear search"><svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>{/if}
-				</div>
-				<select bind:value={sortBy} class="rounded-md border border-warm-200 bg-white px-1.5 py-1 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none sm:text-sm"><option value="newest">Recent</option><option value="az">A–Z</option><option value="rating">My Rating</option></select>
-				<div class="flex items-center gap-0.5 rounded-md border border-warm-200 bg-white p-0.5">
-					<button onclick={() => { viewMode = 'grid'; }} class="rounded p-1.5 transition-colors {viewMode === 'grid' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}" aria-label="Grid view"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg></button>
-					<button onclick={() => { viewMode = 'list'; }} class="rounded p-1.5 transition-colors {viewMode === 'list' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}" aria-label="List view"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg></button>
-				</div>
+		<div class="mx-auto flex max-w-none items-center gap-2 border-t border-warm-200/60 px-3 py-1.5 sm:px-6 sm:py-2 lg:px-4">
+			<p class="shrink-0 text-xs font-semibold text-warm-500 sm:text-base">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</p>
+			<div class="relative min-w-0 flex-1">
+				<input type="text" bind:value={search} placeholder="Search..." class="w-full rounded-full border border-warm-200 bg-warm-50 py-1.5 pl-3.5 pr-8 text-xs font-medium text-warm-800 transition-colors placeholder:text-warm-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:py-2 sm:pl-4 sm:pr-9 sm:text-sm" />
+				{#if search}<button onclick={() => { search = ''; }} class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600 sm:p-1" aria-label="Clear search"><svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>{/if}
+			</div>
+			<div class="relative shrink-0">
+				<button
+					onclick={() => { collectionOptionsOpen = !collectionOptionsOpen; }}
+					class="flex items-center justify-center rounded-lg border border-warm-200 bg-white p-1.5 text-warm-400 transition-colors hover:bg-warm-50 hover:text-warm-600 sm:py-1.5 sm:px-2"
+					aria-label="Sort and view options"
+				>
+					<svg class="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+						<line x1="4" y1="6" x2="20" y2="6" />
+						<line x1="4" y1="12" x2="20" y2="12" />
+						<line x1="4" y1="18" x2="20" y2="18" />
+						<circle cx="8" cy="6" r="2" fill="currentColor" />
+						<circle cx="14" cy="12" r="2" fill="currentColor" />
+						<circle cx="10" cy="18" r="2" fill="currentColor" />
+					</svg>
+				</button>
+				{#if collectionOptionsOpen}
+					<div class="fixed inset-0 z-40" onclick={() => { collectionOptionsOpen = false; }} role="presentation"></div>
+					<div class="absolute right-0 top-full z-50 mt-1 w-44 rounded-lg border border-warm-200 bg-white p-2 shadow-lg">
+						<label for="coll-desk-sort" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">Sort</label>
+						<select
+							id="coll-desk-sort"
+							bind:value={sortBy}
+							onchange={() => { collectionOptionsOpen = false; }}
+							class="mb-2.5 w-full rounded-md border border-warm-200 bg-warm-50 px-2 py-1.5 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20"
+						>
+							<option value="newest">Recent</option>
+							<option value="az">A–Z</option>
+							<option value="rating">My Rating</option>
+						</select>
+						<span id="coll-desk-view-label" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">View</span>
+						<div class="flex items-center gap-1 rounded-md border border-warm-200 bg-warm-50 p-0.5" role="group" aria-labelledby="coll-desk-view-label">
+							<button
+								onclick={() => { viewMode = 'grid'; collectionOptionsOpen = false; }}
+								class="flex flex-1 items-center justify-center rounded px-2 py-1.5 transition-colors {viewMode === 'grid' ? 'bg-white text-warm-700 shadow-sm' : 'text-warm-400 hover:text-warm-600'}"
+								aria-label="Grid view"
+							>
+								<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
+							</button>
+							<button
+								onclick={() => { viewMode = 'list'; collectionOptionsOpen = false; }}
+								class="flex flex-1 items-center justify-center rounded px-2 py-1.5 transition-colors {viewMode === 'list' ? 'bg-white text-warm-700 shadow-sm' : 'text-warm-400 hover:text-warm-600'}"
+								aria-label="List view"
+							>
+								<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
+							</button>
+						</div>
+					</div>
+				{/if}
 			</div>
 		</div>
 	</div>
 
 	<div class="flex flex-col lg:flex-row">
 		<div class="relative z-0 h-[35vh] shrink-0 border-b border-warm-200 sm:h-[38vh] lg:order-2 lg:sticky lg:top-[120px] lg:h-[calc(100dvh-120px)] lg:w-[42%] lg:self-start lg:border-b-0 lg:border-l">
-			<MapView places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} {maptilerKey} />
+			<MapView places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} {maptilerKey} placePhotos={data.placePhotos} />
 		</div>
 		<div class="min-w-0 flex-1 lg:order-1">
 			<div class="mx-auto px-2.5 py-3 sm:px-6 sm:py-4 lg:px-4 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]">
