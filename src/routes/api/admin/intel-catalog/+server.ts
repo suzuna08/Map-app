@@ -22,94 +22,45 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 	const body = await request.json().catch(() => ({}));
 	const mode = (body as Record<string, unknown>).mode === 'full' ? 'full' : 'upsert';
 
-	let catalogInserted = 0;
-	let catalogSkipped = 0;
-	let mappingsInserted = 0;
-	let mappingsSkipped = 0;
+	let catalogUpserted = 0;
+	let mappingsUpserted = 0;
 	const errors: string[] = [];
 
-	for (const entry of GOOGLE_PLACE_TYPE_CATALOG) {
-		try {
-			const { data: existing } = await locals.supabase
-				.from('google_place_type_catalog')
-				.select('id')
-				.eq('type_key', entry.type_key)
-				.single();
+	const catalogRows = GOOGLE_PLACE_TYPE_CATALOG.map((entry) => ({
+		type_key: entry.type_key,
+		can_be_primary: entry.can_be_primary,
+		table_group: entry.table_group,
+		status: entry.status,
+	}));
 
-			if (existing && mode === 'upsert') {
-				await locals.supabase
-					.from('google_place_type_catalog')
-					.update({
-						can_be_primary: entry.can_be_primary,
-						table_group: entry.table_group,
-						status: entry.status,
-						updated_at: new Date().toISOString(),
-					})
-					.eq('type_key', entry.type_key);
-				catalogSkipped++;
-			} else if (!existing) {
-				await locals.supabase
-					.from('google_place_type_catalog')
-					.insert({
-						type_key: entry.type_key,
-						can_be_primary: entry.can_be_primary,
-						table_group: entry.table_group,
-						status: entry.status,
-					});
-				catalogInserted++;
-			} else {
-				catalogSkipped++;
-			}
-		} catch (e) {
-			errors.push(`catalog:${entry.type_key}: ${e instanceof Error ? e.message : 'unknown'}`);
-		}
-	}
+	const mappingRows = getAllMappings().map((m) => ({
+		google_type_key: m.google_type_key,
+		primary_category: m.primary_category,
+		operational_status: m.operational_status,
+		market_niche: m.market_niche,
+		discussion_pillar: m.discussion_pillar,
+		suggested_tags: m.suggested_tags,
+	}));
 
-	for (const mapping of getAllMappings()) {
-		try {
-			const { data: existing } = await locals.supabase
-				.from('intel_tag_mappings')
-				.select('id')
-				.eq('google_type_key', mapping.google_type_key)
-				.single();
+	const [catalogResult, mappingsResult] = await Promise.all([
+		locals.supabase
+			.from('google_place_type_catalog')
+			.upsert(catalogRows, { onConflict: 'type_key' }),
+		locals.supabase
+			.from('intel_tag_mappings')
+			.upsert(mappingRows as any[], { onConflict: 'google_type_key' }),
+	]);
 
-			if (existing && mode === 'upsert') {
-				await locals.supabase
-					.from('intel_tag_mappings')
-					.update({
-						primary_category: mapping.primary_category,
-						operational_status: mapping.operational_status,
-						market_niche: mapping.market_niche,
-						discussion_pillar: mapping.discussion_pillar,
-						suggested_tags: mapping.suggested_tags,
-						updated_at: new Date().toISOString(),
-					} as any)
-					.eq('google_type_key', mapping.google_type_key);
-				mappingsSkipped++;
-			} else if (!existing) {
-				await locals.supabase
-					.from('intel_tag_mappings')
-					.insert({
-						google_type_key: mapping.google_type_key,
-						primary_category: mapping.primary_category,
-						operational_status: mapping.operational_status,
-						market_niche: mapping.market_niche,
-						discussion_pillar: mapping.discussion_pillar,
-						suggested_tags: mapping.suggested_tags,
-					} as any);
-				mappingsInserted++;
-			} else {
-				mappingsSkipped++;
-			}
-		} catch (e) {
-			errors.push(`mapping:${mapping.google_type_key}: ${e instanceof Error ? e.message : 'unknown'}`);
-		}
-	}
+	if (catalogResult.error) errors.push(`catalog: ${catalogResult.error.message}`);
+	else catalogUpserted = catalogRows.length;
+
+	if (mappingsResult.error) errors.push(`mappings: ${mappingsResult.error.message}`);
+	else mappingsUpserted = mappingRows.length;
 
 	return json({
 		mode,
-		catalog: { inserted: catalogInserted, updated_or_skipped: catalogSkipped, total: GOOGLE_PLACE_TYPE_CATALOG.length },
-		mappings: { inserted: mappingsInserted, updated_or_skipped: mappingsSkipped, total: getAllMappings().length },
+		catalog: { upserted: catalogUpserted, total: GOOGLE_PLACE_TYPE_CATALOG.length },
+		mappings: { upserted: mappingsUpserted, total: getAllMappings().length },
 		errors,
 	});
 };

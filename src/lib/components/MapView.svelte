@@ -131,12 +131,15 @@
 		}
 	});
 
+	let photoKey = $derived(
+		Object.entries(placePhotos).map(([id, urls]) => `${id}:${urls.length}`).sort().join(',')
+	);
 	let prevPhotoKey = '';
 	$effect(() => {
 		if (!mapReady || !map) return;
-		const photoKey = JSON.stringify(placePhotos);
-		if (photoKey === prevPhotoKey) return;
-		prevPhotoKey = photoKey;
+		const key = photoKey;
+		if (key === prevPhotoKey) return;
+		prevPhotoKey = key;
 
 		for (const place of places) {
 			const entry = markersMap.get(place.id);

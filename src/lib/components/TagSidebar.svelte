@@ -53,9 +53,12 @@
 	let selectedTagIds = $derived(Object.keys(selectedTagMap).filter((id) => selectedTagMap[id]));
 	let hasActiveFilters = $derived(selectedTagIds.length > 0);
 
-	function tagCount(tagId: string): number {
-		return Object.values(placeTagsMap).filter((tags) => tags.some((t) => t.id === tagId)).length;
-	}
+	let tagCounts = $derived(
+		Object.values(placeTagsMap).reduce((acc, tags) => {
+			for (const t of tags) acc[t.id] = (acc[t.id] ?? 0) + 1;
+			return acc;
+		}, {} as Record<string, number>)
+	);
 
 	async function createTag() {
 		const trimmed = newTagName.trim();
@@ -140,7 +143,7 @@
 				</div>
 				<div class="space-y-0.5">
 				{#each categoryTags as tag (tag.id)}
-					{@const count = tagCount(tag.id)}
+					{@const count = tagCounts[tag.id] ?? 0}
 					<button
 						onclick={() => onTagToggle(tag.id)}
 						class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-[15px] transition-colors {selectedTagMap[tag.id]
@@ -166,7 +169,7 @@
 				</div>
 				<div class="space-y-0.5">
 				{#each areaTags as tag (tag.id)}
-					{@const count = tagCount(tag.id)}
+					{@const count = tagCounts[tag.id] ?? 0}
 					<button
 						onclick={() => onTagToggle(tag.id)}
 						class="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-[15px] transition-colors {selectedTagMap[tag.id]
@@ -222,7 +225,7 @@
 
 			<div class="space-y-0.5">
 			{#each userTags as tag (tag.id)}
-				{@const count = tagCount(tag.id)}
+				{@const count = tagCounts[tag.id] ?? 0}
 				<button
 					onclick={() => onTagToggle(tag.id)}
 					class="group flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-[15px] transition-colors {selectedTagMap[tag.id]

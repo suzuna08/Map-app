@@ -190,7 +190,7 @@
 	}
 
 	async function openAddModal() {
-		openAddModal();
+		showAddModal = true;
 		addSearch = '';
 		addTagFilter = {};
 		urlStatus = 'idle';
@@ -240,12 +240,7 @@
 		placeIds = [...placeIds, placeId];
 		const fullPlace = allPlaces.find((p) => p.id === placeId);
 		if (fullPlace) {
-			const { data: placeData } = await supabase
-				.from('places')
-				.select('id, user_id, title, note, url, source_list, created_at, google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at, user_rating, user_rated_at')
-				.eq('id', placeId)
-				.single();
-			if (placeData) places = [...places, placeData as Place];
+			places = [...places, fullPlace as Place];
 		}
 		showToast('success', '', 'Added to collection');
 	}
@@ -303,12 +298,7 @@
 				if (!allPlaces.find((p) => p.id === place.id)) {
 					allPlaces = [...allPlaces, place];
 				}
-				const { data: placeData } = await supabase
-					.from('places')
-					.select('id, user_id, title, note, url, source_list, created_at, google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at, user_rating, user_rated_at')
-					.eq('id', place.id)
-					.single();
-				if (placeData) places = [...places, placeData as Place];
+				places = [...places, place];
 				showToast('success', '', `Added "${place.title}" to collection`);
 			} else {
 				showToast('info', '', `"${place.title}" is already in this collection`);

@@ -634,11 +634,15 @@
 		showViewCollectionPicker = false;
 	}
 
+	let createdAtTs = $derived(
+		Object.fromEntries(places.map((p) => [p.id, new Date(p.created_at).getTime()]))
+	);
+
 	let sortedPlaces = $derived(
 		[...filteredPlaces].sort((a, b) => {
 			switch (sortBy) {
 				case 'oldest':
-					return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+					return (createdAtTs[a.id] ?? 0) - (createdAtTs[b.id] ?? 0);
 				case 'az':
 					return a.title.localeCompare(b.title);
 				case 'za':
@@ -654,7 +658,7 @@
 				}
 				case 'newest':
 				default:
-					return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+					return (createdAtTs[b.id] ?? 0) - (createdAtTs[a.id] ?? 0);
 			}
 		})
 	);
@@ -1071,10 +1075,10 @@
 					</div>
 				{/if}
 
-				<!-- ======== MOBILE tag filter (< lg) ======== -->
-				<div class="mb-1.5 lg:hidden">
+				<!-- ======== MOBILE tags row (< lg) ======== -->
+				<div class="relative mb-1 lg:hidden">
 					<div
-						class="flex flex-wrap items-center gap-1.5 py-0.5 pr-4"
+						class="flex items-center gap-1.5 overflow-x-auto py-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
 						use:sortable={{
 							onReorder: handleTagReorder,
 							itemSelector: '[data-tag-id]',
@@ -1100,44 +1104,49 @@
 								{/if}
 							</button>
 						{/each}
-						<div class="relative">
-							<button
-								onclick={() => { showTagManager = !showTagManager; }}
-								class="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-warm-300 px-2 py-1 text-xs text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
-								aria-label="Edit tags"
-							>
-								<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-									<line x1="12" y1="5" x2="12" y2="19" />
-									<line x1="5" y1="12" x2="19" y2="12" />
-								</svg>
-								Edit
-							</button>
-							{#if showTagManager}
-								<div class="fixed inset-0 z-40" onclick={() => { showTagManager = false; }} role="presentation"></div>
-								<div class="absolute left-0 top-full z-50 mt-2 w-72 rounded-xl border border-warm-200 bg-warm-50 shadow-lg">
-									<TagManager
-										{supabase}
-										userId={session?.user?.id ?? ''}
-										allTags={userTags}
-										onClose={() => { showTagManager = false; }}
-										onTagsChanged={refreshTags}
-										mode="popover"
-									/>
-								</div>
-							{/if}
-						</div>
+						<button
+							onclick={() => { showTagManager = !showTagManager; }}
+							class="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-warm-300 px-2 py-1 text-xs text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
+							aria-label="Edit tags"
+						>
+							<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<line x1="12" y1="5" x2="12" y2="19" />
+								<line x1="5" y1="12" x2="19" y2="12" />
+							</svg>
+							Edit
+						</button>
 						{#if userTags.length === 0}
-							<span class="text-xs text-warm-400">No custom tags yet</span>
+							<span class="shrink-0 text-xs text-warm-400">No custom tags yet</span>
 						{/if}
 					</div>
+					{#if showTagManager}
+						<div class="fixed inset-0 z-40" onclick={() => { showTagManager = false; }} role="presentation"></div>
+						<div class="absolute left-0 top-full z-50 mt-1 w-72 rounded-xl border border-warm-200 bg-warm-50 shadow-lg">
+							<TagManager
+								{supabase}
+								userId={session?.user?.id ?? ''}
+								allTags={userTags}
+								onClose={() => { showTagManager = false; }}
+								onTagsChanged={refreshTags}
+								mode="popover"
+							/>
+						</div>
+					{/if}
 				</div>
 
-				<!-- ======== DESKTOP tag filter (lg+) ======== -->
-				<div class="relative z-10 mb-1.5 hidden space-y-1.5 lg:block">
-					<div class="flex items-baseline gap-2.5">
+				<!-- ======== MOBILE saved views row (< lg) ======== -->
+				{#if savedViews.length > 0}
+					<div class="mb-1 lg:hidden">
+						{@render placesSavedViewsBlock()}
+					</div>
+				{/if}
+
+				<!-- ======== DESKTOP tags row (lg+) ======== -->
+				<div class="relative z-10 mb-1 hidden lg:block">
+					<div class="flex items-center gap-2.5">
 						<span class="shrink-0 text-sm font-bold text-warm-400" style="width: 3rem">Tags</span>
 						<div
-							class="flex flex-wrap items-center gap-1.5"
+							class="flex items-center gap-1.5 overflow-x-auto py-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
 							use:sortable={{
 								onReorder: handleTagReorder,
 								itemSelector: '[data-tag-id]',
@@ -1151,9 +1160,9 @@
 								<button
 									data-tag-id={tag.id}
 									onclick={() => toggleTag(tag.id)}
-								class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-sm font-bold transition-all {isSelected
-									? 'shadow-sm ring-2 ring-offset-1'
-									: 'opacity-80 hover:opacity-100'}"
+									class="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-sm font-bold transition-all {isSelected
+										? 'shadow-sm ring-2 ring-offset-1'
+										: 'opacity-80 hover:opacity-100'}"
 									style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}; {isSelected ? `ring-color: ${tag.color ?? '#6b7280'}` : ''}"
 								>
 									{tag.name}
@@ -1165,11 +1174,10 @@
 									{/if}
 								</button>
 							{/each}
-							<div class="relative">
 							<button
 								onclick={() => { showTagManager = !showTagManager; }}
-							class="inline-flex items-center gap-1 rounded-full border border-dashed border-warm-300 px-2 py-0.5 text-sm text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
-							aria-label="Edit tags"
+								class="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-warm-300 px-2 py-0.5 text-sm text-warm-400 transition-colors hover:border-warm-400 hover:bg-warm-100 hover:text-warm-600"
+								aria-label="Edit tags"
 							>
 								<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 									<line x1="12" y1="5" x2="12" y2="19" />
@@ -1177,29 +1185,30 @@
 								</svg>
 								Edit
 							</button>
-							{#if showTagManager}
-								<div class="fixed inset-0 z-40" onclick={() => { showTagManager = false; }} role="presentation"></div>
-								<div class="absolute left-0 top-full z-50 mt-2 w-72 rounded-xl border border-warm-200 bg-warm-50 shadow-lg">
-									<TagManager
-										{supabase}
-										userId={session?.user?.id ?? ''}
-										allTags={userTags}
-										onClose={() => { showTagManager = false; }}
-										onTagsChanged={refreshTags}
-										mode="popover"
-									/>
-								</div>
-							{/if}
-						</div>
 							{#if userTags.length === 0}
-								<span class="text-xs text-warm-400">No custom tags yet</span>
+								<span class="shrink-0 text-xs text-warm-400">No custom tags yet</span>
 							{/if}
 						</div>
 					</div>
+					{#if showTagManager}
+						<div class="fixed inset-0 z-40" onclick={() => { showTagManager = false; }} role="presentation"></div>
+						<div class="absolute right-0 top-full z-50 mt-1 w-72 rounded-xl border border-warm-200 bg-warm-50 shadow-lg">
+							<TagManager
+								{supabase}
+								userId={session?.user?.id ?? ''}
+								allTags={userTags}
+								onClose={() => { showTagManager = false; }}
+								onTagsChanged={refreshTags}
+								mode="popover"
+							/>
+						</div>
+					{/if}
 				</div>
 
-				<!-- Saved Views (below tags) -->
-				{@render placesSavedViewsBlock()}
+				<!-- ======== DESKTOP saved views row (lg+) ======== -->
+				<div class="hidden lg:block">
+					{@render placesSavedViewsBlock()}
+				</div>
 
 				<!-- Collection scope banner -->
 				{#if browseScope.type === 'collection' && activeCollectionName}
@@ -1255,17 +1264,21 @@
 						{/if}
 					</div>
 					<div class="flex shrink-0 ml-auto items-center gap-1.5 sm:gap-2">
-						<SaveViewButton
-							{supabase}
-							userId={session?.user?.id ?? ''}
-							{selectedCustomIds}
-							{filterMode}
-							{selectedSource}
-							{sortBy}
-							{viewMode}
-							{search}
-							onViewsChanged={refreshSavedViews}
-						/>
+					<SaveViewButton
+						{supabase}
+						userId={session?.user?.id ?? ''}
+						{selectedCustomIds}
+						{filterMode}
+						{selectedSource}
+						{sortBy}
+						{viewMode}
+						{search}
+						onViewsChanged={refreshSavedViews}
+						{savedViews}
+						{activeSavedViewId}
+						{viewIsDirty}
+						onApply={applySavedView}
+					/>
 						<!-- Options button + popover -->
 						<div class="relative">
 							<button
@@ -1362,7 +1375,7 @@
 						{/if}
 					</div>
 				{:else if viewMode === 'grid'}
-					<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4">
+					<div class="grid grid-cols-1 gap-2 @lg:grid-cols-2 @lg:gap-4">
 						{#each sortedPlaces as place (place.id)}
 							<PlaceCard
 								{place}
@@ -1390,7 +1403,8 @@
 						{/each}
 					</div>
 				{:else}
-					<div class="overflow-hidden rounded-2xl border border-warm-200 bg-white divide-y divide-warm-100 sm:rounded-xl sm:overflow-visible">
+					<div class="overflow-x-auto rounded-2xl border border-warm-200 bg-white sm:rounded-xl [scrollbar-width:thin]">
+					<div class="min-w-[32rem] divide-y divide-warm-100 pr-2">
 						{#each sortedPlaces as place (place.id)}
 							<PlaceListItem
 								{place}
@@ -1411,6 +1425,7 @@
 								onToggleCollection={togglePlaceInCollection}
 							/>
 						{/each}
+					</div>
 					</div>
 				{/if}
 {/snippet}
@@ -1461,7 +1476,7 @@
 					<div class="mx-auto h-8 w-1 rounded-full {desktopMapDragging ? 'bg-brand-500' : 'bg-warm-300/70'} transition-colors"></div>
 				</div>
 			</div>
-			<div class="min-w-0 flex-1 md:order-1">
+			<div class="min-w-0 flex-1 md:order-1" style="container-type: inline-size;">
 				<div class="sticky top-0 z-20 border-b border-warm-200/80 bg-sage-100 px-2.5 pt-3 pb-2 sm:px-6 sm:pt-4 sm:pb-2.5 md:px-4">
 					{@render placesSearchBlock()}
 					{@render placesContextualBlock()}

@@ -33,7 +33,7 @@ export const GET: RequestHandler = async ({ params, locals, url }) => {
 		types = [place.primary_type];
 	}
 
-	if (place.url && place.enriched_at) {
+	if (!primaryType && place.url) {
 		try {
 			const details = await fetchPlaceDetails(place.url, place.title);
 			if (details) {
@@ -42,16 +42,6 @@ export const GET: RequestHandler = async ({ params, locals, url }) => {
 			}
 		} catch {
 			// Fall back to stored primary_type only
-		}
-	} else if (place.url && !place.enriched_at) {
-		try {
-			const details = await fetchPlaceDetails(place.url, place.title);
-			if (details) {
-				primaryType = details.primary_type;
-				types = details.types;
-			}
-		} catch {
-			// Fall through
 		}
 	}
 
