@@ -28,6 +28,7 @@ Detailed documentation of the architecture, design decisions, trade-offs, and bu
 - [Trade-offs](#trade-offs)
 - [Bugs & Fixes](#bugs--fixes)
 - [Known Inconsistencies](#known-inconsistencies)
+- [Playground Migration](#playground-migration)
 
 > **See also**: [UI-DESIGN.md](./UI-DESIGN.md) for a detailed visual design specification covering color palettes, component anatomy, layout measurements, and interaction patterns.
 
@@ -1316,3 +1317,91 @@ The `add_list_places_position.sql` migration adds a `position` integer column to
 ### 8. `/api/places/[id]/intel-tags` Endpoint Available But Not Wired Into UI
 
 The `intel-tags/+server.ts` endpoint is fully implemented (91 lines) and functional, but no page or component in the UI currently calls it. Intel tag computation is available via direct API call but is not surfaced in the app's interface.
+
+---
+
+## Playground Migration
+
+A set of UI improvements, new features, and interaction refinements were migrated from a playground/prototype codebase into this production codebase. Below documents what was migrated, how, and why.
+
+### What Was Migrated
+
+**Place Photos (net-new feature)**
+- Schema: `place_photos` table with RLS + `place-photos` Supabase Storage bucket (`supabase/add_place_photos.sql`)
+- Types: `PlacePhoto` and `PlacePhotoInsert` added to `database.ts`
+- Utility: `photo-storage.ts` — upload with client-side compression, delete, load, URL helpers. All backed by real Supabase Storage
+- Components: `PhotoGrid.svelte` (upload, grid view, drag-to-reorder, lightbox launch) and `PhotoLightbox.svelte` (full-screen viewer with zoom animation, swipe navigation, keyboard support, delete)
+- Integration: photos loaded in parallel via `place_photos` query in all `+page.server.ts` files, passed as `placePhotos` prop to `MapView`/`MobileMapShell`, displayed in map popups (thumbnail strip + camera button), and available via a photo modal triggered from popups
+- Photo data flows through server load -> page state -> MapView props -> popup HTML -> event delegation -> photo modal/lightbox
+
+**Resizable Desktop Map Panel**
+- The map/list split on desktop now uses a CSS custom property (`--desktop-map-pct`) with a drag handle for resizing between 25–70% width. Double-click resets to default (42%). Implemented with pointer events and `setPointerCapture`. Added `.desktop-map-panel` and `.desktop-map-animate` CSS classes
+
+**Popover-Based Controls**
+- Sort/view options consolidated into a popover dropdown button across places, collections, and collections/[id] pages. Replaces inline select + toggle buttons for a cleaner toolbar
+- SaveViewButton redesigned as "Bookmark" with mobile bottom-sheet and desktop popover patterns, with `onCreateStart` callback and `isMobile` detection
+- TagManager gains a `mode` prop (`'modal' | 'popover'`); both mobile and desktop render inline popover with fixed backdrop for dismissal. Popover font size bumped to `text-[0.9375rem]` (15px) for tag names and input fields
+
+**Layout Restructuring**
+- Search bar relocated below tag filters/saved views into compact inline position
+- Tag filter responsive breakpoints shifted from `md:` to `lg:` for wider mobile-first range
+- "Tags" and "Filters" labels added to the filter bar
+- Desktop map/list breakpoint shifted from `lg:` to `md:`
+- Mobile layout: MobileMapShell renders first (no sticky header above map), controls inside scroll area
+
+**UI Polish**
+- PlaceCard: map-pin icon replaces external-link icon for Maps links; "Notes" flip button removed from front (card click or tap flips); title truncation improved (`truncate` + `min-w-0`)
+- PlaceListItem: section labels ("Notes", "Tags") removed; action icons moved to absolute top-right for cleaner expanded panel
+- SavedViewsBar: desktop bottom margin tightened
+- Map popup styling: larger padding/radius/font for better readability
+- Map popup photo strip with clickable thumbnails; `max-width: none` added to `.map-popup-photos img` to override Tailwind v4 preflight's `img { max-width: 100% }` which caused photos to expand beyond their 88×88px intended size
+
+**Improved Drag-and-Drop (sortable.ts)**
+- RAF-throttled pointer move handler to prevent layout thrashing
+- GPU-accelerated transforms (`translate3d` instead of `translate`)
+- Animated drop-return transition (ghost element smoothly returns to target position)
+- Improved closest-item detection with same-row logic for horizontal layouts
+- Debounced insert index calculation (only recalculates when position changes)
+- Source element hidden with `visibility: hidden` instead of `opacity: 0.25`
+- Body cursor set to `grabbing` during drag
+- Native drag prevention via `onDragStart` listener
+
+**MapView Improvements**
+- NavigationControl (zoom +/- buttons) removed for a cleaner map interface
+- Marker re-click toggles popup (previously re-selected without toggling)
+- Popup maxWidth increased from 220px to 360px for photo content
+- Popup HTML includes photo thumbnail strip and camera button
+- Event delegation for popup photo interactions
+- Reactive effect tracks `placePhotos` changes and updates popup HTML
+
+### What Was NOT Migrated
+
+| Item | Reason |
+|------|--------|
+| `mock-data.ts`, `mock-supabase.ts` | Playground test scaffolding only |
+| Mock store implementations | Main has real Supabase-backed stores |
+| Mock hooks/layout auth removal | Main needs real auth middleware |
+| Mock `tag-order.ts` stubs | Main has real DB persistence |
+| Mock `deletePlace()` no-op | Main has real Supabase delete |
+| `placesSearchOverlay` empty snippet | Unused placeholder |
+| Global warm beige background (`#f3efe8`) | Intentionally excluded |
+
+### What Was Re-implemented for Production
+
+- **Photo data loading**: Playground used hardcoded `MOCK_PLACE_PHOTOS` URLs. Main adds real `place_photos` queries in `+page.server.ts` files with `supabase.storage.from('place-photos').getPublicUrl()` for URL resolution
+- **Photo uploads**: Playground used in-memory blob URLs. Main uses real Supabase Storage with proper bucket policies and database persistence
+- **Photo sort order**: Playground stored in-memory. Main persists via `place_photos.sort_order` column with batch upsert (`supabase.from('place_photos').upsert(rows, { onConflict: 'id' })`)
+- **`closePhotoModal()`**: Re-fetches photo URLs from Supabase after modal close to ensure consistency
+
+### Schema/Storage Changes
+
+1. **New table**: `place_photos` (id, place_id, user_id, storage_path, caption, sort_order, width, height, created_at) with foreign key to `places`, RLS policies for user-scoped CRUD
+2. **New storage bucket**: `place-photos` (public read, user-scoped upload/delete, 5MB limit, JPEG/PNG/WebP only)
+3. **New indexes**: `idx_place_photos_place_id`, `idx_place_photos_user_id`
+
+### Known Limitations / Follow-up Items
+
+1. The `place_photos` query in server loads fetches ALL user photos, not just those for visible places. For users with many photos, a filtered query (e.g., via join with visible place IDs) would be more efficient
+3. Photo compression always outputs JPEG regardless of input format (except PNG). HEIC input is accepted but may not compress correctly on all browsers
+4. The resizable desktop map panel percentage is not persisted across page reloads — it resets to the default 42%
+5. The `isMobile` breakpoint in SaveViewButton (1023px) is hard-coded and not synchronized with the Tailwind `lg:` breakpoint token. TagManager no longer uses `isMobile` — it renders as a popover in both mobile and desktop tag filter sections

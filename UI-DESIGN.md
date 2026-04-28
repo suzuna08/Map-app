@@ -261,9 +261,9 @@ Shown when unenriched places exist:
 
 #### 5. Tag Filter Rows
 
-**Mobile (< md)**: Single horizontally scrollable row of all custom tag pills. Tags support drag-to-reorder via long-press (500ms). A "+ Manage" dashed button at the end opens TagManager.
+**Mobile (< lg)**: Wrapping row of all custom tag pills. Tags support drag-to-reorder via long-press (500ms). A "+ Edit" dashed button at the end opens TagManager as an inline popover dropdown (absolute-positioned, `w-72`, `rounded-xl border-warm-200 bg-warm-50 shadow-lg`). A fixed backdrop dismisses the popover on tap-outside.
 
-**Desktop (md+)**: Labeled row with "Custom" label (64px wide) + tag pills. Tags support click-drag reorder (400ms long-press). A "+" dashed button opens TagManager.
+**Desktop (lg+)**: Labeled row with "Tags" label + tag pills. Tags support click-drag reorder (400ms long-press). A "+" dashed button opens TagManager as an inline popover dropdown (same styling as mobile).
 Tag pills: `rounded-full`, colored background, bold text. Selected state adds `ring-2 ring-offset-1 shadow-sm`. Unselected state at `opacity-80`, hover at full opacity.
 
 #### 6. Collection Scope Banner
@@ -288,7 +288,7 @@ A compact row with:
 - Custom SVG pin markers in `brand-500` (warm gold)
 - Hover: scale to 115%, darken to `brand-600`
 - Selected: scale to 135%, darken to `brand-700`, stronger shadow, `z-index: 20`
-- Popups: `rounded-xl` white card with Nunito font, warm-200 border, place title + category + personal rating
+- Popups: `rounded-xl` white card with Nunito font, warm-200 border, place title + category + personal rating + photo thumbnail strip (88×88px, `max-width: none` to override Tailwind preflight)
 - Info badge at bottom shows "N on map · M without coordinates"
 
 **MobileMapShell** (mobile only):
@@ -450,10 +450,10 @@ A 3D-flipping card with front (info) and back (notes):
 
 **Front face**:
 - **Header row**: Category pill, area pill, price level (left); personal rating display (right)
-- **Title**: `font-extrabold`, 1-line clamp
+- **Title**: `font-extrabold`, 1-line clamp (`truncate` + `min-w-0`)
 - **Description**: 2-line clamp, warm-400 text
 - **Tags section**: Inline colored tag pills + TagInput for adding new tags
-- **Action row**: Maps link, Website link, Enrich button, Collection picker, Delete — all with hover-reveal on desktop, always visible on mobile
+- **Action row**: Maps link (map-pin icon), Website link, Enrich button, Collection picker, Delete — all with hover-reveal on desktop, always visible on mobile
 - **Rating**: Compact `RatingDisplay` button ("4.5 ★" / "Not rated")
 
 **Back face** (notes):
@@ -461,7 +461,7 @@ A 3D-flipping card with front (info) and back (notes):
 - "Back" button to flip to front
 
 **Interactions**:
-- Click dead space to flip (3D `rotateY(180deg)`, `perspective: 800px`/`1000px`)
+- Click dead space or tap card to flip (3D `rotateY(180deg)`, `perspective: 800px`/`1000px`) — no dedicated "Notes" button on front face
 - Swipe left on mobile to reveal red delete button (72px, snap threshold 36px)
 - Selected state: `ring-2 ring-brand-400/30 border-brand-400`
 - Swipe-aware: tapping swiped-open card dismisses swipe, doesn't flip
@@ -499,10 +499,19 @@ Inline tag addition on place cards/list items:
 
 ### TagManager
 
-Full-screen modal for managing user tags:
-- Sortable tag list (drag-and-drop reorder)
-- Per-tag: color dot (clickable → inline palette), name (clickable → inline rename input), delete button (→ inline confirm)
-- Uses same `sortable` action as filter bar tags
+Two rendering modes controlled by a `mode` prop (`'modal' | 'popover'`):
+
+**Popover mode** (used on places page for both mobile and desktop):
+- Rendered inside an absolute-positioned container (`w-72 rounded-xl border-warm-200 bg-warm-50 shadow-lg`)
+- Header: "Manage Tags" title (`text-base font-bold`) + close button
+- New tag input: color dot + text input (`text-[0.9375rem]`), palette row when typing
+- Tag list: scrollable, sortable (drag-and-drop reorder via `sortable` action)
+- Per-tag row: color dot (`h-3.5 w-3.5`, clickable → inline palette), name (`text-[0.9375rem]`, clickable → inline rename), delete button (hover-reveal)
+- Fixed backdrop for tap-outside dismissal
+
+**Modal mode** (full-screen):
+- Teleported via portal action, full-screen overlay with centered card
+- Same tag list functionality as popover but with larger layout
 
 ### TagContextMenu
 
@@ -586,11 +595,12 @@ Modal for switching between collections without leaving browse mode:
 
 ### SaveViewButton
 
-Extracted component for creating new saved views:
-- Default state: dashed-border pill with bookmark icon, shows "+" on mobile and "Save View" on `sm+`
-- Active state: inline text input with Save/Cancel buttons
+Responsive component for creating new saved views:
+- **Desktop (≥ 1024px)**: Dashed-border pill with bookmark icon + "Bookmark" label. Click opens a popover dropdown (`absolute top-full`, `w-64 rounded-xl border-warm-200 bg-warm-50 shadow-lg`) with a name input and Save button. Backdrop click dismisses
+- **Mobile (< 1024px)**: Same trigger pill (bookmark icon + "Bookmark"). Click opens a bottom-sheet overlay (`fixed inset-0`, slide-up card with `rounded-t-2xl`) containing a name input and Save button. Backdrop click or swipe dismisses
 - Detects Google Maps URLs in search text and excludes them from the snapshot
 - Creates a `buildFiltersSnapshot` of the current filter state
+- `isMobile` detection via `window.matchMedia('(max-width: 1023px)')`
 
 ### AppBottomDock
 
