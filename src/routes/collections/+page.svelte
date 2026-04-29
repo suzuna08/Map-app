@@ -714,32 +714,6 @@
 							>
 								<svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></svg>
 							</button>
-							{#if tabMenuOpenId === col.id}
-								<div class="fixed inset-0 z-40" onclick={() => closeTabMenu()} role="presentation"></div>
-								<div bind:this={tabMenuEl} class="fixed z-50 w-40 rounded-xl border border-warm-200 bg-white py-1 shadow-lg" style="top: {tabMenuPos.top}px; left: {tabMenuPos.left}px;">
-									<button
-										onclick={() => openEditCollection(col.id)}
-										class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-warm-600 transition-colors hover:bg-warm-50"
-									>
-										<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-										Edit
-									</button>
-									{#if tabConfirmDeleteId === col.id}
-										<div class="flex items-center gap-1.5 px-3 py-2">
-											<button onclick={() => handleDeleteCollectionById(col.id)} class="rounded-md bg-danger-100 px-2 py-1 text-xs font-bold text-danger-700 hover:bg-danger-200">Delete</button>
-											<button onclick={() => { tabConfirmDeleteId = null; }} class="text-xs text-warm-400 hover:text-warm-600">Cancel</button>
-										</div>
-									{:else}
-										<button
-											onclick={() => { tabConfirmDeleteId = col.id; }}
-											class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-danger-600 transition-colors hover:bg-danger-50"
-										>
-											<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-											Delete
-										</button>
-									{/if}
-								</div>
-							{/if}
 						</div>
 					{/each}
 				</div>
@@ -979,32 +953,6 @@
 								>
 									<svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></svg>
 								</button>
-								{#if tabMenuOpenId === col.id}
-									<div class="fixed inset-0 z-40" onclick={() => closeTabMenu()} role="presentation"></div>
-									<div bind:this={tabMenuEl} class="fixed z-50 w-40 rounded-xl border border-warm-200 bg-white py-1 shadow-lg" style="top: {tabMenuPos.top}px; left: {tabMenuPos.left}px;">
-										<button
-											onclick={() => openEditCollection(col.id)}
-											class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-warm-600 transition-colors hover:bg-warm-50"
-										>
-											<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-											Edit
-										</button>
-										{#if tabConfirmDeleteId === col.id}
-											<div class="flex items-center gap-1.5 px-3 py-2">
-												<button onclick={() => handleDeleteCollectionById(col.id)} class="rounded-md bg-danger-100 px-2 py-1 text-xs font-bold text-danger-700 hover:bg-danger-200">Delete</button>
-												<button onclick={() => { tabConfirmDeleteId = null; }} class="text-xs text-warm-400 hover:text-warm-600">Cancel</button>
-											</div>
-										{:else}
-											<button
-												onclick={() => { tabConfirmDeleteId = col.id; }}
-												class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-danger-600 transition-colors hover:bg-danger-50"
-											>
-												<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-												Delete
-											</button>
-										{/if}
-									</div>
-								{/if}
 							</div>
 						{/each}
 					</div>
@@ -1182,6 +1130,37 @@
 			{/if}
 		</div>
 	</div>
+{/if}
+
+<!-- Tab context menu (portaled to escape overflow containers) -->
+{#if tabMenuOpenId}
+	{@const menuCol = collections.find((c) => c.id === tabMenuOpenId)}
+	{#if menuCol}
+		<div class="fixed inset-0 z-[70]" onclick={() => closeTabMenu()} role="presentation"></div>
+		<div bind:this={tabMenuEl} class="fixed z-[71] w-40 rounded-xl border border-warm-200 bg-white py-1 shadow-lg" style="top: {tabMenuPos.top}px; left: {tabMenuPos.left}px;">
+			<button
+				onclick={() => openEditCollection(menuCol.id)}
+				class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-warm-600 transition-colors hover:bg-warm-50"
+			>
+				<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+				Edit
+			</button>
+			{#if tabConfirmDeleteId === menuCol.id}
+				<div class="flex items-center gap-1.5 px-3 py-2">
+					<button onclick={() => handleDeleteCollectionById(menuCol.id)} class="rounded-md bg-danger-100 px-2 py-1 text-xs font-bold text-danger-700 hover:bg-danger-200">Delete</button>
+					<button onclick={() => { tabConfirmDeleteId = null; }} class="text-xs text-warm-400 hover:text-warm-600">Cancel</button>
+				</div>
+			{:else}
+				<button
+					onclick={() => { tabConfirmDeleteId = menuCol.id; }}
+					class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-danger-600 transition-colors hover:bg-danger-50"
+				>
+					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+					Delete
+				</button>
+			{/if}
+		</div>
+	{/if}
 {/if}
 
 <!-- Create collection popover -->
