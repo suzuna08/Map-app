@@ -5,15 +5,18 @@
 	interface Props {
 		places: Place[];
 		selectedPlaceId: string | null;
+		recenterTick?: number;
 		onPlaceSelect: (placeId: string) => void;
 		onPopupPhotoAction?: (placeId: string) => void;
 		onPopupPhotoClick?: (placeId: string, photoIndex: number) => void;
 		maptilerKey?: string;
 		mapMode?: 'collapsed' | 'expanded' | 'default';
+		mapHeight?: number;
+		mapDragging?: boolean;
 		placePhotos?: Record<string, string[]>;
 	}
 
-	let { places, selectedPlaceId, onPlaceSelect, onPopupPhotoAction, onPopupPhotoClick, maptilerKey = '', mapMode = 'default', placePhotos = {} }: Props = $props();
+	let { places, selectedPlaceId, recenterTick = 0, onPlaceSelect, onPopupPhotoAction, onPopupPhotoClick, maptilerKey = '', mapMode = 'default', mapHeight = 0, mapDragging = false, placePhotos = {} }: Props = $props();
 
 	let container = $state<HTMLDivElement | null>(null);
 	let map: any = null;
@@ -22,11 +25,18 @@
 	let mapReady = $state(false);
 	let prevFitKey = '';
 	let mounted = $state(false);
+	let prevMapHeight = 0;
 
 	const HANDLE_PX = 24;
 
+	const POPUP_CLEARANCE = 100;
+
 	function getFrameOffset(): [number, number] {
 		if (mapMode === 'collapsed') return [0, -(HANDLE_PX / 2)];
+		if (mapMode === 'expanded') {
+			const shift = Math.min(POPUP_CLEARANCE, Math.round(mapHeight * 0.22));
+			return [0, shift];
+		}
 		return [0, 0];
 	}
 
@@ -150,8 +160,54 @@
 	});
 
 	$effect(() => {
+		if (!mapReady || !map || mapMode === 'default') return;
+		const h = mapHeight;
+		if (prevMapHeight === 0) { prevMapHeight = h; return; }
+		if (h === prevMapHeight) return;
+
+		if (mapDragging) return;
+
+		const delta = h - prevMapHeight;
+		prevMapHeight = h;
+
+		map.panBy([0, -Math.round(delta / 2)], { duration: 200 });
+	});
+
+	let prevDragging = false;
+	let heightAtDragStart = 0;
+	$effect(() => {
+		if (!mapReady || !map) return;
+		const isDragging = mapDragging;
+		const wasDragging = prevDragging;
+		prevDragging = isDragging;
+
+		if (isDragging && !wasDragging) {
+			heightAtDragStart = mapHeight;
+			markersMap.forEach((entry) => {
+				if (entry.marker.getPopup().isOpen()) entry.marker.togglePopup();
+			});
+		}
+
+		if (!isDragging && wasDragging) {
+			const delta = mapHeight - heightAtDragStart;
+			prevMapHeight = mapHeight;
+			if (delta !== 0) {
+				map.panBy([0, -Math.round(delta / 2)], { duration: 250 });
+			}
+			const sid = selectedPlaceId;
+			if (sid && mapMode !== 'collapsed') {
+				const entry = markersMap.get(sid);
+				if (entry && !entry.marker.getPopup().isOpen()) {
+					entry.marker.togglePopup();
+				}
+			}
+		}
+	});
+
+	$effect(() => {
 		if (!mapReady || !map) return;
 		const sid = selectedPlaceId;
+		const _tick = recenterTick;
 		const offset = getFrameOffset();
 		const mode = mapMode;
 
@@ -207,6 +263,7 @@
 					closeOnClick: false,
 					maxWidth: '360px',
 					className: 'map-popup-warm',
+					subpixelPositioning: true,
 				}).setHTML(popupHtml(place));
 
 				const marker = new ml.Marker({ element: el })

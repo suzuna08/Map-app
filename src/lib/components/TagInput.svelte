@@ -28,18 +28,23 @@
 	let posRafId = 0;
 
 	let dropdownAbove = $state(false);
+	let dropdownHeight = $state(208);
 
 	function updateDropdownPos() {
 		if (!inputEl) { dropdownPos = null; return; }
 		const rect = inputEl.getBoundingClientRect();
-		const vw = window.innerWidth;
-		const vh = window.innerHeight;
-		const dropH = 208;
-		const left = Math.max(8, Math.min(rect.left, vw - 200));
-		const fitsBelow = rect.bottom + 4 + dropH < vh;
+		const vp = window.visualViewport;
+		const vpTop = vp?.offsetTop ?? 0;
+		const vpHeight = vp?.height ?? window.innerHeight;
+		const vw = vp?.width ?? window.innerWidth;
+		const vpLeft = vp?.offsetLeft ?? 0;
+		const visibleBottom = vpTop + vpHeight;
+		const dropH = dropdownHeight;
+		const left = Math.max(8, Math.min(rect.left, vw + vpLeft - 200));
+		const fitsBelow = rect.bottom + 4 + dropH < visibleBottom;
 		dropdownAbove = !fitsBelow;
-		const top = fitsBelow ? rect.bottom + 4 : rect.top - 4;
-		dropdownPos = { top, left, maxWidth: Math.min(192, vw - left - 8) };
+		const top = fitsBelow ? rect.bottom + 4 : rect.top - 4 - dropH;
+		dropdownPos = { top: Math.max(vpTop + 4, top), left, maxWidth: Math.min(192, vw + vpLeft - left - 8) };
 	}
 
 	function startPosTracking() {
@@ -59,8 +64,14 @@
 
 	function portal(node: HTMLElement) {
 		document.body.appendChild(node);
+		const ro = new ResizeObserver(() => {
+			const h = node.getBoundingClientRect().height;
+			if (h > 0) dropdownHeight = h;
+		});
+		ro.observe(node);
 		return {
 			destroy() {
+				ro.disconnect();
 				node.remove();
 			}
 		};
@@ -263,7 +274,7 @@
 	<div
 		use:portal
 		class="fixed z-[9999] w-48 max-h-52 overflow-y-auto overscroll-contain rounded-lg border border-warm-200 bg-white py-1 shadow-xl"
-		style="{dropdownAbove ? `bottom: ${window.innerHeight - dropdownPos.top}px` : `top: ${dropdownPos.top}px`}; left: {dropdownPos.left}px; max-width: {dropdownPos.maxWidth}px; pointer-events: auto;"
+		style="top: {dropdownPos.top}px; left: {dropdownPos.left}px; max-width: {dropdownPos.maxWidth}px; pointer-events: auto;"
 	>
 		{#each suggestions as tag (tag.id)}
 			<button

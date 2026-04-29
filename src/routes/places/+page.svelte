@@ -69,6 +69,7 @@
 	let contextMenuPos = $state({ x: 0, y: 0 });
 
 	let selectedPlaceId = $state<string | null>(null);
+	let recenterTick = $state(0);
 
 	let collections = $state<Collection[]>(serverData.colls);
 	let collectionPlacesMap = $state<CollectionMemberMap>(serverData.cpm);
@@ -86,7 +87,7 @@
 
 	const DESKTOP_MAP_DEFAULT_PCT = 42;
 	const DESKTOP_MAP_MIN_PCT = 25;
-	const DESKTOP_MAP_MAX_PCT = 70;
+	const DESKTOP_MAP_MAX_PCT = 75;
 	let desktopMapPct = $state(DESKTOP_MAP_DEFAULT_PCT);
 	let desktopMapDragging = $state(false);
 	let desktopMapAnimating = $state(false);
@@ -442,7 +443,19 @@
 		}
 	});
 
-	async function refreshTags() {
+	async function refreshTags(optimistic?: { newTags: Tag[]; placeId: string; tagIds: string[] }) {
+		if (optimistic) {
+			const existingIds = new Set(allTags.map((t) => t.id));
+			const added = optimistic.newTags.filter((t) => !existingIds.has(t.id));
+			if (added.length > 0) allTags = [...allTags, ...added];
+			const current = placeTagsMap[optimistic.placeId] ?? [];
+			const currentIds = new Set(current.map((t) => t.id));
+			const newLinks = optimistic.newTags.filter((t) => !currentIds.has(t.id));
+			if (newLinks.length > 0) {
+				placeTagsMap = { ...placeTagsMap, [optimistic.placeId]: [...current, ...newLinks] };
+			}
+			return;
+		}
 		const userId = session?.user?.id;
 		const result = await refreshTagsData(supabase, userId);
 		allTags = result.tags;
@@ -759,14 +772,44 @@
 	function handleMapPlaceSelect(placeId: string) {
 		selectedPlaceId = placeId;
 		requestAnimationFrame(() => {
-			const els = document.querySelectorAll(`[data-place-id="${placeId}"]`);
-			for (const el of els) {
-				if (el instanceof HTMLElement && el.offsetParent !== null) {
-					el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-					break;
-				}
-			}
+			requestAnimationFrame(() => {
+				scrollToPlace(placeId);
+			});
 		});
+	}
+
+	function scrollToPlace(placeId: string) {
+		const els = document.querySelectorAll(`[data-place-id="${placeId}"]`);
+		for (const el of els) {
+			if (!(el instanceof HTMLElement)) continue;
+			if (el.closest('.map-wrapper')) continue;
+			const rect = el.getBoundingClientRect();
+			if (rect.width === 0 && rect.height === 0) continue;
+
+			const scrollParent = findScrollParent(el);
+			if (scrollParent && scrollParent !== document.documentElement) {
+				const parentRect = scrollParent.getBoundingClientRect();
+				const elTopInContainer = rect.top - parentRect.top + scrollParent.scrollTop;
+				const centeredScroll = elTopInContainer - parentRect.height / 2 + rect.height / 2;
+				scrollParent.scrollTo({ top: centeredScroll, behavior: 'smooth' });
+			} else {
+				const scrollY = window.scrollY;
+				const elTopAbsolute = rect.top + scrollY;
+				const centeredScroll = elTopAbsolute - window.innerHeight / 2 + rect.height / 2;
+				window.scrollTo({ top: centeredScroll, behavior: 'smooth' });
+			}
+			break;
+		}
+	}
+
+	function findScrollParent(el: HTMLElement): HTMLElement | null {
+		let node: HTMLElement | null = el.parentElement;
+		while (node) {
+			const overflow = getComputedStyle(node).overflowY;
+			if (overflow === 'auto' || overflow === 'scroll') return node;
+			node = node.parentElement;
+		}
+		return null;
 	}
 
 	function handlePopupPhotoAction(placeId: string) {
@@ -792,6 +835,7 @@
 
 	function handleCardSelect(placeId: string) {
 		selectedPlaceId = placeId;
+		recenterTick++;
 	}
 
 	function openCollectionPicker(placeId: string) {
@@ -1375,7 +1419,7 @@
 						{/if}
 					</div>
 				{:else if viewMode === 'grid'}
-					<div class="grid grid-cols-1 gap-2 @lg:grid-cols-2 @lg:gap-4">
+					<div class="grid grid-cols-1 gap-2 @lg:grid-cols-2 @lg:gap-3">
 						{#each sortedPlaces as place (place.id)}
 							<PlaceCard
 								{place}
@@ -1403,8 +1447,8 @@
 						{/each}
 					</div>
 				{:else}
-					<div class="overflow-x-auto rounded-2xl border border-warm-200 bg-white sm:rounded-xl [scrollbar-width:thin]">
-					<div class="min-w-[32rem] divide-y divide-warm-100 pr-2">
+				<div class="rounded-2xl border border-warm-200 bg-white sm:rounded-xl">
+				<div class="divide-y divide-warm-100">
 						{#each sortedPlaces as place (place.id)}
 							<PlaceListItem
 								{place}
@@ -1436,6 +1480,7 @@
 			<MobileMapShell
 				places={filteredPlaces}
 				{selectedPlaceId}
+				{recenterTick}
 				onPlaceSelect={handleMapPlaceSelect}
 				onPopupPhotoAction={handlePopupPhotoAction}
 				onPopupPhotoClick={handlePopupPhotoClick}
@@ -1460,7 +1505,7 @@
 				class:desktop-map-animate={desktopMapAnimating}
 				style="--desktop-map-pct: {desktopMapPct}%"
 			>
-				<MapView places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} onPopupPhotoAction={handlePopupPhotoAction} onPopupPhotoClick={handlePopupPhotoClick} maptilerKey={data.maptilerKey} {placePhotos} />
+				<MapView places={filteredPlaces} {selectedPlaceId} {recenterTick} onPlaceSelect={handleMapPlaceSelect} onPopupPhotoAction={handlePopupPhotoAction} onPopupPhotoClick={handlePopupPhotoClick} maptilerKey={data.maptilerKey} {placePhotos} />
 
 				<!-- Desktop drag handle (left edge) -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->

@@ -104,6 +104,8 @@ a,
 	padding: 14px 18px;
 	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 	border: 1px solid var(--color-warm-200);
+	width: 360px;
+	box-sizing: border-box;
 }
 
 .map-popup-warm .maplibregl-popup-tip {

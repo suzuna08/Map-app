@@ -16,6 +16,7 @@
 	let viewMode = $state<'grid' | 'list'>('grid');
 	let search = $state('');
 	let selectedPlaceId = $state<string | null>(null);
+	let recenterTick = $state(0);
 	let flippedPlaceId = $state<string | null>(null);
 	let mapExpanded = $state(true);
 	let saving = $state(false);
@@ -75,14 +76,44 @@
 	function handleMapPlaceSelect(placeId: string) {
 		selectedPlaceId = placeId;
 		requestAnimationFrame(() => {
-			const els = document.querySelectorAll(`[data-place-id="${placeId}"]`);
-			for (const el of els) {
-				if (el instanceof HTMLElement && el.offsetParent !== null) {
-					el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-					break;
-				}
-			}
+			requestAnimationFrame(() => {
+				scrollToPlace(placeId);
+			});
 		});
+	}
+
+	function scrollToPlace(placeId: string) {
+		const els = document.querySelectorAll(`[data-place-id="${placeId}"]`);
+		for (const el of els) {
+			if (!(el instanceof HTMLElement)) continue;
+			if (el.closest('.map-wrapper')) continue;
+			const rect = el.getBoundingClientRect();
+			if (rect.width === 0 && rect.height === 0) continue;
+
+			const scrollParent = findScrollParent(el);
+			if (scrollParent && scrollParent !== document.documentElement) {
+				const parentRect = scrollParent.getBoundingClientRect();
+				const elTopInContainer = rect.top - parentRect.top + scrollParent.scrollTop;
+				const centeredScroll = elTopInContainer - parentRect.height / 2 + rect.height / 2;
+				scrollParent.scrollTo({ top: centeredScroll, behavior: 'smooth' });
+			} else {
+				const scrollY = window.scrollY;
+				const elTopAbsolute = rect.top + scrollY;
+				const centeredScroll = elTopAbsolute - window.innerHeight / 2 + rect.height / 2;
+				window.scrollTo({ top: centeredScroll, behavior: 'smooth' });
+			}
+			break;
+		}
+	}
+
+	function findScrollParent(el: HTMLElement): HTMLElement | null {
+		let node: HTMLElement | null = el.parentElement;
+		while (node) {
+			const overflow = getComputedStyle(node).overflowY;
+			if (overflow === 'auto' || overflow === 'scroll') return node;
+			node = node.parentElement;
+		}
+		return null;
 	}
 
 	function handleCardClick(placeId: string) {
@@ -98,6 +129,7 @@
 			flippedPlaceId = null;
 			selectedPlaceId = placeId;
 		}
+		recenterTick++;
 	}
 
 	function flipToFront(e: MouseEvent) {
@@ -183,6 +215,7 @@
 						<MapView
 							places={filteredPlaces}
 							{selectedPlaceId}
+							{recenterTick}
 							onPlaceSelect={handleMapPlaceSelect}
 							{maptilerKey}
 						/>

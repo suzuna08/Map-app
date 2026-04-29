@@ -5,6 +5,7 @@
 	interface Props {
 		places: Place[];
 		selectedPlaceId: string | null;
+		recenterTick?: number;
 		onPlaceSelect: (placeId: string) => void;
 		onPopupPhotoAction?: (placeId: string) => void;
 		onPopupPhotoClick?: (placeId: string, photoIndex: number) => void;
@@ -12,7 +13,7 @@
 		placePhotos?: Record<string, string[]>;
 	}
 
-	let { places, selectedPlaceId, onPlaceSelect, onPopupPhotoAction, onPopupPhotoClick, maptilerKey = '', placePhotos = {} }: Props = $props();
+	let { places, selectedPlaceId, recenterTick = 0, onPlaceSelect, onPopupPhotoAction, onPopupPhotoClick, maptilerKey = '', placePhotos = {} }: Props = $props();
 
 	const MIN_HEIGHT = 80;
 	const DEFAULT_HEIGHT = 128;
@@ -79,7 +80,7 @@
 	style="height: {mapHeight}px"
 >
 	<div class="h-full w-full">
-		<MapView {places} {selectedPlaceId} {onPlaceSelect} {onPopupPhotoAction} {onPopupPhotoClick} {maptilerKey} {mapMode} {placePhotos} />
+		<MapView {places} {selectedPlaceId} {recenterTick} {onPlaceSelect} {onPopupPhotoAction} {onPopupPhotoClick} {maptilerKey} {mapMode} {mapHeight} mapDragging={dragging} {placePhotos} />
 	</div>
 
 	<!-- Drag handle -->

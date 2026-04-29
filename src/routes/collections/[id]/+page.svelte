@@ -116,6 +116,7 @@
 	}
 
 	let selectedPlaceId = $state<string | null>(null);
+	let recenterTick = $state(0);
 	let isMobile = $state(false);
 	let maptilerKey = $derived(data.maptilerKey ?? '');
 
@@ -182,7 +183,19 @@
 		addTagFilter = copy;
 	}
 
-	async function refreshTags() {
+	async function refreshTags(optimistic?: { newTags: Tag[]; placeId: string; tagIds: string[] }) {
+		if (optimistic) {
+			const existingIds = new Set(allTags.map((t) => t.id));
+			const added = optimistic.newTags.filter((t) => !existingIds.has(t.id));
+			if (added.length > 0) allTags = [...allTags, ...added];
+			const current = placeTagsMap[optimistic.placeId] ?? [];
+			const currentIds = new Set(current.map((t) => t.id));
+			const newLinks = optimistic.newTags.filter((t) => !currentIds.has(t.id));
+			if (newLinks.length > 0) {
+				placeTagsMap = { ...placeTagsMap, [optimistic.placeId]: [...current, ...newLinks] };
+			}
+			return;
+		}
 		const userId = session?.user?.id;
 		const result = await refreshTagsData(supabase, userId);
 		allTags = result.tags;
@@ -357,19 +370,50 @@
 
 	function handleCardSelect(placeId: string) {
 		selectedPlaceId = selectedPlaceId === placeId ? null : placeId;
+		recenterTick++;
 	}
 
 	function handleMapPlaceSelect(placeId: string) {
 		selectedPlaceId = placeId;
 		requestAnimationFrame(() => {
-			const els = document.querySelectorAll(`[data-place-id="${placeId}"]`);
-			for (const el of els) {
-				if (el instanceof HTMLElement && el.offsetParent !== null) {
-					el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-					break;
-				}
-			}
+			requestAnimationFrame(() => {
+				scrollToPlace(placeId);
+			});
 		});
+	}
+
+	function scrollToPlace(placeId: string) {
+		const els = document.querySelectorAll(`[data-place-id="${placeId}"]`);
+		for (const el of els) {
+			if (!(el instanceof HTMLElement)) continue;
+			if (el.closest('.map-wrapper')) continue;
+			const rect = el.getBoundingClientRect();
+			if (rect.width === 0 && rect.height === 0) continue;
+
+			const scrollParent = findScrollParent(el);
+			if (scrollParent && scrollParent !== document.documentElement) {
+				const parentRect = scrollParent.getBoundingClientRect();
+				const elTopInContainer = rect.top - parentRect.top + scrollParent.scrollTop;
+				const centeredScroll = elTopInContainer - parentRect.height / 2 + rect.height / 2;
+				scrollParent.scrollTo({ top: centeredScroll, behavior: 'smooth' });
+			} else {
+				const scrollY = window.scrollY;
+				const elTopAbsolute = rect.top + scrollY;
+				const centeredScroll = elTopAbsolute - window.innerHeight / 2 + rect.height / 2;
+				window.scrollTo({ top: centeredScroll, behavior: 'smooth' });
+			}
+			break;
+		}
+	}
+
+	function findScrollParent(el: HTMLElement): HTMLElement | null {
+		let node: HTMLElement | null = el.parentElement;
+		while (node) {
+			const overflow = getComputedStyle(node).overflowY;
+			if (overflow === 'auto' || overflow === 'scroll') return node;
+			node = node.parentElement;
+		}
+		return null;
 	}
 
 	function updateNote(placeId: string, note: string) {
@@ -514,7 +558,7 @@
 			</div>
 		</div>
 	</div>
-	<MobileMapShell places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} {maptilerKey} placePhotos={data.placePhotos} />
+	<MobileMapShell places={filteredPlaces} {selectedPlaceId} {recenterTick} onPlaceSelect={handleMapPlaceSelect} {maptilerKey} placePhotos={data.placePhotos} />
 	<div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
 		<div class="mx-auto px-2.5 pt-1 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]">
 	<!-- Places -->
@@ -708,7 +752,7 @@
 
 	<div class="flex flex-col lg:flex-row">
 		<div class="relative z-0 h-[35vh] shrink-0 border-b border-warm-200 sm:h-[38vh] lg:order-2 lg:sticky lg:top-[120px] lg:h-[calc(100dvh-120px)] lg:w-[42%] lg:self-start lg:border-b-0 lg:border-l">
-			<MapView places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} {maptilerKey} placePhotos={data.placePhotos} />
+			<MapView places={filteredPlaces} {selectedPlaceId} {recenterTick} onPlaceSelect={handleMapPlaceSelect} {maptilerKey} placePhotos={data.placePhotos} />
 		</div>
 		<div class="min-w-0 flex-1 lg:order-1">
 			<div class="mx-auto px-2.5 py-3 sm:px-6 sm:py-4 lg:px-4 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]">

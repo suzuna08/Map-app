@@ -63,13 +63,13 @@
 <button
 	bind:this={triggerEl}
 	onclick={openEditor}
-	class="shrink-0 rounded-md px-1 py-0.5 text-right transition-colors hover:bg-warm-100 {compact ? 'text-xs' : 'text-sm'}"
+	class="shrink-0 rounded-md px-1 py-0.5 text-right text-sm font-medium transition-colors hover:bg-warm-100"
 	aria-label="Set rating"
 >
 	{#if userRating != null}
-		<span class="font-extrabold text-warm-700">{userRating.toFixed(1)}</span><span class="text-brand-500 {compact ? 'text-xs' : 'text-xs'}">★</span>
+		<span class="text-warm-700">{userRating.toFixed(1)}</span><span class="text-brand-500">★</span>
 	{:else}
-		<span class="whitespace-nowrap font-medium text-warm-300 {compact ? 'text-xs' : 'text-xs'}">Not rated</span>
+		<span class="whitespace-nowrap text-warm-300">Not rated</span>
 	{/if}
 </button>
 

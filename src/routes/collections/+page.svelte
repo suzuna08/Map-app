@@ -37,6 +37,7 @@
 	let viewMode = $state<'grid' | 'list'>('grid');
 	let collectionOptionsOpen = $state(false);
 	let selectedPlaceId = $state<string | null>(null);
+	let recenterTick = $state(0);
 	let isMobile = $state(false);
 	let showAddModal = $state(false);
 	let addSearch = $state('');
@@ -235,23 +236,69 @@
 	function handleMapPlaceSelect(placeId: string) {
 		selectedPlaceId = placeId;
 		requestAnimationFrame(() => {
-			const els = document.querySelectorAll(`[data-place-id="${placeId}"]`);
-			for (const el of els) {
-				if (el instanceof HTMLElement && el.offsetParent !== null) {
-					el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-					break;
-				}
-			}
+			requestAnimationFrame(() => {
+				scrollToPlace(placeId);
+			});
 		});
+	}
+
+	function scrollToPlace(placeId: string) {
+		const els = document.querySelectorAll(`[data-place-id="${placeId}"]`);
+		for (const el of els) {
+			if (!(el instanceof HTMLElement)) continue;
+			if (el.closest('.map-wrapper')) continue;
+			const rect = el.getBoundingClientRect();
+			if (rect.width === 0 && rect.height === 0) continue;
+
+			const scrollParent = findScrollParent(el);
+			if (scrollParent && scrollParent !== document.documentElement) {
+				const parentRect = scrollParent.getBoundingClientRect();
+				const elTopInContainer = rect.top - parentRect.top + scrollParent.scrollTop;
+				const centeredScroll = elTopInContainer - parentRect.height / 2 + rect.height / 2;
+				scrollParent.scrollTo({ top: centeredScroll, behavior: 'smooth' });
+			} else {
+				const scrollY = window.scrollY;
+				const elTopAbsolute = rect.top + scrollY;
+				const centeredScroll = elTopAbsolute - window.innerHeight / 2 + rect.height / 2;
+				window.scrollTo({ top: centeredScroll, behavior: 'smooth' });
+			}
+			break;
+		}
+	}
+
+	function findScrollParent(el: HTMLElement): HTMLElement | null {
+		let node: HTMLElement | null = el.parentElement;
+		while (node) {
+			const overflow = getComputedStyle(node).overflowY;
+			if (overflow === 'auto' || overflow === 'scroll') return node;
+			node = node.parentElement;
+		}
+		return null;
 	}
 
 	function handleCardSelect(placeId: string) {
 		selectedPlaceId = selectedPlaceId === placeId ? null : placeId;
+		recenterTick++;
 	}
 
 	function toggleTag(_tagId: string) { /* noop in collection browse */ }
 
-	async function refreshTags() {
+	async function refreshTags(optimistic?: { newTags: Tag[]; placeId: string; tagIds: string[] }) {
+		if (optimistic) {
+			const existingIds = new Set(browseAllTags.map((t) => t.id));
+			const added = optimistic.newTags.filter((t) => !existingIds.has(t.id));
+			if (added.length > 0) browseAllTags = [...browseAllTags, ...added];
+			const current = browsePlaceTagsMap[optimistic.placeId] ?? [];
+			const currentIds = new Set(current.map((t) => t.id));
+			const newLinks = optimistic.newTags.filter((t) => !currentIds.has(t.id));
+			if (newLinks.length > 0) {
+				browsePlaceTagsMap = { ...browsePlaceTagsMap, [optimistic.placeId]: [...current, ...newLinks] };
+			}
+			if (selectedCollectionId) {
+				browseCache.set(selectedCollectionId, { places: browsePlaces, tags: browseAllTags, placeTagsMap: browsePlaceTagsMap });
+			}
+			return;
+		}
 		const userId = session?.user?.id;
 		const result = await refreshTagsData(supabase, userId);
 		browseAllTags = result.tags;
@@ -576,7 +623,7 @@
 					onDeleteCollection={handleDeleteSelectedCollection}
 				/>
 			</div>
-			<MobileMapShell places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} maptilerKey={data.maptilerKey} placePhotos={data.placePhotos} />
+			<MobileMapShell places={filteredPlaces} {selectedPlaceId} {recenterTick} onPlaceSelect={handleMapPlaceSelect} maptilerKey={data.maptilerKey} placePhotos={data.placePhotos} />
 			<div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
 				<div class="mx-auto px-2.5 pt-1 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]">
 					<!-- Controls bar -->
@@ -675,7 +722,7 @@
 	<div class="flex flex-col lg:flex-row">
 		<!-- RIGHT: Map only (sticky sidebar, same as Places) -->
 		<div class="relative z-0 h-[35vh] shrink-0 border-b border-warm-200 sm:h-[38vh] lg:order-2 lg:sticky lg:top-0 lg:h-[100dvh] lg:w-[42%] lg:self-start lg:border-b-0 lg:border-l">
-			<MapView places={filteredPlaces} {selectedPlaceId} onPlaceSelect={handleMapPlaceSelect} maptilerKey={data.maptilerKey} placePhotos={data.placePhotos} />
+			<MapView places={filteredPlaces} {selectedPlaceId} {recenterTick} onPlaceSelect={handleMapPlaceSelect} maptilerKey={data.maptilerKey} placePhotos={data.placePhotos} />
 		</div>
 
 		<!-- LEFT: Collection hub + Header + controls + place cards -->
