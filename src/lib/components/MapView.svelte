@@ -340,7 +340,7 @@
 	<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
 </svelte:head>
 
-<div class="map-wrapper relative h-full w-full bg-warm-100" data-map-mode={mapMode}>
+<div class="map-wrapper relative h-full w-full overflow-hidden bg-warm-100" data-map-mode={mapMode}>
 	<div bind:this={container} class="h-full w-full"></div>
 
 	{#if mounted && !maptilerKey}

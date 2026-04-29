@@ -842,8 +842,14 @@
 	}
 
 	function handleCardSelect(placeId: string) {
+		const scrollY = window.scrollY;
 		selectedPlaceId = placeId;
 		recenterTick++;
+		requestAnimationFrame(() => {
+			if (window.scrollY !== scrollY) {
+				window.scrollTo({ top: scrollY, behavior: 'instant' });
+			}
+		});
 	}
 
 	function openCollectionPicker(placeId: string) {
@@ -1507,7 +1513,7 @@
 	{:else}
 		<div class="flex flex-col md:flex-row">
 			<div
-				class="desktop-map-panel relative z-0 h-[35vh] shrink-0 border-b border-warm-200 sm:h-[38vh] md:order-2 md:sticky md:top-0 md:h-[100dvh] md:self-start md:border-b-0 md:border-l"
+				class="desktop-map-panel relative z-0 overflow-hidden h-[35vh] shrink-0 border-b border-warm-200 sm:h-[38vh] md:order-2 md:sticky md:top-0 md:h-[100dvh] md:self-start md:border-b-0 md:border-l"
 				class:desktop-map-animate={desktopMapAnimating}
 				style="--desktop-map-pct: {desktopMapPct}%"
 			>

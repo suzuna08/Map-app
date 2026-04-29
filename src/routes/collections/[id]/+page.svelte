@@ -410,8 +410,14 @@
 	}
 
 	function handleCardSelect(placeId: string) {
+		const scrollY = window.scrollY;
 		selectedPlaceId = selectedPlaceId === placeId ? null : placeId;
 		recenterTick++;
+		requestAnimationFrame(() => {
+			if (window.scrollY !== scrollY) {
+				window.scrollTo({ top: scrollY, behavior: 'instant' });
+			}
+		});
 	}
 
 	function handleMapPlaceSelect(placeId: string) {
@@ -470,6 +476,12 @@
 	}
 
 	function toggleTag(_tagId: string) { /* noop on collection detail */ }
+
+	$effect(() => {
+		if (selectedPlaceId && !filteredPlaces.some(p => p.id === selectedPlaceId)) {
+			selectedPlaceId = null;
+		}
+	});
 
 	let shareNotes = $derived(collection.share_notes ?? true);
 	let sharePhotos = $derived(collection.share_photos ?? true);
@@ -872,7 +884,7 @@
 	</div>
 
 	<div class="flex flex-col lg:flex-row">
-		<div class="relative z-0 h-[35vh] shrink-0 border-b border-warm-200 sm:h-[38vh] lg:order-2 lg:sticky lg:top-[120px] lg:h-[calc(100dvh-120px)] lg:w-[42%] lg:self-start lg:border-b-0 lg:border-l">
+		<div class="relative z-0 overflow-hidden h-[35vh] shrink-0 border-b border-warm-200 sm:h-[38vh] lg:order-2 lg:sticky lg:top-[120px] lg:h-[calc(100dvh-120px)] lg:w-[42%] lg:self-start lg:border-b-0 lg:border-l">
 			<MapView places={filteredPlaces} {selectedPlaceId} {recenterTick} onPlaceSelect={handleMapPlaceSelect} {maptilerKey} placePhotos={data.placePhotos} />
 		</div>
 		<div class="min-w-0 flex-1 lg:order-1">
