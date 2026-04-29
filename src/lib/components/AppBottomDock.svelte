@@ -50,8 +50,14 @@
 		function checkMobile() {
 			isMobile = window.innerWidth < MOBILE_BREAKPOINT;
 		}
+
+		function onResize() {
+			checkMobile();
+			reclampPosition();
+		}
+
 		checkMobile();
-		window.addEventListener('resize', checkMobile);
+		window.addEventListener('resize', onResize);
 
 		prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -69,12 +75,12 @@
 			}, 1200);
 			return () => {
 				clearTimeout(timer);
-				window.removeEventListener('resize', checkMobile);
+				window.removeEventListener('resize', onResize);
 			};
 		}
 
 		return () => {
-			window.removeEventListener('resize', checkMobile);
+			window.removeEventListener('resize', onResize);
 		};
 	});
 
@@ -136,6 +142,16 @@
 			x: Math.max(margin, Math.min(x, vw - w - margin)),
 			y: Math.max(margin, Math.min(y, vh - h - margin))
 		};
+	}
+
+	function reclampPosition() {
+		if (!pos || !pillEl) return;
+		const rect = pillEl.getBoundingClientRect();
+		const clamped = clamp(pos.x, pos.y, rect.width, rect.height);
+		if (clamped.x !== pos.x || clamped.y !== pos.y) {
+			pos = clamped;
+			try { localStorage.setItem(STORAGE_KEY, JSON.stringify(pos)); } catch { /* ignore */ }
+		}
 	}
 
 	function startDrag(e: PointerEvent) {
