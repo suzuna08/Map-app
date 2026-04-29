@@ -39,15 +39,18 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 	let currentOrder: string[] = [];
 	let originalOrder: string[] = [];
 
-	// Desktop: delayed drag activation to distinguish click from drag
 	let pointerPending = false;
 	let pendingTarget: HTMLElement | null = null;
 	let suppressNextClick = false;
 
-	// Touch: long-press to activate drag
 	let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 	let longPressTriggered = false;
 	let pendingTouchMoveHandler: ((e: TouchEvent) => void) | null = null;
+
+	let lastInsertIdx = -1;
+	let rafId: number | null = null;
+	let latestPointerX = 0;
+	let latestPointerY = 0;
 
 	function shouldIgnoreTarget(target: HTMLElement): boolean {
 		if (!options.ignoreDragFrom) return false;
@@ -86,17 +89,17 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 			height: `${rect.height}px`,
 			left: `${clientX - offsetX}px`,
 			top: `${clientY - offsetY}px`,
-			transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+			willChange: 'left, top',
 			transform: 'scale(1.06)',
 			boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
 			borderRadius: getComputedStyle(el).borderRadius,
-			opacity: '0.95',
-			cursor: 'grabbing'
+			opacity: '0.92',
+			cursor: 'grabbing',
+			transition: 'transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease'
 		});
 		document.body.appendChild(ghostEl);
 
-		el.style.opacity = '0.25';
-		el.style.transition = 'opacity 0.15s ease';
+		el.style.visibility = 'hidden';
 	}
 
 	function moveGhost(clientX: number, clientY: number) {
@@ -106,29 +109,48 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 	}
 
 	function findInsertIndex(cx: number, cy: number): number {
-		let closest = 0;
+		let closest = -1;
 		let bestDist = Infinity;
 
 		for (let i = 0; i < items.length; i++) {
 			if (items[i].id === dragId) continue;
-			const dx = cx - items[i].midX;
-			const dy = cy - items[i].midY;
-			const dist = dx * dx + dy * dy;
+			const target = items[i];
+
+			const sameRow = Math.abs(cy - target.midY) < target.rect.height * 0.6;
+
+			let dist: number;
+			if (sameRow) {
+				dist = Math.abs(cx - target.midX);
+			} else {
+				const dx = cx - target.midX;
+				const dy = cy - target.midY;
+				dist = Math.sqrt(dx * dx + dy * dy);
+			}
+
 			if (dist < bestDist) {
 				bestDist = dist;
 				closest = i;
 			}
 		}
 
+		if (closest < 0) return 0;
+
 		const target = items[closest];
-		if (!target) return 0;
-
-		const isAfter =
-			cy > target.midY + target.rect.height * 0.3 ||
-			(Math.abs(cy - target.midY) <= target.rect.height * 0.3 && cx > target.midX);
-
 		const closestOrderIdx = currentOrder.indexOf(target.id);
-		return isAfter ? closestOrderIdx + 1 : closestOrderIdx;
+
+		const sameRow = Math.abs(cy - target.midY) < target.rect.height * 0.6;
+		if (sameRow) {
+			return cx > target.midX ? closestOrderIdx + 1 : closestOrderIdx;
+		}
+		return cy > target.midY ? closestOrderIdx + 1 : closestOrderIdx;
+	}
+
+	function prepareItemsForDrag() {
+		for (const item of items) {
+			if (item.id === dragId) continue;
+			item.el.style.willChange = 'transform';
+			item.el.style.transition = 'transform 0.15s cubic-bezier(0.2, 0, 0, 1)';
+		}
 	}
 
 	function applyShifts(newOrder: string[]) {
@@ -137,18 +159,15 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 			const oldIdx = originalOrder.indexOf(item.id);
 			const newIdx = newOrder.indexOf(item.id);
 			if (oldIdx === newIdx) {
-				item.el.style.transform = '';
-				item.el.style.transition = 'transform 0.2s cubic-bezier(0.2, 0, 0, 1)';
+				item.el.style.transform = 'translate3d(0,0,0)';
 				continue;
 			}
 
-			const originalItem = items.find((it) => it.id === originalOrder[newIdx]);
-			const targetItem = items.find((it) => it.id === originalOrder[oldIdx]);
-			if (originalItem && targetItem) {
-				const dx = originalItem.rect.left - targetItem.rect.left;
-				const dy = originalItem.rect.top - targetItem.rect.top;
-				item.el.style.transition = 'transform 0.2s cubic-bezier(0.2, 0, 0, 1)';
-				item.el.style.transform = `translate(${dx}px, ${dy}px)`;
+			const targetPositionItem = items.find((it) => it.id === originalOrder[newIdx]);
+			if (targetPositionItem) {
+				const dx = targetPositionItem.rect.left - item.rect.left;
+				const dy = targetPositionItem.rect.top - item.rect.top;
+				item.el.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
 			}
 		}
 	}
@@ -168,13 +187,16 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 		dragEl = el;
 		dragId = el.getAttribute(options.idAttribute) || '';
 		dragging = true;
+		lastInsertIdx = -1;
 		node.setAttribute('data-sortable-dragging', '');
+		document.body.style.cursor = 'grabbing';
 
 		items = getItems();
 		originalOrder = getOrderedIds();
 		currentOrder = [...originalOrder];
 
 		createGhost(el, clientX, clientY);
+		prepareItemsForDrag();
 
 		if (touch) {
 			document.addEventListener('touchmove', onDragTouchMove, { passive: false });
@@ -190,43 +212,60 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 		moveGhost(clientX, clientY);
 
 		const insertIdx = findInsertIndex(clientX, clientY);
-		const newOrder = reorderArray(originalOrder, dragId, insertIdx);
 
-		if (newOrder.join(',') !== currentOrder.join(',')) {
-			currentOrder = newOrder;
-			applyShifts(newOrder);
+		if (insertIdx !== lastInsertIdx) {
+			lastInsertIdx = insertIdx;
+			const newOrder = reorderArray(originalOrder, dragId, insertIdx);
+
+			if (newOrder.join(',') !== currentOrder.join(',')) {
+				currentOrder = newOrder;
+				applyShifts(newOrder);
+			}
 		}
 	}
 
 	function endDrag() {
 		if (!dragging) return;
 		dragging = false;
+		lastInsertIdx = -1;
 		node.removeAttribute('data-sortable-dragging');
+		document.body.style.cursor = '';
 
-		if (ghostEl) {
-			ghostEl.remove();
+		if (rafId !== null) {
+			cancelAnimationFrame(rafId);
+			rafId = null;
+		}
+
+		if (ghostEl && dragEl) {
+			const targetRect = getDropTargetRect();
+			if (targetRect) {
+				ghostEl.style.transition = 'all 0.15s cubic-bezier(0.2, 0, 0, 1)';
+				ghostEl.style.left = `${targetRect.left}px`;
+				ghostEl.style.top = `${targetRect.top}px`;
+				ghostEl.style.transform = 'scale(1)';
+				ghostEl.style.opacity = '0.6';
+				ghostEl.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
+
+				const ghost = ghostEl;
+				const el = dragEl;
+				setTimeout(() => {
+					ghost.remove();
+					el.style.visibility = '';
+					cleanupItemStyles();
+					emitAndReset();
+				}, 150);
+			} else {
+				ghostEl.remove();
+				dragEl.style.visibility = '';
+				cleanupItemStyles();
+				emitAndReset();
+			}
 			ghostEl = null;
+		} else {
+			if (dragEl) dragEl.style.visibility = '';
+			cleanupItemStyles();
+			emitAndReset();
 		}
-
-		if (dragEl) {
-			dragEl.style.opacity = '';
-			dragEl.style.transition = '';
-		}
-
-		for (const item of items) {
-			item.el.style.transform = '';
-			item.el.style.transition = '';
-		}
-
-		if (currentOrder.join(',') !== originalOrder.join(',')) {
-			options.onReorder(currentOrder);
-		}
-
-		dragEl = null;
-		dragId = '';
-		items = [];
-		currentOrder = [];
-		originalOrder = [];
 
 		document.removeEventListener('pointermove', onDragPointerMove);
 		document.removeEventListener('pointerup', onDragPointerUp);
@@ -235,6 +274,38 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 		document.removeEventListener('touchcancel', onTouchEnd);
 
 		setTimeout(() => { suppressNextClick = false; }, 0);
+	}
+
+	function getDropTargetRect(): { left: number; top: number } | null {
+		if (!dragId || currentOrder.length === 0) return null;
+		const dropIdx = currentOrder.indexOf(dragId);
+		if (dropIdx < 0) return null;
+		const targetOriginalId = originalOrder[dropIdx];
+		if (targetOriginalId === dragId) {
+			const dragItem = items.find((it) => it.id === dragId);
+			return dragItem ? { left: dragItem.rect.left, top: dragItem.rect.top } : null;
+		}
+		const targetItem = items.find((it) => it.id === targetOriginalId);
+		return targetItem ? { left: targetItem.rect.left, top: targetItem.rect.top } : null;
+	}
+
+	function cleanupItemStyles() {
+		for (const item of items) {
+			item.el.style.transform = '';
+			item.el.style.transition = '';
+			item.el.style.willChange = '';
+		}
+	}
+
+	function emitAndReset() {
+		if (currentOrder.join(',') !== originalOrder.join(',')) {
+			options.onReorder(currentOrder);
+		}
+		dragEl = null;
+		dragId = '';
+		items = [];
+		currentOrder = [];
+		originalOrder = [];
 	}
 
 	function cleanupPendingPointer() {
@@ -258,9 +329,12 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 	}
 
 	// ─── Desktop pointer events ───────────────────────────────────────
-	// Two-phase: pointerdown records start position, pointermove beyond
-	// threshold activates drag, pointerup without movement lets the
-	// click through to the element's own onclick handler.
+
+	function onDragStart(e: DragEvent) {
+		if (pointerPending || dragging) {
+			e.preventDefault();
+		}
+	}
 
 	function onPointerDown(e: PointerEvent) {
 		if (options.disabled || e.button !== 0 || dragging) return;
@@ -310,7 +384,13 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 	function onDragPointerMove(e: PointerEvent) {
 		if (!dragging) return;
 		e.preventDefault();
-		updateDrag(e.clientX, e.clientY);
+		latestPointerX = e.clientX;
+		latestPointerY = e.clientY;
+		if (rafId !== null) return;
+		rafId = requestAnimationFrame(() => {
+			rafId = null;
+			updateDrag(latestPointerX, latestPointerY);
+		});
 	}
 
 	function onDragPointerUp() {
@@ -318,9 +398,6 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 	}
 
 	// ─── Touch events ─────────────────────────────────────────────────
-	// Long-press to activate drag. During the wait, a passive touchmove
-	// listener cancels if the finger moves (allowing scroll). Once the
-	// long-press fires, non-passive touchmove prevents scroll during drag.
 
 	function onNativeTouchStart(e: TouchEvent) {
 		if (options.disabled || dragging) return;
@@ -348,9 +425,11 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 			const dy = t.clientY - startY;
 			if (dx * dx + dy * dy > TOUCH_MOVE_THRESHOLD) {
 				cleanupPendingTouch();
+			} else {
+				ev.preventDefault();
 			}
 		};
-		document.addEventListener('touchmove', pendingTouchMoveHandler, { passive: true });
+		document.addEventListener('touchmove', pendingTouchMoveHandler, { passive: false });
 		document.addEventListener('touchend', onPendingTouchEnd);
 		document.addEventListener('touchcancel', onPendingTouchEnd);
 
@@ -408,6 +487,7 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 	node.addEventListener('pointerdown', onPointerDown);
 	node.addEventListener('touchstart', onNativeTouchStart, { passive: true });
 	node.addEventListener('click', onClickCapture, true);
+	node.addEventListener('dragstart', onDragStart);
 
 	applyStyles();
 
@@ -420,6 +500,7 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 			node.removeEventListener('pointerdown', onPointerDown);
 			node.removeEventListener('touchstart', onNativeTouchStart);
 			node.removeEventListener('click', onClickCapture, true);
+			node.removeEventListener('dragstart', onDragStart);
 			document.removeEventListener('pointermove', onDragPointerMove);
 			document.removeEventListener('pointerup', onDragPointerUp);
 			document.removeEventListener('touchmove', onDragTouchMove);
@@ -427,6 +508,7 @@ export function sortable(node: HTMLElement, opts: SortableOptions) {
 			document.removeEventListener('touchcancel', onTouchEnd);
 			cleanupPendingPointer();
 			cleanupPendingTouch();
+			if (rafId !== null) cancelAnimationFrame(rafId);
 			if (ghostEl) ghostEl.remove();
 			node.style.cursor = '';
 			node.style.webkitUserSelect = '';

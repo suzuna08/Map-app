@@ -1284,7 +1284,7 @@
 							type="text"
 							bind:value={search}
 							onkeydown={(e) => { handleSearchKeydown(e); }}
-							placeholder="Search or paste a link..."
+							placeholder="Search places, tags, or paste a Google Maps URL"
 							class="w-full rounded-full border border-warm-200 bg-warm-50 py-1.5 pl-3.5 pr-8 text-xs font-medium text-warm-800 transition-colors placeholder:text-warm-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:py-2 sm:pl-4 sm:pr-9 sm:text-sm"
 						/>
 						{#if urlAdding}

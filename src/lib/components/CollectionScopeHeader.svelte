@@ -82,7 +82,7 @@
 	}
 </script>
 
-<div class="border-b border-warm-200/80 bg-[#faf7f2]">
+<div class="border-b border-warm-200/80 bg-[#f2ede6]">
 	<div class="px-3 sm:px-5 lg:px-6">
 		<!-- Collection identity row -->
 		<div class="flex items-center gap-2.5 pb-2 pt-2 sm:gap-3 sm:pb-2.5 sm:pt-2.5">
