@@ -3,7 +3,7 @@ import type { Database, Collection, Place, Tag } from '$lib/types/database';
 
 export type CollectionMemberMap = Record<string, string[]>;
 
-const LISTS_COLUMNS = 'id, user_id, name, description, color, emoji, visibility, share_slug, sort_order, created_at, updated_at';
+const LISTS_COLUMNS = '*';
 
 export async function loadCollections(supabase: SupabaseClient<Database>, userId?: string): Promise<{
 	collections: Collection[];
@@ -69,7 +69,7 @@ export async function createCollection(
 export async function updateCollection(
 	supabase: SupabaseClient<Database>,
 	collectionId: string,
-	updates: { name?: string; description?: string | null; color?: string; emoji?: string | null; visibility?: string; share_slug?: string | null; sort_order?: number }
+	updates: { name?: string; description?: string | null; color?: string; emoji?: string | null; visibility?: string; share_slug?: string | null; sort_order?: number; share_notes?: boolean; share_photos?: boolean; share_tags?: boolean }
 ): Promise<boolean> {
 	const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
 	if (updates.name !== undefined) payload.name = updates.name;
@@ -79,6 +79,9 @@ export async function updateCollection(
 	if (updates.visibility !== undefined) payload.visibility = updates.visibility;
 	if (updates.share_slug !== undefined) payload.share_slug = updates.share_slug;
 	if (updates.sort_order !== undefined) payload.sort_order = updates.sort_order;
+	if (updates.share_notes !== undefined) payload.share_notes = updates.share_notes;
+	if (updates.share_photos !== undefined) payload.share_photos = updates.share_photos;
+	if (updates.share_tags !== undefined) payload.share_tags = updates.share_tags;
 
 	const { error } = await supabase.from('lists').update(payload).eq('id', collectionId);
 	if (error) {

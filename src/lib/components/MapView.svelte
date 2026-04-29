@@ -225,11 +225,7 @@
 					duration: 600,
 					offset,
 				});
-				if (mode === 'collapsed') {
-					if (entry.marker.getPopup().isOpen()) entry.marker.togglePopup();
-				} else {
-					if (!entry.marker.getPopup().isOpen()) entry.marker.togglePopup();
-				}
+				if (!entry.marker.getPopup().isOpen()) entry.marker.togglePopup();
 			}
 			markersMap.forEach((e, id) => {
 				if (id !== sid && e.marker.getPopup().isOpen()) e.marker.togglePopup();

@@ -6,21 +6,83 @@
 	import { showToast } from '$lib/stores/toasts.svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import { textColorForBg } from '$lib/tag-colors';
 
 	let { data } = $props();
 	let collection = (data as any).collection as Collection;
 	let places = (data as any).places as Place[];
 	let maptilerKey: string = data.maptilerKey ?? '';
 	let session: Session | null = (data as any).session ?? null;
+	let placePhotos: Record<string, string[]> = (data as any).placePhotos ?? {};
+	let placeTags: Record<string, { id: string; name: string; color: string | null }[]> = (data as any).placeTags ?? {};
+	let shareSettings: { notes: boolean; photos: boolean; tags: boolean } = (data as any).shareSettings ?? { notes: true, photos: true, tags: false };
 
-	let viewMode = $state<'grid' | 'list'>('grid');
 	let search = $state('');
 	let selectedPlaceId = $state<string | null>(null);
 	let recenterTick = $state(0);
 	let flippedPlaceId = $state<string | null>(null);
-	let mapExpanded = $state(true);
 	let saving = $state(false);
 	let saved = $state(false);
+	let lightboxPlaceId = $state<string | null>(null);
+	let lightboxIndex = $state(0);
+	let cardMenuPlaceId = $state<string | null>(null);
+
+	// Map resize state (mirrors MobileMapShell)
+	const MAP_MIN_HEIGHT = 80;
+	const MAP_DEFAULT_HEIGHT = 300;
+	const MAP_SNAP_COLLAPSED = 100;
+	const MAP_SNAP_EXPANDED_VH = 0.55;
+
+	let mapHeight = $state(MAP_DEFAULT_HEIGHT);
+	let mapDragging = $state(false);
+	let mapAnimating = $state(false);
+	let mapDragStartY = 0;
+	let mapDragStartHeight = 0;
+
+	let mapMaxHeight = $derived(typeof window !== 'undefined' ? window.innerHeight * 0.7 : 500);
+	let mapMode: 'collapsed' | 'expanded' = 'expanded';
+
+	function clampMapHeight(h: number): number {
+		return Math.max(MAP_MIN_HEIGHT, Math.min(h, mapMaxHeight));
+	}
+
+	function onMapPointerDown(e: PointerEvent) {
+		if (mapAnimating) return;
+		mapDragging = true;
+		mapDragStartY = e.clientY;
+		mapDragStartHeight = mapHeight;
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+	}
+
+	function onMapPointerMove(e: PointerEvent) {
+		if (!mapDragging) return;
+		const delta = e.clientY - mapDragStartY;
+		mapHeight = clampMapHeight(mapDragStartHeight + delta);
+	}
+
+	function onMapPointerUp() {
+		if (!mapDragging) return;
+		mapDragging = false;
+		const viewH = window.innerHeight;
+		mapAnimating = true;
+		if (mapHeight < MAP_SNAP_COLLAPSED) {
+			mapHeight = MAP_MIN_HEIGHT;
+		} else if (mapHeight > viewH * 0.4) {
+			mapHeight = clampMapHeight(viewH * MAP_SNAP_EXPANDED_VH);
+		}
+		setTimeout(() => { mapAnimating = false; }, 220);
+	}
+
+	function onMapDoubleTap() {
+		mapAnimating = true;
+		const viewH = window.innerHeight;
+		if (mapHeight > MAP_DEFAULT_HEIGHT + 20) {
+			mapHeight = MAP_DEFAULT_HEIGHT;
+		} else {
+			mapHeight = clampMapHeight(viewH * MAP_SNAP_EXPANDED_VH);
+		}
+		setTimeout(() => { mapAnimating = false; }, 220);
+	}
 
 	let isOwner = $derived(session?.user?.id === collection.user_id);
 
@@ -136,158 +198,119 @@
 		e.stopPropagation();
 		flippedPlaceId = null;
 	}
+
+	function openLightbox(placeId: string, index: number, e: MouseEvent) {
+		e.stopPropagation();
+		lightboxPlaceId = placeId;
+		lightboxIndex = index;
+	}
+
+	function handlePopupPhotoClick(placeId: string, photoIndex: number) {
+		lightboxPlaceId = placeId;
+		lightboxIndex = photoIndex;
+	}
+
+	function closeLightbox() {
+		lightboxPlaceId = null;
+	}
 </script>
 
 <svelte:head>
-	<title>{collection.name} — MapOrganizer</title>
+	<title>{collection.name} — MyPlaces</title>
 </svelte:head>
 
-<!-- Sticky top panel: header + map (matches collection detail layout) -->
-<div class="sticky top-0 z-10 border-b border-warm-200/80 bg-[#faf7f2] shadow-sm">
-	<div class="mx-auto max-w-4xl px-3 sm:px-6">
-		<!-- Header -->
-		<div class="pb-2 pt-3 sm:pb-2.5 sm:pt-4">
-			<div class="flex items-center justify-between gap-3">
-				<div class="min-w-0 flex-1">
-					<div class="flex items-center gap-2.5">
-						<div class="flex shrink-0 items-center justify-center">
-							<CollectionAvatar color={collection.color} emoji={collection.emoji} size="lg" decorative={false} />
-						</div>
-						<div class="min-w-0 flex-1">
-							<h1 class="truncate text-base font-extrabold text-warm-800 sm:text-lg">{collection.name}</h1>
-							{#if collection.description}
-								<p class="mt-0.5 text-xs text-warm-400 sm:text-sm">{collection.description}</p>
-							{/if}
-						</div>
-					</div>
-				</div>
-			<button
-				onclick={handleSave}
-				disabled={saving || saved || isOwner}
-				class="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors sm:text-sm {saved ? 'bg-sage-200 text-sage-700' : isOwner ? 'bg-warm-200 text-warm-400 cursor-not-allowed' : 'bg-brand-500 text-white hover:bg-brand-600 active:bg-brand-700'} disabled:opacity-60"
-				title={isOwner ? 'This is your collection' : 'Save to your collections'}
-			>
-				{#if saving}
-					<svg class="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-						<path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83" />
-					</svg>
-					Saving…
-				{:else if saved}
-					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-						<polyline points="20 6 9 17 4 12" />
-					</svg>
-					Saved
-				{:else}
-					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-					</svg>
-					Save
-				{/if}
-			</button>
-			</div>
-		</div>
-	</div>
-
-	<!-- Map (inside sticky panel) -->
+<div class="flex h-[100dvh] flex-col overflow-hidden bg-[#faf7f2]">
+	<!-- Map at top -->
 	{#if hasMap}
-		<div class="mx-auto max-w-4xl px-3 pb-2 sm:px-6 sm:pb-2.5">
-			<div class="overflow-hidden rounded-xl border border-warm-200 sm:rounded-2xl">
-				<button
-					onclick={() => { mapExpanded = !mapExpanded; }}
-					class="flex w-full items-center justify-between bg-white px-3 py-1.5 text-xs font-semibold text-warm-500 transition-colors hover:bg-warm-50 sm:px-4 sm:py-2"
-				>
-					<div class="flex items-center gap-2">
-						<svg class="h-3.5 w-3.5 text-brand-500 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
-						</svg>
-						<span>{mappablePlaces.length} {mappablePlaces.length === 1 ? 'place' : 'places'} on map</span>
-					</div>
-					<svg
-						class="h-3.5 w-3.5 transition-transform duration-200 {mapExpanded ? 'rotate-180' : ''}"
-						viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-					>
-						<polyline points="6 9 12 15 18 9" />
-					</svg>
-				</button>
+		<div
+			class="relative w-full shrink-0 overflow-hidden border-b border-warm-200 bg-warm-100"
+			class:shared-map-animate={mapAnimating}
+			style="height: {mapHeight}px"
+		>
+			<div class="h-full w-full">
+				<MapView
+					places={filteredPlaces}
+					{selectedPlaceId}
+					{recenterTick}
+					onPlaceSelect={handleMapPlaceSelect}
+					onPopupPhotoClick={handlePopupPhotoClick}
+					{maptilerKey}
+					{placePhotos}
+					{mapMode}
+					{mapHeight}
+					{mapDragging}
+				/>
+			</div>
 
-				{#if mapExpanded}
-					<div class="h-[180px] border-t border-warm-200 sm:h-[220px]">
-						<MapView
-							places={filteredPlaces}
-							{selectedPlaceId}
-							{recenterTick}
-							onPlaceSelect={handleMapPlaceSelect}
-							{maptilerKey}
-						/>
-					</div>
-				{/if}
+			<!-- Drag handle -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="absolute inset-x-0 bottom-0 z-10 flex cursor-row-resize touch-none flex-col items-center pb-1 pt-2"
+				class:bg-warm-200={mapDragging}
+				style="background: {mapDragging ? '' : 'linear-gradient(to top, rgba(255,255,255,0.85), rgba(255,255,255,0.3), transparent)'}"
+				onpointerdown={onMapPointerDown}
+				onpointermove={onMapPointerMove}
+				onpointerup={onMapPointerUp}
+				onpointercancel={onMapPointerUp}
+				ondblclick={onMapDoubleTap}
+			>
+				<div class="h-1 w-10 rounded-full {mapDragging ? 'bg-brand-500' : 'bg-warm-400/60'}"></div>
 			</div>
 		</div>
 	{/if}
 
-	<!-- Controls (inside sticky panel) -->
-	<div class="mx-auto flex max-w-4xl items-center justify-between border-t border-warm-200/60 px-3 py-1.5 sm:px-6 sm:py-2">
-		<p class="text-xs font-semibold text-warm-500 sm:text-base">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</p>
-		<div class="flex items-center gap-1.5 sm:gap-2">
-			<div class="relative">
-				<svg class="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-				</svg>
-				<input
-					type="text"
-					bind:value={search}
-					placeholder="Search..."
-					class="w-28 rounded-lg border border-warm-200 bg-warm-50 py-1 pl-7 pr-7 text-xs font-medium text-warm-600 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:w-40 sm:text-sm"
-				/>
-				{#if search}
-					<button
-						onclick={() => { search = ''; }}
-						class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600"
-						aria-label="Clear search"
-					>
-						<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-							<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-						</svg>
-					</button>
-				{/if}
-			</div>
-			<div class="flex items-center gap-0.5 rounded-md border border-warm-200 bg-white p-0.5">
-				<button
-					onclick={() => { viewMode = 'grid'; }}
-					class="rounded p-1.5 transition-colors {viewMode === 'grid' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
-					aria-label="Grid view"
-				>
-					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+	<!-- Scrollable content below map -->
+	<div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
+		<!-- Header: single row — avatar + name | search | count -->
+		<div class="sticky top-0 z-20 border-b border-warm-200/80 bg-[#faf7f2] px-3 py-2 sm:px-6">
+			<div class="mx-auto max-w-lg flex items-center gap-2.5">
+				<div class="flex shrink-0 items-center justify-center">
+					<CollectionAvatar color={collection.color} emoji={collection.emoji} size="lg" decorative={false} />
+				</div>
+				<h1 class="shrink-0 truncate text-base font-extrabold text-warm-800" style="max-width: 30%">{collection.name}</h1>
+
+				<div class="relative min-w-0 flex-1">
+					<svg class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
 					</svg>
-				</button>
-				<button
-					onclick={() => { viewMode = 'list'; }}
-					class="rounded p-1.5 transition-colors {viewMode === 'list' ? 'bg-warm-200 text-warm-700' : 'text-warm-400 hover:text-warm-600'}"
-					aria-label="List view"
-				>
-					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
-						<line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
-					</svg>
-				</button>
+					<input
+						type="text"
+						bind:value={search}
+						placeholder="Search..."
+						class="w-full rounded-full border border-warm-200 bg-warm-50 py-1.5 pl-8 pr-8 text-xs font-medium text-warm-600 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:text-sm"
+					/>
+					{#if search}
+						<button
+							onclick={() => { search = ''; }}
+							class="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600"
+							aria-label="Clear search"
+						>
+							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+								<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+							</svg>
+						</button>
+					{/if}
+				</div>
+
+				<span class="shrink-0 text-xs font-semibold text-warm-500">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</span>
 			</div>
 		</div>
-	</div>
-</div>
 
-<div class="mx-auto max-w-4xl px-3 pb-8 pt-3 sm:px-6 sm:pb-12 sm:pt-4">
+		<!-- Place cards -->
+		<div class="mx-auto max-w-lg px-3 pb-8 pt-2 sm:px-6">
 	<!-- Places -->
 	{#if filteredPlaces.length === 0}
 		<div class="py-16 text-center">
 			<p class="text-sm text-warm-500">{search ? 'No places match your search' : 'This collection is empty'}</p>
 		</div>
-	{:else if viewMode === 'grid'}
-		<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4">
+	{:else}
+		<div class="flex flex-col gap-2">
 			{#each filteredPlaces as place (place.id)}
 				{@const isFlipped = flippedPlaceId === place.id}
 				{@const isSelected = selectedPlaceId === place.id}
 				{@const hasNote = !!place.note?.trim()}
+				{@const photos = placePhotos[place.id] ?? []}
+				{@const tags = placeTags[place.id] ?? []}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
@@ -301,57 +324,83 @@
 					>
 						<!-- FRONT -->
 						<article
-							class="flex h-[190px] cursor-pointer flex-col rounded-xl border bg-white p-3 [backface-visibility:hidden] sm:h-[240px] sm:rounded-2xl sm:p-5 {isSelected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}"
+							class="flex cursor-pointer flex-col rounded-xl border bg-white px-4 py-3.5 [backface-visibility:hidden] {isSelected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}"
 						>
-							<div class="mb-2 flex items-center justify-between sm:mb-3">
-								<div class="flex flex-wrap items-center gap-1.5">
+							<!-- Title + Rating -->
+							<div class="flex items-start justify-between gap-2">
+								<h3 class="min-w-0 flex-1 line-clamp-1 text-base font-extrabold leading-snug text-warm-800">{place.title}</h3>
+								{#if place.user_rating}
+									<span class="shrink-0 text-base font-extrabold text-warm-700">{place.user_rating.toFixed(1)}<span class="text-brand-500">★</span></span>
+								{/if}
+							</div>
+
+							<!-- Note preview -->
+							{#if hasNote && shareSettings.notes}
+								<p class="mt-1 line-clamp-2 text-sm italic leading-snug text-brand-500">
+									{place.note?.trim()}
+								</p>
+							{/if}
+
+							<!-- Bottom row: tags left, menu right -->
+							<div class="mt-auto flex items-end justify-between gap-2 pt-3">
+								<div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
 									{#if place.category}
-									<span class="rounded-full bg-warm-200 px-2 py-0.5 text-xs font-bold text-warm-600">{place.category}</span>
-								{/if}
-								{#if place.area}
-									<span class="rounded-full bg-sage-200 px-2 py-0.5 text-xs font-bold text-sage-700">{place.area}</span>
-								{/if}
-								{#if place.price_level}
-									<span class="text-xs font-bold text-brand-600">{place.price_level}</span>
+										<span class="rounded-full bg-warm-200 px-2.5 py-0.5 text-xs font-bold text-warm-600">{place.category}</span>
+									{/if}
+									{#if place.area}
+										<span class="rounded-full bg-sage-200 px-2.5 py-0.5 text-xs font-bold text-sage-700">{place.area}</span>
+									{/if}
+									{#each tags as tag (tag.id)}
+										<span
+											class="rounded-full px-2.5 py-0.5 text-xs font-bold"
+											style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
+										>{tag.name}</span>
+									{/each}
+								</div>
+
+								<!-- 3-dot menu -->
+								<div class="relative shrink-0">
+									<button
+										onclick={(e) => { e.stopPropagation(); cardMenuPlaceId = cardMenuPlaceId === place.id ? null : place.id; }}
+										class="rounded-md p-1 text-warm-300 transition-colors hover:bg-warm-100 hover:text-warm-500"
+										aria-label="More actions"
+									>
+										<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+											<circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" />
+										</svg>
+									</button>
+									{#if cardMenuPlaceId === place.id}
+										<div class="fixed inset-0 z-40" onclick={(e) => { e.stopPropagation(); cardMenuPlaceId = null; }} role="presentation"></div>
+										<div class="absolute bottom-full right-0 z-50 mb-1 w-48 rounded-lg border border-warm-200 bg-white py-1 shadow-lg">
+											{#if place.url}
+												<a
+													href={place.url}
+													target="_blank"
+													onclick={(e) => { e.stopPropagation(); cardMenuPlaceId = null; }}
+													class="flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium text-warm-600 hover:bg-warm-50"
+												>
+													<svg class="h-4 w-4 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+														<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+													</svg>
+													Open in Map
+												</a>
+											{/if}
+											{#if !isOwner}
+												<button
+													onclick={(e) => { e.stopPropagation(); cardMenuPlaceId = null; handleSave(); }}
+													disabled={saving || saved}
+													class="flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium text-warm-600 hover:bg-warm-50 disabled:opacity-50"
+												>
+													<svg class="h-4 w-4 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+														<rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
+														<rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
+													</svg>
+													{saved ? 'Saved' : 'Save'} to Collection
+												</button>
+											{/if}
+										</div>
 									{/if}
 								</div>
-								{#if place.user_rating}
-									<span class="text-xs font-extrabold text-warm-700 sm:text-sm">{place.user_rating.toFixed(1)}<span class="text-brand-500">★</span></span>
-								{/if}
-							</div>
-
-							<h3 class="mb-1 line-clamp-1 text-sm font-extrabold leading-snug text-warm-800 sm:text-lg">{place.title}</h3>
-
-							<div class="min-h-0 flex-1">
-								{#if hasNote}
-									<p class="line-clamp-2 text-xs font-medium italic leading-[1.4em] text-brand-500 sm:text-sm">
-										{place.note?.trim()}
-									</p>
-								{/if}
-							</div>
-
-							<div class="mt-auto flex items-center gap-1 pt-2 sm:pt-2.5">
-								{#if place.url}
-									<a
-										href={place.url}
-										target="_blank"
-										class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
-										onclick={(e) => e.stopPropagation()}
-									>
-										<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-											<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-										</svg>
-										Maps
-									</a>
-								{/if}
-								{#if hasNote}
-									<span class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-warm-300">
-										<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-											<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-										</svg>
-										Tap for notes
-									</span>
-								{/if}
 							</div>
 						</article>
 
@@ -359,10 +408,10 @@
 						{#if hasNote}
 							<div class="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
 								<article
-									class="flex h-[190px] cursor-pointer flex-col rounded-xl border bg-white p-3 sm:h-[240px] sm:rounded-2xl sm:p-5 {isSelected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}"
+									class="flex h-full cursor-pointer flex-col rounded-xl border bg-white px-4 py-3.5 {isSelected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}"
 								>
 									<div class="mb-2 flex items-center justify-between">
-										<h3 class="line-clamp-1 flex-1 text-sm font-extrabold text-warm-800 sm:text-lg">{place.title}</h3>
+										<h3 class="line-clamp-1 flex-1 text-base font-extrabold text-warm-800">{place.title}</h3>
 										<button
 											onclick={flipToFront}
 											class="ml-2 shrink-0 rounded-md p-1 text-warm-400 hover:bg-warm-100 hover:text-warm-600"
@@ -373,23 +422,8 @@
 											</svg>
 										</button>
 									</div>
-									<div class="flex-1 overflow-y-auto rounded-lg border border-warm-100 bg-warm-50 p-2.5 sm:p-3">
-										<p class="whitespace-pre-wrap text-xs leading-relaxed text-warm-700 sm:text-sm">{place.note?.trim()}</p>
-									</div>
-									<div class="mt-auto flex items-center gap-1 pt-2 sm:pt-2.5">
-										{#if place.url}
-											<a
-												href={place.url}
-												target="_blank"
-												class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-warm-400 hover:bg-warm-100 hover:text-warm-600"
-												onclick={(e) => e.stopPropagation()}
-											>
-												<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-													<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-												</svg>
-												Maps
-											</a>
-										{/if}
+									<div class="flex-1 overflow-y-auto rounded-lg border border-warm-100 bg-warm-50 p-3">
+										<p class="whitespace-pre-wrap text-sm leading-relaxed text-warm-700">{place.note?.trim()}</p>
 									</div>
 								</article>
 							</div>
@@ -398,57 +432,59 @@
 				</div>
 			{/each}
 		</div>
-	{:else}
-		<div class="overflow-hidden rounded-xl border border-warm-200 bg-white divide-y divide-warm-100 sm:rounded-2xl">
-			{#each filteredPlaces as place (place.id)}
-				<!-- svelte-ignore a11y_click_events_have_key_events -->
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div
-					data-place-id={place.id}
-					class="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors {selectedPlaceId === place.id ? 'bg-brand-50/70' : 'hover:bg-warm-50'}"
-					onclick={() => handleCardClick(place.id)}
-				>
-					<div class="min-w-0 flex-1">
-						<h3 class="truncate text-sm font-bold text-warm-800">{place.title}</h3>
-						<div class="mt-0.5 flex items-center gap-1.5">
-							<span class="shrink-0 text-xs text-warm-400">
-								{#if place.area && place.category}
-									{place.area} · {place.category}
-								{:else if place.area}
-									{place.area}
-								{:else if place.category}
-									{place.category}
-								{/if}
-							</span>
-						</div>
-					</div>
-					{#if place.user_rating}
-						<span class="shrink-0 text-xs font-bold"><span class="text-brand-500">★</span> {place.user_rating.toFixed(1)}</span>
-					{/if}
-					<div class="flex shrink-0 items-center gap-1">
-						{#if place.url}
-							<a href={place.url} target="_blank" class="rounded p-1 text-warm-300 hover:text-warm-600" aria-label="Maps" onclick={(e) => e.stopPropagation()}>
-								<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-									<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-								</svg>
-							</a>
-						{/if}
-					</div>
-				</div>
-			{/each}
-		</div>
 	{/if}
 
 	<!-- Footer -->
-	<div class="mt-6 text-center">
+	<div class="mt-6 pb-4 text-center">
 		<p class="text-xs text-warm-300">
-			Shared via <a href="/" class="font-semibold text-brand-500 hover:text-brand-600">MapOrganizer</a>
+			Shared via <a href="/" class="font-semibold text-brand-500 hover:text-brand-600">MyPlaces</a>
 		</p>
 	</div>
+		</div>
+	</div>
 </div>
+
+<!-- Photo lightbox -->
+{#if lightboxPlaceId}
+	{@const urls = placePhotos[lightboxPlaceId] ?? []}
+	{#if urls.length > 0}
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onclick={closeLightbox}>
+			<div class="relative max-h-[90dvh] max-w-[90vw]" onclick={(e) => e.stopPropagation()}>
+				<img src={urls[lightboxIndex]} alt="" class="max-h-[85dvh] max-w-[85vw] rounded-lg object-contain" />
+				<button onclick={closeLightbox} class="absolute -right-2 -top-2 rounded-full bg-black/60 p-1.5 text-white transition-colors hover:bg-black/80" aria-label="Close lightbox">
+					<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+				</button>
+				{#if urls.length > 1}
+					<button
+						onclick={() => { lightboxIndex = (lightboxIndex - 1 + urls.length) % urls.length; }}
+						class="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+						aria-label="Previous photo"
+					>
+						<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6" /></svg>
+					</button>
+					<button
+						onclick={() => { lightboxIndex = (lightboxIndex + 1) % urls.length; }}
+						class="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+						aria-label="Next photo"
+					>
+						<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6" /></svg>
+					</button>
+					<div class="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-2.5 py-1 text-xs font-medium text-white">
+						{lightboxIndex + 1} / {urls.length}
+					</div>
+				{/if}
+			</div>
+		</div>
+	{/if}
+{/if}
 
 <style>
 	.is-flipped {
 		transform: rotateY(180deg);
+	}
+	.shared-map-animate {
+		transition: height 200ms ease-out;
 	}
 </style>

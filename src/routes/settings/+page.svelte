@@ -12,7 +12,7 @@
 </script>
 
 <svelte:head>
-	<title>Settings — MapOrganizer</title>
+	<title>Settings — MyPlaces</title>
 </svelte:head>
 
 <div

@@ -95,6 +95,9 @@ export interface Database {
 			emoji: string | null;
 			visibility: string;
 				share_slug: string | null;
+				share_notes?: boolean;
+				share_photos?: boolean;
+				share_tags?: boolean;
 				sort_order: number;
 				created_at: string;
 				updated_at: string;
@@ -108,6 +111,9 @@ export interface Database {
 			emoji?: string | null;
 			visibility?: string;
 				share_slug?: string | null;
+				share_notes?: boolean;
+				share_photos?: boolean;
+				share_tags?: boolean;
 				sort_order?: number;
 				created_at?: string;
 				updated_at?: string;
@@ -121,6 +127,9 @@ export interface Database {
 			emoji?: string | null;
 			visibility?: string;
 				share_slug?: string | null;
+				share_notes?: boolean;
+				share_photos?: boolean;
+				share_tags?: boolean;
 				sort_order?: number;
 				created_at?: string;
 				updated_at?: string;
@@ -423,6 +432,49 @@ export interface Database {
 				};
 				Relationships: [];
 			};
+			place_photos: {
+				Row: {
+					id: string;
+					place_id: string;
+					user_id: string;
+					storage_path: string;
+					caption: string | null;
+					sort_order: number;
+					width: number | null;
+					height: number | null;
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					place_id: string;
+					user_id: string;
+					storage_path: string;
+					caption?: string | null;
+					sort_order?: number;
+					width?: number | null;
+					height?: number | null;
+					created_at?: string;
+				};
+				Update: {
+					id?: string;
+					place_id?: string;
+					user_id?: string;
+					storage_path?: string;
+					caption?: string | null;
+					sort_order?: number;
+					width?: number | null;
+					height?: number | null;
+					created_at?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: 'place_photos_place_id_fkey';
+						columns: ['place_id'];
+						referencedRelation: 'places';
+						referencedColumns: ['id'];
+					},
+				];
+			};
 		Views: Record<string, never>;
 		Functions: Record<string, never>;
 		Enums: Record<string, never>;
@@ -469,4 +521,7 @@ export interface SavedViewFilters {
 
 export type SavedView = Database['public']['Tables']['saved_views']['Row'];
 export type SavedViewInsert = Database['public']['Tables']['saved_views']['Insert'];
+
+export type PlacePhoto = Database['public']['Tables']['place_photos']['Row'];
+export type PlacePhotoInsert = Database['public']['Tables']['place_photos']['Insert'];
 
