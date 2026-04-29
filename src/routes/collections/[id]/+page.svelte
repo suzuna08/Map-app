@@ -800,7 +800,7 @@
 	<div class="fixed inset-0 z-[60] flex items-end justify-center sm:items-center" onclick={() => { showAddModal = false; addSearch = ''; addTagFilter = {}; resetUrl(); }}>
 		<div class="absolute inset-0 bg-warm-900/40 backdrop-blur-sm"></div>
 		<div
-			class="relative z-10 flex w-full flex-col border border-warm-200 bg-white shadow-xl sm:max-h-[85dvh] sm:max-w-lg sm:rounded-2xl"
+			class="relative z-10 flex w-full flex-col border border-warm-200 bg-[#faf7f2] shadow-xl sm:max-h-[85dvh] sm:max-w-lg sm:rounded-2xl"
 			style={isMobile ? `height: ${vvHeight}px;` : ''}
 			onclick={(e) => e.stopPropagation()}
 		>
@@ -927,7 +927,6 @@
 						</svg>
 						<div class="min-w-0 flex-1">
 							<p class="truncate text-sm font-semibold text-warm-800">{p.title}</p>
-							<p class="truncate text-xs text-warm-400">{p.area ? `${p.area} · ` : ''}{p.category ?? ''}</p>
 						</div>
 						{#if pTags.length > 0}
 							<div class="flex shrink-0 items-center gap-1">

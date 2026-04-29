@@ -7,9 +7,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const [listsRes, photosRes] = await Promise.all([
 		supabase
 			.from('lists')
-			.select('id, user_id, name, description, color, emoji, visibility, share_slug, created_at, updated_at, list_places(place_id)')
+			.select('id, user_id, name, description, color, emoji, visibility, share_slug, sort_order, created_at, updated_at, list_places(place_id)')
 			.eq('user_id', userId!)
-			.order('updated_at', { ascending: false }),
+			.order('sort_order', { ascending: true }),
 		supabase
 			.from('place_photos')
 			.select('place_id, storage_path, sort_order')

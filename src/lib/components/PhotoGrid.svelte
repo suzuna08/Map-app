@@ -102,8 +102,10 @@
 			.filter((p): p is { photo: PlacePhoto; publicUrl: string } => !!p);
 		photos = reordered;
 
-		const rows = orderedIds.map((id, i) => ({ id, sort_order: i }));
-		await supabase.from('place_photos').upsert(rows, { onConflict: 'id' });
+		const updates = orderedIds.map((id, i) =>
+			supabase.from('place_photos').update({ sort_order: i }).eq('id', id)
+		);
+		await Promise.all(updates);
 	}
 
 	function openLightbox(index: number, e: MouseEvent) {

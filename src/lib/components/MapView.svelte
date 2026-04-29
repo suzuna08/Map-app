@@ -142,7 +142,7 @@
 	});
 
 	let photoKey = $derived(
-		Object.entries(placePhotos).map(([id, urls]) => `${id}:${urls.length}`).sort().join(',')
+		Object.entries(placePhotos).map(([id, urls]) => `${id}:${urls.join(',')}`).sort().join('|')
 	);
 	let prevPhotoKey = '';
 	$effect(() => {

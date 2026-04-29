@@ -1196,7 +1196,7 @@
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="fixed inset-0 z-[60] flex items-end justify-center sm:items-center" onclick={() => { showAddModal = false; addSearch = ''; addTagFilter = {}; resetUrl(); }}>
 			<div class="absolute inset-0 bg-warm-900/40 backdrop-blur-sm"></div>
-			<div class="relative z-10 flex w-full flex-col border border-warm-200 bg-white shadow-xl sm:max-h-[85dvh] sm:max-w-lg sm:rounded-2xl" style={isMobile ? `height: ${vvHeight}px;` : ''} onclick={(e) => e.stopPropagation()}>
+			<div class="relative z-10 flex w-full flex-col border border-warm-200 bg-[#faf7f2] shadow-xl sm:max-h-[85dvh] sm:max-w-lg sm:rounded-2xl" style={isMobile ? `height: ${vvHeight}px;` : ''} onclick={(e) => e.stopPropagation()}>
 				<div class="flex items-center justify-between border-b border-warm-100 px-4 py-3 sm:px-5">
 					<h2 class="text-sm font-bold text-warm-800 sm:text-base">Add places to {selectedCollection?.name}</h2>
 					<button onclick={() => { showAddModal = false; addSearch = ''; addTagFilter = {}; resetUrl(); }} class="rounded-lg p-1.5 text-warm-400 hover:bg-warm-100 hover:text-warm-600" aria-label="Close"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
@@ -1331,10 +1331,9 @@
 			{@const pTags = (modalPlaceTagsMap[p.id] ?? []).filter((t) => t.source === 'user')}
 			<button onclick={() => handleAddPlace(p.id)} class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-warm-50">
 				<svg class="h-4 w-4 shrink-0 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-				<div class="min-w-0 flex-1">
-					<p class="truncate text-sm font-semibold text-warm-800">{p.title}</p>
-					<p class="truncate text-xs text-warm-400">{p.area ? `${p.area} · ` : ''}{p.category ?? ''}</p>
-				</div>
+						<div class="min-w-0 flex-1">
+							<p class="truncate text-sm font-semibold text-warm-800">{p.title}</p>
+						</div>
 				{#if pTags.length > 0}
 					<div class="flex shrink-0 items-center gap-1">
 						{#each pTags.slice(0, 2) as tag (tag.id)}
