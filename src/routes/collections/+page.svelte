@@ -38,6 +38,7 @@
 	let selectedPlaceId = $state<string | null>(null);
 	let recenterTick = $state(0);
 	let isMobile = $state(false);
+	let vvHeight = $state(0);
 	let showAddModal = $state(false);
 	let addSearch = $state('');
 	let addTagFilter = $state<Record<string, boolean>>({});
@@ -248,7 +249,17 @@
 		function check() { isMobile = window.innerWidth < 1024; }
 		check();
 		window.addEventListener('resize', check);
-		return () => window.removeEventListener('resize', check);
+
+		vvHeight = window.visualViewport?.height ?? window.innerHeight;
+		function onVVResize() {
+			vvHeight = window.visualViewport?.height ?? window.innerHeight;
+		}
+		window.visualViewport?.addEventListener('resize', onVVResize);
+
+		return () => {
+			window.removeEventListener('resize', check);
+			window.visualViewport?.removeEventListener('resize', onVVResize);
+		};
 	});
 
 	async function selectCollection(id: string) {
@@ -661,7 +672,9 @@
 						onReorder: handleCollectionReorder,
 						itemSelector: '[data-col-id]',
 						idAttribute: 'data-col-id',
-						longPressMs: 500
+						longPressMs: 350,
+						disabled: collections.length < 2,
+						ignoreDragFrom: 'button[aria-label="Collection actions"], button[aria-label="New Collection"]',
 					}}
 				>
 					<button
@@ -891,16 +904,18 @@
 			<!-- Sticky top: Row 1 (collection tabs) + Row 2 (action bar) -->
 			<div class="sticky top-0 z-20">
 				<!-- Row 1: Collection tabs with + New Collection -->
-				<div class="bg-[#faf7f2] px-3 pt-3 sm:px-4 sm:pt-3 lg:px-4">
-					<div
-						class="relative flex items-center gap-1.5 overflow-x-auto border-b border-warm-200/60 pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-						use:sortable={{
-							onReorder: handleCollectionReorder,
-							itemSelector: '[data-col-id]',
-							idAttribute: 'data-col-id',
-							longPressMs: 500
-						}}
-					>
+			<div class="bg-[#faf7f2] px-3 pt-3 sm:px-4 sm:pt-3 lg:px-4">
+				<div
+					class="relative flex items-center gap-1.5 overflow-x-auto border-b border-warm-200/60 pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+					use:sortable={{
+						onReorder: handleCollectionReorder,
+						itemSelector: '[data-col-id]',
+						idAttribute: 'data-col-id',
+						longPressMs: 350,
+						disabled: collections.length < 2,
+						ignoreDragFrom: 'button[aria-label="Collection actions"], button[aria-label="New Collection"]',
+					}}
+				>
 						<button
 							onclick={(e) => { const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); createPopoverPos = { top: rect.bottom + 6, left: Math.max(8, Math.min(rect.left, window.innerWidth - 308)) }; showCreate = true; }}
 							class="flex shrink-0 items-center justify-center rounded-lg bg-brand-600 p-2 text-white shadow-sm transition-colors hover:bg-brand-700"
@@ -1181,7 +1196,7 @@
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="fixed inset-0 z-[60] flex items-end justify-center sm:items-center" onclick={() => { showAddModal = false; addSearch = ''; addTagFilter = {}; resetUrl(); }}>
 			<div class="absolute inset-0 bg-warm-900/40 backdrop-blur-sm"></div>
-			<div class="relative z-10 flex max-h-[85dvh] w-full flex-col rounded-t-2xl border border-warm-200 bg-white shadow-xl sm:max-w-lg sm:rounded-2xl" onclick={(e) => e.stopPropagation()}>
+			<div class="relative z-10 flex w-full flex-col border border-warm-200 bg-white shadow-xl sm:max-h-[85dvh] sm:max-w-lg sm:rounded-2xl" style={isMobile ? `height: ${vvHeight}px;` : ''} onclick={(e) => e.stopPropagation()}>
 				<div class="flex items-center justify-between border-b border-warm-100 px-4 py-3 sm:px-5">
 					<h2 class="text-sm font-bold text-warm-800 sm:text-base">Add places to {selectedCollection?.name}</h2>
 					<button onclick={() => { showAddModal = false; addSearch = ''; addTagFilter = {}; resetUrl(); }} class="rounded-lg p-1.5 text-warm-400 hover:bg-warm-100 hover:text-warm-600" aria-label="Close"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>

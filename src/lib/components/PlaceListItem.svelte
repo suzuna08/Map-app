@@ -233,47 +233,36 @@
 
 	<!-- Desktop: standard row -->
 	<div
-		class="group hidden min-h-[2.75rem] cursor-pointer items-center gap-3 px-4 transition-colors sm:flex {selected ? 'bg-brand-50/70' : 'hover:bg-warm-50/80'}"
+		class="group hidden min-h-[2.75rem] cursor-pointer items-center gap-2 pl-3 pr-4 transition-colors sm:flex {selected ? 'bg-brand-50/70' : 'hover:bg-warm-50/80'}"
 		onclick={handleDesktopRowClick}
 	>
-		<svg
-			class="h-3 w-3 shrink-0 text-warm-300 transition-transform duration-200 {expanded ? 'rotate-90' : ''}"
-			viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-		>
-			<polyline points="9 18 15 12 9 6" />
-		</svg>
-
-		<h3 class="min-w-0 flex-[2] text-base font-extrabold tracking-tight text-warm-800 {expanded ? '' : 'truncate'}">{place.title}</h3>
-
-		<div class="hidden min-w-0 flex-1 items-center gap-1 text-xs md:flex">
-			{#if place.area}
-				<span class="truncate font-medium text-warm-400">{place.area}</span>
-			{/if}
-			{#if place.area && place.category}
-				<span class="text-warm-300">·</span>
-			{/if}
-			{#if place.category}
-				<span class="truncate text-warm-400">{place.category}</span>
-			{/if}
+		<div class="flex min-w-0 flex-1 items-center gap-1.5">
+			<svg
+				class="h-3 w-3 shrink-0 text-warm-300 transition-transform duration-200 {expanded ? 'rotate-90' : ''}"
+				viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+			>
+				<polyline points="9 18 15 12 9 6" />
+			</svg>
+			<h3 class="min-w-0 flex-1 text-[15px] font-extrabold tracking-tight text-warm-800 {expanded ? '' : 'truncate'}">{place.title}</h3>
 		</div>
 
-		<div class="hidden w-28 shrink-0 items-center gap-1 lg:flex">
+		<div class="hidden shrink-0 items-center gap-1 md:flex">
 			{#if firstTag}
 				<button
 					onclick={() => onTagClick(firstTag.id)}
 					oncontextmenu={(e) => { e.preventDefault(); e.stopPropagation(); onTagContextMenu?.(firstTag, e.clientX, e.clientY); }}
-				class="max-w-[88px] truncate rounded-full px-2 py-0.5 text-xs font-semibold hover:opacity-80"
+				class="max-w-[88px] truncate rounded-full px-2 py-0.5 text-[11px] font-semibold opacity-90 hover:opacity-100"
 				style="background-color: {firstTag.color ?? '#8a7e72'}; color: {textColorForBg(firstTag.color ?? '#8a7e72')}"
 				>{firstTag.name}</button>
 				{#if extraCount > 0}
-					<span class="text-xs font-bold text-warm-400">+{extraCount}</span>
+					<span class="text-[11px] font-bold text-warm-400">+{extraCount}</span>
 				{/if}
 			{:else}
-				<span class="text-xs text-warm-300">—</span>
+				<span class="text-[11px] text-warm-300">—</span>
 			{/if}
 		</div>
 
-		<div class="w-20 shrink-0 text-right">
+		<div class="w-[4.5rem] shrink-0 text-right opacity-80">
 			<RatingDisplay
 				placeId={place.id}
 				userRating={place.user_rating}

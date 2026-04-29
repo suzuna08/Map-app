@@ -118,13 +118,24 @@
 	let selectedPlaceId = $state<string | null>(null);
 	let recenterTick = $state(0);
 	let isMobile = $state(false);
+	let vvHeight = $state(0);
 	let maptilerKey = $derived(data.maptilerKey ?? '');
 
 	$effect(() => {
 		function check() { isMobile = window.innerWidth < 1024; }
 		check();
 		window.addEventListener('resize', check);
-		return () => window.removeEventListener('resize', check);
+
+		vvHeight = window.visualViewport?.height ?? window.innerHeight;
+		function onVVResize() {
+			vvHeight = window.visualViewport?.height ?? window.innerHeight;
+		}
+		window.visualViewport?.addEventListener('resize', onVVResize);
+
+		return () => {
+			window.removeEventListener('resize', check);
+			window.visualViewport?.removeEventListener('resize', onVVResize);
+		};
 	});
 
 	let filteredPlaces = $derived(
@@ -789,7 +800,8 @@
 	<div class="fixed inset-0 z-[60] flex items-end justify-center sm:items-center" onclick={() => { showAddModal = false; addSearch = ''; addTagFilter = {}; resetUrl(); }}>
 		<div class="absolute inset-0 bg-warm-900/40 backdrop-blur-sm"></div>
 		<div
-			class="relative z-10 flex max-h-[85dvh] w-full flex-col rounded-t-2xl border border-warm-200 bg-white shadow-xl sm:max-w-lg sm:rounded-2xl"
+			class="relative z-10 flex w-full flex-col border border-warm-200 bg-white shadow-xl sm:max-h-[85dvh] sm:max-w-lg sm:rounded-2xl"
+			style={isMobile ? `height: ${vvHeight}px;` : ''}
 			onclick={(e) => e.stopPropagation()}
 		>
 			<div class="flex items-center justify-between border-b border-warm-100 px-4 py-3 sm:px-5">

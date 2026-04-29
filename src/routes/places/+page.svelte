@@ -128,6 +128,7 @@
 	let suppressDeactivate = $state(false);
 
 	let isMobile = $state(false);
+	let vvHeight = $state(0);
 
 	$effect(() => {
 		function checkMobile() {
@@ -136,6 +137,12 @@
 		checkMobile();
 		window.addEventListener('resize', checkMobile);
 
+		vvHeight = window.visualViewport?.height ?? window.innerHeight;
+		function onVVResize() {
+			vvHeight = window.visualViewport?.height ?? window.innerHeight;
+		}
+		window.visualViewport?.addEventListener('resize', onVVResize);
+
 		function handleExternalPlaceAdded() {
 			loadData();
 		}
@@ -143,6 +150,7 @@
 
 		return () => {
 			window.removeEventListener('resize', checkMobile);
+			window.visualViewport?.removeEventListener('resize', onVVResize);
 			window.removeEventListener('place-added', handleExternalPlaceAdded);
 		};
 	});
@@ -1447,8 +1455,7 @@
 						{/each}
 					</div>
 				{:else}
-				<div class="rounded-2xl border border-warm-200 bg-white sm:rounded-xl">
-				<div class="divide-y divide-warm-100">
+				<div class="overflow-hidden rounded-2xl border border-warm-200 bg-white divide-y divide-warm-100">
 						{#each sortedPlaces as place (place.id)}
 							<PlaceListItem
 								{place}
@@ -1469,7 +1476,6 @@
 								onToggleCollection={togglePlaceInCollection}
 							/>
 						{/each}
-					</div>
 					</div>
 				{/if}
 {/snippet}
@@ -1545,7 +1551,8 @@
 		<div class="fixed inset-0 z-[60] flex items-end justify-center sm:items-center" onclick={() => { showAddToCollection = false; }}>
 			<div class="absolute inset-0 bg-warm-900/40 backdrop-blur-sm"></div>
 			<div
-				class="relative z-10 flex max-h-[85dvh] w-full flex-col rounded-t-2xl border border-warm-200 bg-white shadow-xl sm:max-w-lg sm:rounded-2xl"
+				class="relative z-10 flex w-full flex-col border border-warm-200 bg-white shadow-xl sm:max-h-[85dvh] sm:max-w-lg sm:rounded-2xl"
+				style={isMobile ? `height: ${vvHeight}px;` : ''}
 				onclick={(e) => e.stopPropagation()}
 			>
 				<div class="flex items-center justify-between border-b border-warm-100 px-4 py-3 sm:px-5">
