@@ -67,6 +67,7 @@
 	let actionMenuOpen = $state(false);
 	let actionMenuAnchor = $state({ x: 0, y: 0 });
 	let cardMenuOpen = $state(false);
+	let collectionAnchor = $state({ x: 0, y: 0 });
 
 	// Swipe-to-delete state (mobile)
 	let swipeX = $state(0);
@@ -353,7 +354,7 @@
 											{/if}
 											{#if onCollectionPickerToggle}
 												<button
-													onclick={(e) => { e.stopPropagation(); cardMenuOpen = false; onCollectionPickerToggle?.(place.id); }}
+													onclick={(e) => { e.stopPropagation(); const rect = e.currentTarget.getBoundingClientRect(); collectionAnchor = { x: rect.left, y: rect.bottom + 4 }; cardMenuOpen = false; onCollectionPickerToggle?.(place.id); }}
 													class="flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium text-warm-600 hover:bg-warm-50"
 												>
 													<svg class="h-4 w-4 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -430,7 +431,7 @@
 
 						<div class="min-h-0 flex-1">
 							{#if contentPreview}
-								<p class="mt-0.5 line-clamp-2 text-[11px] italic leading-[1.3em] text-brand-500">
+								<p class="mt-0.5 line-clamp-2 text-[13px] italic leading-snug text-brand-500">
 									{contentPreview}
 								</p>
 							{/if}
@@ -537,7 +538,7 @@
 									{/if}
 									{#if onCollectionPickerToggle}
 										<button
-											onclick={(e) => { e.stopPropagation(); cardMenuOpen = false; onCollectionPickerToggle?.(place.id); }}
+											onclick={(e) => { e.stopPropagation(); const rect = e.currentTarget.getBoundingClientRect(); collectionAnchor = { x: rect.left, y: rect.bottom + 4 }; cardMenuOpen = false; onCollectionPickerToggle?.(place.id); }}
 											class="flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium text-warm-600 hover:bg-warm-50"
 										>
 											<svg class="h-4 w-4 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -684,6 +685,8 @@
 		collectionPlacesMap={collectionPlacesMap}
 		onToggle={(ids, colId) => onToggleCollection(ids[0], colId)}
 		onClose={onCollectionPickerClose}
+		anchorX={collectionAnchor.x}
+		anchorY={collectionAnchor.y}
 	/>
 {/if}
 

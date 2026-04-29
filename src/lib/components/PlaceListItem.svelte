@@ -36,6 +36,7 @@
 	let actionMenuAnchor = $state({ x: 0, y: 0 });
 
 	let showCollectionPicker = $state(false);
+	let collectionAnchor = $state({ x: 0, y: 0 });
 
 	let userTags = $derived(placeTags.filter((t) => t.source === 'user'));
 	let firstTag = $derived(userTags[0] ?? null);
@@ -322,7 +323,7 @@
 						{/if}
 						{#if onToggleCollection}
 							<button
-								onclick={(e) => { e.stopPropagation(); showCollectionPicker = true; }}
+								onclick={(e) => { e.stopPropagation(); const rect = e.currentTarget.getBoundingClientRect(); collectionAnchor = { x: rect.left, y: rect.bottom + 4 }; showCollectionPicker = true; }}
 								class="rounded p-1 text-warm-300 transition-colors hover:bg-brand-50 hover:text-brand-500"
 								aria-label="Add to collection"
 							>
@@ -393,6 +394,8 @@
 		collectionPlacesMap={collectionPlacesMap}
 		onToggle={(ids, colId) => onToggleCollection(ids[0], colId)}
 		onClose={() => { showCollectionPicker = false; }}
+		anchorX={collectionAnchor.x}
+		anchorY={collectionAnchor.y}
 	/>
 {/if}
 
