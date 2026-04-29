@@ -1,10 +1,10 @@
-# MapOrganizer
+# MyPlaces
 
 Your places, organized. Import saved places from Google Maps, tag them, and find what you need.
 
 ## About
 
-MapOrganizer is a web app that helps you manage and organize places you've saved in Google Maps. Import your saved places via Google Takeout CSV export or by pasting Google Maps URLs, then tag, search, filter, and sort them. Every enriched place is plotted on an interactive map alongside a filterable list.
+MyPlaces is a web app that helps you manage and organize places you've saved in Google Maps. Import your saved places via Google Takeout CSV export or by pasting Google Maps URLs, then tag, search, filter, and sort them. Every enriched place is plotted on an interactive map alongside a filterable list.
 
 ## Features
 
@@ -12,19 +12,20 @@ MapOrganizer is a web app that helps you manage and organize places you've saved
 - **Inline URL Import** -- Paste a Google Maps link (including `share.google` links) directly into the search bar on the Places page and press Enter to add a place instantly, with toast notifications for success/duplicate/error feedback
 - **Place Enrichment** -- Fetch ratings, addresses, phone numbers, coordinates, and more from the Google Places API (single or batch). Uses a three-strategy lookup: Place ID, text search with location bias, and coordinate fallback
 - **Personal Ratings** -- Rate any place on a 0.5–5.0 half-star scale. Click the compact rating display on any card to open a drag-to-rate star editor. Saves instantly with optimistic UI updates
-- **Interactive Map** -- All enriched places are plotted on a MapLibre GL map (powered by MapTiler). Click a marker to scroll to the card; click a card to fly to its pin. Shows a pastel base map style with custom pin markers, popups, and a geolocate control styled to match the app palette
+- **Interactive Map** -- All enriched places are plotted on a MapLibre GL map (powered by MapTiler). Click a marker to scroll to the card; click a card to fly to its pin. Clicking an already-selected marker toggles its popup. Shows a pastel base map style with custom pin markers, popups with photo thumbnails, and a geolocate control styled to match the app palette. On desktop, the map panel width is resizable via a drag handle (25–70%), with double-click to reset
 - **Flexible Tagging** -- Organize places with three tag types: category (auto-generated from Google place types), area (auto-generated from address), and custom (user-created with color coding)
-- **Drag-to-Reorder Tags** -- Reorder tags via drag-and-drop (click-drag on desktop, long-press-drag on mobile). Order is persisted per user
-- **Tag Management** -- Rename, recolor, and delete custom tags. Right-click any tag for a context menu. Tags get deterministic colors from a curated 6-color muted palette, overridable by the user
+- **Drag-to-Reorder Tags** -- Reorder tags via drag-and-drop (click-drag on desktop, long-press-drag on mobile). Order is persisted per user. The drag engine uses RAF-throttled pointer tracking, GPU-accelerated `translate3d` transforms, same-row detection for horizontal layouts, and animated drop-return transitions
+- **Tag Management** -- Rename, recolor, and delete custom tags. Right-click any tag for a context menu. On desktop, the tag manager renders as an inline popover for quick access; on mobile it opens as a full-screen modal. Tags get deterministic colors from a curated 6-color muted palette, overridable by the user
 - **Search & Filter** -- Find places by name, description, address, category, area, or tags. Custom tag filters use configurable AND/OR logic (toggle between "all" and "any" when 2+ tags selected); search also detects Google Maps URLs for inline import
 - **Sorting** -- Sort by newest, oldest, A–Z, Z–A, personal rating, most tagged, or tag group
-- **Grid & List Views** -- Switch between card grid and compact list layouts. Cards flip (3D animation) to reveal a notes editor on the back
+- **Grid & List Views** -- Switch between card grid and compact list layouts via a popover options menu. Cards flip (3D animation) to reveal a notes editor on the back. Sort and view options are consolidated into a single popover dropdown for a cleaner toolbar
 - **Notes** -- Attach personal notes to any place with debounced auto-save (800ms)
 - **Deduplication** -- Three-layer duplicate detection by Google Place ID, normalized URL, and title + address
 - **Swipe to Delete** -- Swipe cards or list items left on mobile to reveal a delete action. Mobile swipe interactions are hardened so destructive actions stay fully hidden until intentionally revealed -- the delete layer never flashes during scrolling, card face changes, or state transitions
 - **Contextual Capture** -- When viewing a custom tag filter, new places added via URL are automatically tagged to match. Includes an auto-tag toggle and undo support
-- **Saved Views** -- Save the current filter/sort/layout state as a named preset. Clicking a view applies its filters; changing any filter afterward simply deactivates the view (the saved definition is never touched). The 3-dot menu offers Rename, "New Collection" (creates a collection from all matching places), "Add to Collection..." (batch-adds matching places to an existing collection), and Delete. Saved view pills support drag-to-reorder. When the active view's underlying data has been changed since it was applied, a dashed-border dirty indicator appears on the pill. Persisted per-user in Supabase
-- **Collections** -- Create curated, shareable groups of places backed by persistent `lists + list_places`. The `/collections` page auto-selects the first collection on load, immediately showing a full map + list browse experience scoped to that collection (same split layout as Places: desktop sticky map, mobile draggable MobileMapShell). The collection tab selector is a horizontal row of pills with drag-to-reorder, so the page feels like a quick switcher. The selected collection header (`CollectionScopeHeader`) shows avatar, name (editable inline), description (editable inline), place count, visibility status, and actions: share/copy link, visibility toggle, add places, and overflow menu (delete). URL state synced via `?collection=<id>` for deep-linkability. Creating a new collection opens a modal with name, emoji, and color pickers. The "Add Places" modal features smart search/URL input (auto-detects Google Maps URLs), tag filter pills, and a scrollable place list. Collections are independent from filters: add places individually, from the modal, or from a saved view's 3-dot menu. Remove-from-collection and delete-place are distinct actions. Share a collection via a public link (`/c/slug`) with a read-only view — logged-in users can "Save" a shared collection to duplicate it into their own account (deep-copies all places with `source_list: 'shared-import'`). The deep-linkable `/collections/[id]` route provides the canonical editable detail page with the same split map layout, including an "Add by URL" option in the add-places modal
+- **Saved Views** -- Save the current filter/sort/layout state as a named preset ("Bookmark"). Clicking a view applies its filters; changing any filter afterward simply deactivates the view (the saved definition is never touched). The 3-dot menu offers Rename, "New Collection" (creates a collection from all matching places), "Add to Collection..." (batch-adds matching places to an existing collection), and Delete. Saved view pills support drag-to-reorder. When the active view's underlying data has been changed since it was applied, a dashed-border dirty indicator appears on the pill. Persisted per-user in Supabase
+- **Place Photos** -- Upload, view, and manage photos per place. Supports JPEG, PNG, and WebP with automatic client-side compression (max 1600px dimension). Photos are stored in Supabase Storage (`place-photos` bucket) with metadata in the `place_photos` table. Features include: drag-to-reorder photo grids, full-screen lightbox with zoom-in animation from thumbnail origin, swipe navigation and keyboard support (arrows, Escape), delete from lightbox, compact thumbnail row for inline display, and photo thumbnails in map popups. Camera button in map popups opens a photo upload modal
+- **Collections** -- Create curated, shareable groups of places backed by persistent `lists + list_places`. The `/collections` page auto-selects the first collection on load, immediately showing a full map + list browse experience scoped to that collection (same split layout as Places: desktop sticky map, mobile draggable MobileMapShell). The collection tab selector is a horizontal row of pills with drag-to-reorder, so the page feels like a quick switcher. The selected collection header (`CollectionScopeHeader`) shows avatar, name (editable inline), description (editable inline), place count, visibility status, and actions: share/copy link, visibility toggle, granular share settings (notes, photos, tags toggles), add places, and overflow menu (delete). URL state synced via `?collection=<id>` for deep-linkability. Creating a new collection opens a modal with name, emoji, and color pickers. The "Add Places" modal features smart search/URL input (auto-detects Google Maps URLs), tag filter pills, and a scrollable place list. Collections are independent from filters: add places individually, from the modal, or from a saved view's 3-dot menu. Remove-from-collection and delete-place are distinct actions. Share a collection via a public link (`/c/slug`) with a read-only view — the owner controls which data is visible (notes on by default, photos on by default, tags off by default) via per-field toggles in the share dropdown. Logged-in users can "Save" a shared collection to duplicate it into their own account (deep-copies all places with `source_list: 'shared-import'`). The deep-linkable `/collections/[id]` route provides the canonical editable detail page with the same split map layout, including an "Add by URL" option in the add-places modal
 - **Intel Tagging** -- Structured intelligence layer that maps Google Place types to internal classifications (primary category, operational status, market niche, discussion pillar, suggested tags). Pure computation engine with a full Google Place type catalog (100+ types) and editable mapping rules. Optional database persistence and admin seeding endpoint
 - **Auth** -- Email/password authentication via Supabase with server-side route protection, proactive token refresh, and resilient session validation. Email confirmation callback endpoint. Sign-out available from the Settings page
 - **Responsive** -- Distinct mobile and desktop layouts: split map+list on desktop, collapsible map (MobileMapShell) on mobile. A floating bottom dock (`AppBottomDock`) provides app-wide navigation (Places, Collections, Settings) with three rendering modes: desktop bottom bar with drag-to-reposition and scroll-aware passive mode, custom-positioned draggable pill, and mobile collapsible right-edge drawer (< 640px) with vertical layout, first-visit hint animation, and tap-outside-to-close. Inline filter chips, safe-area support for notched devices
@@ -64,6 +65,7 @@ src/
 │   ├── tag-order.ts               # Tag reorder persistence
 │   ├── tag-utils.ts               # Tag name normalization & display helpers
 │   ├── url-timing.ts              # URL add-by-url latency instrumentation
+│   ├── photo-storage.ts           # Place photo upload/delete/load via Supabase Storage
 │   ├── actions/
 │   │   └── sortable.ts            # Drag-to-reorder Svelte action
 │   ├── assets/
@@ -76,7 +78,7 @@ src/
 │   │   ├── bottom-dock-suppressed.ts # Writable store to hide dock during modals
 │   │   └── dock-scroll-state.ts   # Dock scroll-aware passive/active mode
 │   ├── types/
-│   │   └── database.ts            # Supabase type definitions (10 tables)
+│   │   └── database.ts            # Supabase type definitions (11 tables)
 │   └── components/
 │       ├── AddToCollectionModal.svelte # Add place to collection picker
 │       ├── AppBottomDock.svelte    # Floating bottom navigation dock
@@ -89,13 +91,15 @@ src/
 │       ├── PlaceActionMenu.svelte  # Context menu for place actions in collections
 │       ├── PlaceCard.svelte        # Grid card (flip, swipe, notes, rating, collections)
 │       ├── PlaceListItem.svelte    # List row (expand, swipe, rating, collections)
+│       ├── PhotoGrid.svelte        # Photo upload/view/reorder grid per place
+│       ├── PhotoLightbox.svelte    # Full-screen photo viewer with zoom animation
 │       ├── RatingDisplay.svelte    # Compact rating trigger (4.5 ★ / Not rated)
 │       ├── RatingEditor.svelte     # Popover star scrubber (half-star drag)
-│       ├── SaveViewButton.svelte   # Extracted save-view inline input button
+│       ├── SaveViewButton.svelte   # Bookmark button with popover/bottom-sheet
 │       ├── SavedViewsBar.svelte    # Saved Views preset pill bar
 │       ├── TagContextMenu.svelte   # Right-click tag menu
 │       ├── TagInput.svelte         # Inline tag add/remove
-│       ├── TagManager.svelte       # Tag CRUD modal
+│       ├── TagManager.svelte       # Tag CRUD modal/popover (dual mode)
 │       └── TopBarTagAdd.svelte     # Tag creation widget (unused dead code)
 └── routes/
     ├── +layout.svelte              # Root layout, bottom dock & auth refresh
@@ -115,7 +119,7 @@ src/
     │       └── +page.server.ts     # Collection detail server load
     ├── c/[slug]/
     │   ├── +page.svelte            # Public shared collection
-    │   └── +page.server.ts         # Public collection server load
+    │   └── +page.server.ts         # Public collection server load (share-settings-aware)
     ├── settings/+page.svelte       # Settings page (account, sign out)
     ├── upload/+page.svelte         # CSV upload page
     └── api/
@@ -186,9 +190,11 @@ supabase/fix_rls_data_isolation.sql
 supabase/add_emoji_column.sql
 supabase/add_list_sort_order.sql
 supabase/add_saved_views_order.sql
+supabase/add_place_photos.sql
+supabase/add_share_settings.sql
 ```
 
-The first migration creates the `places`, `lists`, and `list_places` tables along with row-level security policies and indexes. The second adds the `order_index` column to `tags` for drag-to-reorder persistence. The third creates the `profiles` table with auto-sync triggers from Supabase Auth. The fourth creates the `saved_views` table for user-defined filter/sort/layout presets. The fifth extends `lists` with `visibility` and `share_slug` columns for collections sharing, plus public-access RLS policies. The sixth adds a `position` column to `list_places` for manual ordering within collections. The seventh creates the `google_place_type_catalog`, `intel_tag_mappings`, and `place_intel_tags` tables for the intel tagging system. The eighth adds `user_rating` and `user_rated_at` columns to `places` with a CHECK constraint enforcing 0.5–5.0 half-star values. The ninth enables RLS on the `tags` and `place_tags` tables and creates user-scoped CRUD policies plus read-only policies for shared collections. The tenth adds an optional `emoji` column to `lists` for collection icons. The eleventh adds a `sort_order` integer column to `lists` for user-defined collection ordering with backfill by `created_at`. The twelfth adds an `order_index` column to `saved_views` for user-defined saved view ordering.
+The first migration creates the `places`, `lists`, and `list_places` tables along with row-level security policies and indexes. The second adds the `order_index` column to `tags` for drag-to-reorder persistence. The third creates the `profiles` table with auto-sync triggers from Supabase Auth. The fourth creates the `saved_views` table for user-defined filter/sort/layout presets. The fifth extends `lists` with `visibility` and `share_slug` columns for collections sharing, plus public-access RLS policies. The sixth adds a `position` column to `list_places` for manual ordering within collections. The seventh creates the `google_place_type_catalog`, `intel_tag_mappings`, and `place_intel_tags` tables for the intel tagging system. The eighth adds `user_rating` and `user_rated_at` columns to `places` with a CHECK constraint enforcing 0.5–5.0 half-star values. The ninth enables RLS on the `tags` and `place_tags` tables and creates user-scoped CRUD policies plus read-only policies for shared collections. The tenth adds an optional `emoji` column to `lists` for collection icons. The eleventh adds a `sort_order` integer column to `lists` for user-defined collection ordering with backfill by `created_at`. The twelfth adds an `order_index` column to `saved_views` for user-defined saved view ordering. The thirteenth creates the `place_photos` table with RLS policies and configures a `place-photos` Supabase Storage bucket with upload/read/delete policies. The fourteenth adds `share_notes`, `share_photos`, and `share_tags` boolean columns to `lists` for granular control over what data is visible on shared collection pages, plus RLS policies allowing anonymous users to read photos, place_tags, and tags for places in shared collections (gated by the corresponding share setting).
 
 You will also need to create the `tags` and `place_tags` tables (used by the tagging system but not yet in the migration file). The expected schema is defined in `src/lib/types/database.ts`.
 

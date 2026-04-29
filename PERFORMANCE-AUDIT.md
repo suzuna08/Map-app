@@ -69,7 +69,7 @@ This lets Postgres handle the join server-side in one round-trip.
 | `routes/collections/+page.server.ts` | 2 | 1 |
 | `routes/places/+page.server.ts` | 2 | 1 |
 | `routes/collections/[id]/+page.server.ts` | 4 | 1 |
-| `routes/c/[slug]/+page.server.ts` | 3 | 1 |
+| `routes/c/[slug]/+page.server.ts` | 3 | 1 + 1 parallel |
 | `lib/stores/collections.svelte.ts` (`loadCollectionBySlug`) | 2 | 1 |
 
 ### 3. Unfiltered junction table scans
@@ -118,7 +118,7 @@ Same fix was applied to `applyContextTags` in the add-by-url API route.
 | `/collections` | 2 | 1 |
 | `/places` | 2 | 1 |
 | `/collections/[id]` | 4 | 1 |
-| `/c/[slug]` (public share) | 3 | 1 |
+| `/c/[slug]` (public share) | 3 | 1 + 1 parallel |
 | Tag apply (per action) | 2N | 1 |
 
 ---
@@ -574,3 +574,20 @@ let haystacks = $derived(
 ### Rule 15: Scope `$effect` dependencies to the narrowest trigger
 
 When an `$effect` only needs to react to one field (e.g., `selectedPlaceId`), avoid reading unrelated reactive values inside the body. If you need multiple values, read them via `$derived` intermediaries so the effect only fires when the relevant value changes.
+
+### Rule 16: Skip queries for data the view won't display
+
+When feature flags or settings control data visibility, check the flag before issuing the query — don't fetch data that will be discarded. For example, the `/c/[slug]` public share page checks `share_photos` and `share_tags` booleans before deciding whether to query `place_photos` and `place_tags`:
+
+```ts
+const fetches: Promise<any>[] = [];
+if (sharePhotos && placeIds.length > 0) {
+  fetches.push(supabase.from('place_photos').select('...').in('place_id', placeIds));
+} else {
+  fetches.push(Promise.resolve({ data: [] }));
+}
+// Same pattern for tags
+const [photosRes, tagsRes] = await Promise.all(fetches);
+```
+
+This avoids wasting bandwidth and Supabase compute on data the page won't render.

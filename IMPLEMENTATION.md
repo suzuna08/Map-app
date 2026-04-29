@@ -1,6 +1,6 @@
 # Implementation Notes
 
-Detailed documentation of the architecture, design decisions, trade-offs, and bugs encountered while building MapOrganizer.
+Detailed documentation of the architecture, design decisions, trade-offs, and bugs encountered while building MyPlaces.
 
 ---
 
@@ -112,7 +112,7 @@ Auth is handled through `@supabase/ssr` with a server hook (`hooks.server.ts`) a
 
 Both triggers use `security definer` with `search_path = ''` to safely access the `auth` schema.
 
-**`lists`** and **`list_places`** -- Used for the Collections feature. `lists` stores user-created collections with name, description, color, optional `emoji` (a single emoji character for the collection icon), visibility (`'private'` or `'link_access'`), optional `share_slug` for public sharing, and `sort_order` (integer for user-defined ordering). `list_places` is the junction table linking places to collections. Extended via `add_collections_columns.sql`, `add_list_places_position.sql`, `add_emoji_column.sql`, and `add_list_sort_order.sql` migrations.
+**`lists`** and **`list_places`** -- Used for the Collections feature. `lists` stores user-created collections with name, description, color, optional `emoji` (a single emoji character for the collection icon), visibility (`'private'` or `'link_access'`), optional `share_slug` for public sharing, `sort_order` (integer for user-defined ordering), and three granular share settings: `share_notes` (boolean, default `true`), `share_photos` (boolean, default `true`), and `share_tags` (boolean, default `false`). These control which data is visible to viewers of a shared collection. `list_places` is the junction table linking places to collections. Extended via `add_collections_columns.sql`, `add_list_places_position.sql`, `add_emoji_column.sql`, `add_list_sort_order.sql`, and `add_share_settings.sql` migrations.
 
 **`saved_views`** -- Persists user-defined filter/sort/layout presets. Stores `filters_json` (JSONB with category, area, custom tag IDs and source), `sort_by`, `layout_mode`, and `order_index` (integer for user-defined ordering). See [Saved Views](#saved-views).
 
@@ -147,6 +147,14 @@ An eighth migration file, `add_user_rating.sql`, adds `user_rating` (numeric(2,1
 A ninth migration file, `fix_rls_data_isolation.sql`, enables RLS on the `tags` and `place_tags` tables (which were previously missing it) and creates full CRUD policies scoped to the owning user. Additional read-only policies allow anonymous SELECT on tags and place_tags for places that belong to a `link_access` collection (currently unused by the public share page, but available for future tag display).
 
 A tenth migration file, `add_emoji_column.sql`, adds an optional `emoji` text column to the `lists` table. It stores a single emoji character (e.g. a food emoji) as the collection icon; `NULL` means no emoji is set and the UI falls back to the default color-circle icon.
+
+An eleventh migration file, `add_list_sort_order.sql`, adds a `sort_order` integer column to `lists` for user-defined collection ordering with backfill by `created_at`.
+
+A twelfth migration file, `add_saved_views_order.sql`, adds an `order_index` column to `saved_views` for user-defined saved view ordering.
+
+A thirteenth migration file, `add_place_photos.sql`, creates the `place_photos` table with RLS policies and configures a `place-photos` Supabase Storage bucket with upload/read/delete policies.
+
+A fourteenth migration file, `add_share_settings.sql`, adds three boolean columns to `lists`: `share_notes` (default `true`), `share_photos` (default `true`), and `share_tags` (default `false`). These control which data is visible on the public share page. The migration also creates three RLS policies allowing anonymous users to read `place_photos`, `place_tags`, and `tags` for places inside `link_access` collections, gated by the corresponding `share_*` boolean.
 
 ### Type Name vs. Table Name
 
@@ -579,7 +587,7 @@ URL state is synced via `?collection=<id>` so the selected collection is deep-li
 - "+ Add Places" modal with search over all user places not in the collection, tag filter pills for narrowing results, and an "Add by URL" option that lets users paste Google Maps URLs directly to add new places
 - Share toggle (private ↔ link_access) with copy-link button
 
-**`/c/[slug]`** — Public read-only share page. Accessed without authentication. Shows a clean layout with the collection name, description, and all places in grid or list view. Each place shows category, area, price level, the owner's personal rating, note preview, and a link to Google Maps. Search filters by title, address, category, and area. No tag display or editing capabilities. The server load function (`c/[slug]/+page.server.ts`) uses a single deep nested join (`list_places(place_id, places(...))`) to fetch the collection and all its place data in one query — no tags or place_tags are fetched.
+**`/c/[slug]`** — Public read-only share page. Accessed without authentication. Shows a clean layout with the collection name, description, and all places in grid or list view. Each place shows category, area, price level, the owner's personal rating, note preview (if `share_notes` is enabled), photo thumbnails (if `share_photos` is enabled), and user tags (if `share_tags` is enabled), plus a link to Google Maps. Search filters by title, address, category, and area. The server load function (`c/[slug]/+page.server.ts`) uses a single deep nested join (`list_places(place_id, places(...))`) to fetch the collection and all its place data in one query. Conditional on the collection's `share_notes`, `share_photos`, and `share_tags` settings, the server then strips notes, skips photo/tag queries, or includes them via parallel `Promise.all` fetches. A `shareSettings` object is returned to the client so the page knows which data sections to render.
 
 ### Store Architecture
 
@@ -587,7 +595,7 @@ URL state is synced via `?collection=<id>` so the selected collection is deep-li
 
 - **`loadCollections()`**: Fetches all user collections with embedded `list_places(place_id)` join in a single query (scoped by `user_id`), ordered by `sort_order` ascending. Note: the server load in `collections/+page.server.ts` sorts by `updated_at` descending instead — the server sort takes precedence on initial page load, while the store sort applies to client-side refreshes
 - **`createCollection()`**: Creates a collection, optionally bulk-inserting place IDs
-- **`updateCollection()`**: Updates name, description, color, emoji, visibility, share_slug, or sort_order
+- **`updateCollection()`**: Updates name, description, color, emoji, visibility, share_slug, sort_order, share_notes, share_photos, or share_tags
 - **`deleteCollection()`**: Deletes a collection (cascade removes `list_places` rows)
 - **`reorderCollections()`**: Accepts an ordered array of collection IDs and writes `sort_order` values via a single `.upsert()` call with `onConflict: 'id'`
 - **`addPlaceToCollection()` / `addPlacesToCollection()`**: Single or batch membership insert using `.upsert()` with `onConflict: 'list_id,place_id'` and `ignoreDuplicates: true`
@@ -620,7 +628,15 @@ Simple MVP sharing:
 3. **Copy**: The "Copy Link" button copies `{origin}/c/{slug}` to clipboard
 4. **Disable**: Sets `visibility = 'private'`, nullifies the slug
 
-The public page (`/c/[slug]`) loads data via a server load function that uses a single deep nested join query (`lists.select('..., list_places(place_id, places(...))')`) filtered by `share_slug` and `visibility = 'link_access'`. This fetches the collection and all its place data in one round-trip. RLS policies allow anonymous SELECT on collections and their places when visibility is `link_access`.
+**Granular Share Settings**: When sharing is enabled, a dropdown exposes three per-field toggles controlling what data is visible to viewers of the shared link:
+
+- **Notes** (`share_notes`, default `true`): Whether place notes are included. When off, the server load strips notes from place data before returning it.
+- **Photos** (`share_photos`, default `true`): Whether place photos are fetched and displayed. When off, the server load skips the `place_photos` query entirely.
+- **Tags** (`share_tags`, default `false`): Whether user tags are shown on shared place cards. When off, the server load skips the `place_tags` + `tags` queries. Requires additional RLS policies that gate anonymous SELECT on `place_photos`, `place_tags`, and `tags` behind the corresponding `share_*` boolean on the parent collection.
+
+The share settings dropdown is available on both the `/collections` browse mode (via `CollectionScopeHeader`) and the `/collections/[id]` detail page. Changes are persisted via `updateCollection()` with optimistic UI and rollback on failure.
+
+The public page (`/c/[slug]`) loads data via a server load function that uses a single deep nested join query (`lists.select('..., list_places(place_id, places(...))')`) filtered by `share_slug` and `visibility = 'link_access'`. This fetches the collection and all its place data in one round-trip. Conditional on the share settings, additional parallel queries fetch photos and/or tags for the loaded places. The server returns a `shareSettings` object so the client page knows which data sections to render. RLS policies allow anonymous SELECT on collections and their places when visibility is `link_access`, with photo and tag access gated by the `share_photos` and `share_tags` booleans respectively.
 
 **Save Shared Collection** (`POST /api/collections/save-shared`): Logged-in users viewing a shared collection can click "Save" to duplicate it into their own account. The endpoint validates the collection is `link_access`, prevents self-save (409), creates a new collection with the same name/description/color/emoji, deep-copies all places (with `source_list: 'shared-import'`), and links them to the new collection. Returns the new collection ID and place count.
 
@@ -633,7 +649,7 @@ The bottom dock includes a "Collections" tab linking to `/collections`. The `/co
 - **No drag-and-drop for adding to collections**: While the existing codebase has drag-and-drop for tag reordering, adding places to collections uses only explicit button/modal interactions. This ensures mobile compatibility and avoids conflicts with swipe-to-delete gestures.
 - **Slug-based sharing vs. collection ID sharing**: Using a random slug prevents enumeration attacks and makes share URLs non-guessable. The slug is generated client-side, which has a negligible collision risk for 10-character alphanumeric strings.
 - **No collaborators**: Sharing is read-only. The owner is the only editor. This simplifies RLS policies and avoids the complexity of shared editing state.
-- **Public place data exposure**: When a collection is shared, all place data (title, address, user rating, etc.) becomes publicly readable via the RLS policies. This is intentional for the sharing use case, but users should be aware that making a collection public exposes its place details.
+- **Public place data exposure**: When a collection is shared, place data visibility depends on the granular share settings (`share_notes`, `share_photos`, `share_tags`). Core fields (title, address, category, rating) are always visible. Notes and photos default to visible; tags default to hidden. Users can fine-tune what's exposed via the share dropdown on the collection header.
 
 ---
 
@@ -1153,6 +1169,14 @@ A separate latency investigation documented the add-by-url pipeline end-to-end, 
 
 **Downside**: The inline approach has less room for hierarchical organization. The sidebar could display tag groups with headers, counts, and "All Places" navigation in a scannable vertical list. Inline chips rely on horizontal scrolling which can hide tags that overflow the viewport. Source list filtering (by import source) was part of the sidebar and needed to be integrated differently.
 
+### 16. Per-Field Share Settings vs. All-or-Nothing Sharing
+
+**Chose**: Three boolean columns (`share_notes`, `share_photos`, `share_tags`) on `lists` rather than a single on/off visibility toggle.
+
+**Why**: Different users have different comfort levels with what they share. Notes often contain personal context not meant for others, while locations and ratings are generally fine to share. Tags default to off since they may reveal personal organizational systems. Per-field control gives users confidence to share without exposing everything.
+
+**Downside**: More complex RLS policies — each of the three data types (photos, tags, notes) needs its own anonymous SELECT policy gated on the parent collection's corresponding boolean. The server load for `/c/[slug]` must conditionally construct queries based on these settings. The UI adds three toggle buttons to an already dense share dropdown.
+
 ---
 
 ## Bugs & Fixes
@@ -1275,6 +1299,18 @@ All swipeable components (PlaceCard, PlaceListItem, Collections index) now use:
 - **swipe-foreground**: `position: relative; z-index: 1; bg-white`. The **only** element that receives `translateX()` for swipe. Contains the 3D flip structure (perspective + preserve-3d + rotateY) inside it.
 
 This is a compositing architecture fix, not a z-index tweak. The key insight is that removing the delete element from the DOM entirely when not swiping is more robust than trying to hide it with z-index or overflow -- GPU compositing can bypass both of those during fast scroll passes, but it cannot render an element that does not exist.
+
+### 18. Card Click Causes Page to Scroll Down (Map Popup Overflow)
+
+**Problem**: On desktop, clicking a place card would correctly select it on the map, but the card list would scroll downward, making it appear as though a different card was selected. The bug was consistent and created a "mirror" effect -- markers near the bottom of the map caused more scroll displacement.
+
+**Root Cause**: The desktop map panel (`md:sticky md:top-0 md:h-[100dvh]`) did not have `overflow: hidden`. When clicking a card triggered the map's `flyTo` + popup open via the `$effect`, the MapLibre popup (a real DOM element, not canvas-rendered) could extend beyond the map panel's boundaries. The browser's built-in scroll-into-view behavior for newly visible elements would then auto-scroll the page to accommodate the overflowing popup. Since the card list uses page-level scroll (not a separate container) while the map is `sticky`, the card list moved but the map stayed in place.
+
+**Fix**: Applied two complementary fixes:
+1. Added `overflow-hidden` to the desktop map panel in `places/+page.svelte`, the `.map-wrapper` div in `MapView.svelte`, and the collection detail map panel in `collections/[id]/+page.svelte` -- clips popups to the map area
+2. Added scroll-position preservation in `handleCardSelect` on both pages: the function captures `window.scrollY` before updating selection state, then restores it via `requestAnimationFrame` if the browser auto-scrolled during the reactive update cycle
+
+**Also fixed**: Added a missing selection-clear `$effect` to `collections/[id]/+page.svelte`. The places page had a guard that nulls `selectedPlaceId` when the selected place leaves `filteredPlaces` (e.g., after a search change), but the collection page was missing this, leaving stale selection state.
 
 ---
 

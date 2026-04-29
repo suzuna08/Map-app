@@ -1,6 +1,6 @@
 # UI Design Specification
 
-Detailed documentation of MapOrganizer's visual design system, page layouts, component anatomy, and interaction patterns.
+Detailed documentation of MyPlaces's visual design system, page layouts, component anatomy, and interaction patterns.
 
 ---
 
@@ -339,7 +339,7 @@ A centered modal (`sm:max-w-md`, bottom-sheet on mobile) with:
 When a pill is clicked (or auto-selected on load), the page shows a full map + list experience matching the Places page layout:
 - **Desktop**: Split layout — 58% scrollable content, 42% sticky `MapView`. The tab selector + `CollectionScopeHeader` are both sticky at top
 - **Mobile**: `MobileMapShell` (collapsible draggable map) + scrollable content below
-- **`CollectionScopeHeader`** below tabs: avatar (clickable → color/emoji picker), name (inline editable), description (inline editable), visibility toggle, share link button, "+ Add Places" button, overflow menu (delete with confirmation)
+- **`CollectionScopeHeader`** below tabs: avatar (clickable → color/emoji picker), name (inline editable), description (inline editable), visibility toggle, share link button, share settings dropdown (Notes/Photos/Tags toggles), "+ Add Places" button, overflow menu (delete with confirmation)
 - **Controls bar**: Place count, search input (desktop only, `w-28 sm:w-40` with clear button), sort dropdown (Recent, A–Z, My Rating), grid/list toggle
 - `PlaceCard` / `PlaceListItem` rendering with collection-scoped actions (remove from collection vs. delete place)
 - URL state synced via `?collection=<id>` for deep-linkability
@@ -366,7 +366,7 @@ Sticks at the top of the viewport (`sticky top-0 z-10`), sage-tinted background 
 1. **Breadcrumb**: "Collections > {name}" trail
 2. **Header row**:
    - **Left**: Clickable color circle/emoji (opens color+emoji picker), click-to-edit name (`font-extrabold`), click-to-edit description
-   - **Right**: Copy link button (when shared), Private/Shared toggle, "+ Add Places" button (brand-600)
+   - **Right**: Copy link button (when shared), Private/Shared toggle, share settings dropdown (Notes/Photos/Tags toggles), "+ Add Places" button (brand-600)
 3. **Map panel**: Same split layout as Places — desktop has a sticky 42% right map panel; mobile uses `MobileMapShell` with draggable height
 4. **Controls bar**: Place count, search input, sort dropdown (Recent, A–Z, My Rating), grid/list toggle
 
@@ -399,6 +399,12 @@ Read-only page accessible without authentication. Sticky top panel layout (`max-
 - Optional description below name (`text-xs`/`sm:text-sm text-warm-400`)
 - **Save button** (right-aligned): Logged-in users (non-owners) can click to duplicate the collection into their own account. States: default (`bg-brand-500 text-white`), saving (spinner), saved (`bg-sage-200 text-sage-700`), disabled for owners (`bg-warm-200 text-warm-400`)
 
+### Data Visibility
+The owner's **share settings** control which data sections appear:
+- **Notes** (on by default): Place note previews shown on cards. When off, notes are stripped server-side
+- **Photos** (on by default): Photo thumbnails and lightbox available. When off, no photos are fetched
+- **Tags** (off by default): User tag pills shown on cards with colored backgrounds. When off, no tags are fetched or displayed
+
 ### Collapsible Map
 Expandable MapView with place markers inside `rounded-xl border`. Toggle button showing place count + chevron. Height: 180px mobile, 220px desktop.
 
@@ -411,14 +417,16 @@ Expandable MapView with place markers inside `rounded-xl border`. Toggle button 
 Simplified read-only cards:
 - Category pill (`bg-warm-200`), area pill (`bg-sage-200`), price level
 - Rating display (owner's personal rating, display-only)
-- Title, note preview (2-line clamp, italic `text-brand-500`)
+- Title, note preview (2-line clamp, italic `text-brand-500`) — shown only when `share_notes` is enabled
+- Tag pills (colored, display-only) — shown only when `share_tags` is enabled
+- Photo thumbnails — shown only when `share_photos` is enabled
 - Footer: "Maps" external link (no Website link)
 
 ### Place List (List)
-Compact rows with title, area/category metadata, rating, Maps link.
+Compact rows with title, area/category metadata, rating, tag pills (when shared), Maps link.
 
 ### Footer
-"Shared via MapOrganizer" branding with link to home page.
+"Shared via MyPlaces" branding with link to home page.
 
 ---
 
@@ -582,7 +590,8 @@ A context menu for places within collection views. Provides two destructive acti
 Sticky header component for the collection browse mode on `/collections`:
 - `border-b border-warm-200/80 bg-[#faf7f2]` background
 - Left: `CollectionAvatar` (lg size, clickable → color/emoji picker dropdown), inline-editable name (`font-extrabold`), inline-editable description
-- Right: Copy share link, visibility toggle (Shared/Private), "+ Add Places" button (`bg-brand-600`), overflow menu (⋯) with delete confirmation
+- Right: Copy share link, visibility toggle (Shared/Private), share settings dropdown (Notes/Photos/Tags toggles with on/off indicators), "+ Add Places" button (`bg-brand-600`), overflow menu (⋯) with delete confirmation
+- Share settings dropdown: Appears below the share button when sharing is enabled. Shows "Visible to others" header with three toggle rows — Notes (document icon), Photos (image icon), Tags (tag icon) — each with a green/gray on/off indicator. Notes and Photos default to on; Tags defaults to off
 - Color picker dropdown: 6 circles + `EmojiPicker` below, absolute positioned
 
 ### CollectionSwitcher
