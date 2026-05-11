@@ -100,11 +100,7 @@
 	}
 
 	function handleShareButtonClick() {
-		if (collection.visibility === 'link_access') {
-			shareDropdownOpen = !shareDropdownOpen;
-		} else if (onSetVisibility) {
-			onSetVisibility('link_access');
-		}
+		shareDropdownOpen = !shareDropdownOpen;
 	}
 </script>
 
@@ -160,76 +156,79 @@
 						onclick={handleShareButtonClick}
 						class="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-bold transition-colors {collection.visibility === 'link_access' ? 'border-sage-200 bg-sage-50 text-sage-700 hover:bg-sage-100' : 'border-warm-200 text-warm-500 hover:bg-warm-50'}"
 					>
-						<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">{#if collection.visibility === 'link_access'}<circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />{:else}<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" />{/if}</svg>
+						<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">{#if collection.visibility === 'link_access'}<circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />{:else}<rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />{/if}</svg>
 						{collection.visibility === 'link_access' ? 'Shared' : 'Private'}
-						{#if collection.visibility === 'link_access'}
-							<svg class="h-2.5 w-2.5 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-						{/if}
+						<svg class="h-2.5 w-2.5 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9" /></svg>
 					</button>
-					{#if shareDropdownOpen && collection.visibility === 'link_access'}
+					{#if shareDropdownOpen}
 						<div class="absolute right-0 top-full z-20 mt-1 w-56 rounded-xl border border-warm-200 bg-white shadow-lg">
-							<!-- Copy link -->
+							<!-- Sharing toggle -->
 							<button
-								onclick={() => { if (onCopyShareLink) onCopyShareLink(); }}
-								class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-warm-50"
+								onclick={() => { if (onSetVisibility) onSetVisibility(collection.visibility === 'link_access' ? 'private' : 'link_access'); }}
+								class="flex w-full items-center gap-2.5 px-4 py-3 text-left transition-colors hover:bg-warm-50"
 							>
-								<svg class="h-4 w-4 shrink-0 text-warm-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
-								<span class="text-sm font-semibold text-warm-700">Copy link</span>
-							</button>
-
-							<div class="border-t border-warm-100"></div>
-
-							<!-- Visible to others -->
-							<div class="px-4 pt-3 pb-1">
-								<p class="text-xs font-semibold text-warm-400">Visible to others</p>
-							</div>
-
-							<!-- Notes toggle -->
-							<button
-								onclick={() => { if (onShareSettingChange) onShareSettingChange('share_notes', !shareNotes); }}
-								class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50"
-							>
-								<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
-								<span class="flex-1 text-sm font-medium text-warm-700">Notes</span>
-								<div class="relative h-5 w-9 rounded-full transition-colors {shareNotes ? 'bg-brand-500' : 'bg-warm-300'}">
-									<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {shareNotes ? 'left-[18px]' : 'left-0.5'}"></div>
+								<svg class="h-4 w-4 shrink-0 text-warm-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
+								<span class="flex-1 text-sm font-semibold text-warm-700">Share via link</span>
+								<div class="relative h-5 w-9 rounded-full transition-colors {collection.visibility === 'link_access' ? 'bg-brand-500' : 'bg-warm-300'}">
+									<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {collection.visibility === 'link_access' ? 'left-[18px]' : 'left-0.5'}"></div>
 								</div>
 							</button>
 
-							<!-- Photos toggle -->
-							<button
-								onclick={() => { if (onShareSettingChange) onShareSettingChange('share_photos', !sharePhotos); }}
-								class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50"
-							>
-								<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
-								<span class="flex-1 text-sm font-medium text-warm-700">Photos</span>
-								<div class="relative h-5 w-9 rounded-full transition-colors {sharePhotos ? 'bg-brand-500' : 'bg-warm-300'}">
-									<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {sharePhotos ? 'left-[18px]' : 'left-0.5'}"></div>
+							{#if collection.visibility === 'link_access'}
+								<div class="border-t border-warm-100"></div>
+
+								<!-- Copy link -->
+								<button
+									onclick={() => { if (onCopyShareLink) onCopyShareLink(); }}
+									class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-warm-50"
+								>
+									<svg class="h-4 w-4 shrink-0 text-warm-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
+									<span class="text-sm font-semibold text-warm-700">Copy link</span>
+								</button>
+
+								<div class="border-t border-warm-100"></div>
+
+								<!-- Visible to others -->
+								<div class="px-4 pt-3 pb-1">
+									<p class="text-xs font-semibold text-warm-400">Visible to others</p>
 								</div>
-							</button>
 
-							<!-- Tags toggle -->
-							<button
-								onclick={() => { if (onShareSettingChange) onShareSettingChange('share_tags', !shareTags); }}
-								class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50"
-							>
-								<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>
-								<span class="flex-1 text-sm font-medium text-warm-700">Tags</span>
-								<div class="relative h-5 w-9 rounded-full transition-colors {shareTags ? 'bg-brand-500' : 'bg-warm-300'}">
-									<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {shareTags ? 'left-[18px]' : 'left-0.5'}"></div>
-								</div>
-							</button>
+								<!-- Notes toggle -->
+								<button
+									onclick={() => { if (onShareSettingChange) onShareSettingChange('share_notes', !shareNotes); }}
+									class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50"
+								>
+									<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+									<span class="flex-1 text-sm font-medium text-warm-700">Notes</span>
+									<div class="relative h-5 w-9 rounded-full transition-colors {shareNotes ? 'bg-brand-500' : 'bg-warm-300'}">
+										<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {shareNotes ? 'left-[18px]' : 'left-0.5'}"></div>
+									</div>
+								</button>
 
-							<div class="border-t border-warm-100"></div>
+								<!-- Photos toggle -->
+								<button
+									onclick={() => { if (onShareSettingChange) onShareSettingChange('share_photos', !sharePhotos); }}
+									class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50"
+								>
+									<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
+									<span class="flex-1 text-sm font-medium text-warm-700">Photos</span>
+									<div class="relative h-5 w-9 rounded-full transition-colors {sharePhotos ? 'bg-brand-500' : 'bg-warm-300'}">
+										<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {sharePhotos ? 'left-[18px]' : 'left-0.5'}"></div>
+									</div>
+								</button>
 
-							<!-- Turn off sharing -->
-							<button
-								onclick={() => { if (onSetVisibility) onSetVisibility('private'); shareDropdownOpen = false; }}
-								class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-danger-50"
-							>
-								<svg class="h-4 w-4 shrink-0 text-danger-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-								<span class="text-sm font-semibold text-danger-600">Turn off sharing</span>
-							</button>
+								<!-- Tags toggle -->
+								<button
+									onclick={() => { if (onShareSettingChange) onShareSettingChange('share_tags', !shareTags); }}
+									class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50"
+								>
+									<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>
+									<span class="flex-1 text-sm font-medium text-warm-700">Tags</span>
+									<div class="relative h-5 w-9 rounded-full transition-colors {shareTags ? 'bg-brand-500' : 'bg-warm-300'}">
+										<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {shareTags ? 'left-[18px]' : 'left-0.5'}"></div>
+									</div>
+								</button>
+							{/if}
 						</div>
 					{/if}
 				</div>

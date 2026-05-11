@@ -80,6 +80,7 @@
 	let urlAdding = $state(false);
 	let toasts = $derived(getToasts());
 	let searchInputEl = $state<HTMLInputElement | null>(null);
+	let searchFocused = $state(false);
 	let mobileOptionsOpen = $state(false);
 	let photoModalPlaceId = $state<string | null>(null);
 	let placePhotos = $state<Record<string, string[]>>({ ...serverData.photos });
@@ -1292,35 +1293,58 @@
 
 				<!-- Search + sort + view toggle -->
 				<div class="mb-1 mt-1 flex items-center gap-2 sm:mb-0 lg:mt-2.5">
+					{#if searchFocused && isMobile}
+						<button
+							onclick={() => { search = ''; searchFocused = false; searchInputEl?.blur(); }}
+							class="shrink-0 rounded-full p-1.5 text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600"
+							aria-label="Close search"
+						>
+							<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6" /></svg>
+						</button>
+					{/if}
 					<div class="relative min-w-0 flex-1">
 						<input
 							bind:this={searchInputEl}
 							type="text"
 							bind:value={search}
 							onkeydown={(e) => { handleSearchKeydown(e); }}
-							placeholder="Search places, tags, or paste a Google Maps URL"
-							class="w-full rounded-full border border-warm-200 bg-warm-50 py-1.5 pl-3.5 pr-8 text-xs font-medium text-warm-800 transition-colors placeholder:text-warm-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:py-2 sm:pl-4 sm:pr-9 sm:text-sm"
+							onfocus={() => { searchFocused = true; }}
+							onblur={() => { if (!search) searchFocused = false; }}
+							placeholder={searchFocused && isMobile ? 'Search or paste a Google Maps link' : 'Search places, tags, or paste a Google Maps URL'}
+							class="w-full border border-warm-200 bg-warm-50 font-medium text-warm-800 transition-all placeholder:text-warm-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20
+								{searchFocused && isMobile ? 'rounded-xl py-3 pl-4 pr-10 text-base' : 'rounded-full py-1.5 pl-3.5 text-sm sm:py-2 sm:pl-4 sm:text-sm'}
+								{detectedUrl || urlAdding ? 'pr-10 sm:pr-11' : 'pr-8 sm:pr-9'}"
 						/>
 						{#if urlAdding}
-							<svg class="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-brand-500 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none">
+							<svg class="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-brand-500 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none">
 								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
 								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
 							</svg>
 						{:else if detectedUrl}
-							<span class="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-brand-600 sm:text-xs">Enter to add</span>
+							<button
+								onclick={() => addPlaceFromUrl()}
+								class="absolute right-2 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-brand-500 text-white shadow-sm transition-colors hover:bg-brand-600 active:bg-brand-700"
+								aria-label="Add place"
+							>
+								<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+									<line x1="5" y1="12" x2="19" y2="12" />
+									<polyline points="12 5 19 12 12 19" />
+								</svg>
+							</button>
 						{:else if search}
 							<button
 								onclick={() => { search = ''; searchInputEl?.focus(); }}
-								class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600 sm:p-1"
+								class="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600"
 								aria-label="Clear"
 							>
-								<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+								<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 									<line x1="18" y1="6" x2="6" y2="18" />
 									<line x1="6" y1="6" x2="18" y2="18" />
 								</svg>
 							</button>
 						{/if}
 					</div>
+					{#if !(searchFocused && isMobile)}
 					<div class="flex shrink-0 ml-auto items-center gap-1.5 sm:gap-2">
 					<SaveViewButton
 						{supabase}
@@ -1404,6 +1428,7 @@
 							{/if}
 						</div>
 					</div>
+					{/if}
 				</div>
 
 {/snippet}

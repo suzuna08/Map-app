@@ -395,7 +395,35 @@ export interface Database {
 					}
 				];
 			};
-		};
+			saved_collections: {
+				Row: {
+					id: string;
+					user_id: string;
+					source_list_id: string;
+					saved_at: string;
+				};
+				Insert: {
+					id?: string;
+					user_id: string;
+					source_list_id: string;
+					saved_at?: string;
+				};
+				Update: {
+					id?: string;
+					user_id?: string;
+					source_list_id?: string;
+					saved_at?: string;
+				};
+				Relationships: [
+					{
+						foreignKeyName: 'saved_collections_source_list_id_fkey';
+						columns: ['source_list_id'];
+						isOneToOne: false;
+						referencedRelation: 'lists';
+						referencedColumns: ['id'];
+					}
+				];
+			};
 			saved_views: {
 				Row: {
 					id: string;
@@ -475,6 +503,7 @@ export interface Database {
 					},
 				];
 			};
+		};
 		Views: Record<string, never>;
 		Functions: Record<string, never>;
 		Enums: Record<string, never>;

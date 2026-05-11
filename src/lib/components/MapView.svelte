@@ -18,6 +18,25 @@
 
 	let { places, selectedPlaceId, recenterTick = 0, onPlaceSelect, onPopupPhotoAction, onPopupPhotoClick, maptilerKey = '', mapMode = 'default', mapHeight = 0, mapDragging = false, placePhotos = {} }: Props = $props();
 
+	let pendingPhotoAction = $state<string | null>(null);
+	let pendingPhotoClick = $state<{ placeId: string; index: number } | null>(null);
+
+	$effect(() => {
+		if (pendingPhotoAction) {
+			const placeId = pendingPhotoAction;
+			pendingPhotoAction = null;
+			onPopupPhotoAction?.(placeId);
+		}
+	});
+
+	$effect(() => {
+		if (pendingPhotoClick) {
+			const { placeId, index } = pendingPhotoClick;
+			pendingPhotoClick = null;
+			onPopupPhotoClick?.(placeId, index);
+		}
+	});
+
 	let container = $state<HTMLDivElement | null>(null);
 	let map: any = null;
 	let ml: any = null;
@@ -29,12 +48,16 @@
 
 	const HANDLE_PX = 24;
 
-	const POPUP_CLEARANCE = 100;
+	const POPUP_CLEARANCE_PHOTOS = 180;
+	const POPUP_CLEARANCE_SIMPLE = 90;
 
-	function getFrameOffset(): [number, number] {
+	function getFrameOffset(placeId?: string | null): [number, number] {
 		if (mapMode === 'collapsed') return [0, -(HANDLE_PX / 2)];
 		if (mapMode === 'expanded') {
-			const shift = Math.min(POPUP_CLEARANCE, Math.round(mapHeight * 0.22));
+			const hasPhotos = placeId ? (placePhotos[placeId]?.length ?? 0) > 0 : false;
+			const clearance = hasPhotos ? POPUP_CLEARANCE_PHOTOS : POPUP_CLEARANCE_SIMPLE;
+			const ratio = hasPhotos ? 0.35 : 0.2;
+			const shift = Math.min(clearance, Math.round(mapHeight * ratio));
 			return [0, shift];
 		}
 		return [0, 0];
@@ -51,14 +74,43 @@
 
 		const key = maptilerKey || import.meta.env.PUBLIC_MAPTILER_KEY || '';
 
+		function handlePopupClick(e: MouseEvent) {
+			const target = e.target as Element;
+
+			const btn = target.closest('.map-popup-add-photo');
+			if (btn instanceof HTMLElement) {
+				e.stopPropagation();
+				e.preventDefault();
+				const placeId = btn.dataset.placeId;
+				if (placeId) {
+					onPlaceSelect(placeId);
+					pendingPhotoAction = placeId;
+				}
+				return;
+			}
+
+			const img = target.closest('.map-popup-photo-thumb');
+			if (img instanceof HTMLElement) {
+				e.stopPropagation();
+				const placeId = img.dataset.placeId;
+				const photoIndex = img.dataset.photoIndex;
+				if (placeId && photoIndex != null) {
+					pendingPhotoClick = { placeId, index: parseInt(photoIndex, 10) };
+				}
+			}
+		}
+		document.addEventListener('click', handlePopupClick, true);
+
 		(async () => {
 			const mod = await import('maplibre-gl');
 			ml = mod.default ?? mod;
 			if (!container) return;
 
-			const style = key
-				? `https://api.maptiler.com/maps/pastel/style.json?key=${key}`
-				: 'https://demotiles.maplibre.org/style.json';
+			const style = import.meta.env.DEV
+				? 'https://demotiles.maplibre.org/style.json'
+				: key
+					? `https://api.maptiler.com/maps/pastel/style.json?key=${key}`
+					: 'https://demotiles.maplibre.org/style.json';
 
 			map = new ml.Map({
 				container,
@@ -89,32 +141,12 @@
 				fitToMarkers(false);
 			});
 
-			container.addEventListener('click', (e: MouseEvent) => {
-				const btn = (e.target as HTMLElement).closest('.map-popup-add-photo');
-				if (btn instanceof HTMLElement) {
-					const placeId = btn.dataset.placeId;
-					if (placeId) {
-						onPlaceSelect(placeId);
-						onPopupPhotoAction?.(placeId);
-					}
-					return;
-				}
-
-				const img = (e.target as HTMLElement).closest('.map-popup-photo-thumb');
-				if (img instanceof HTMLElement) {
-					const placeId = img.dataset.placeId;
-					const photoIndex = img.dataset.photoIndex;
-					if (placeId && photoIndex != null) {
-						onPopupPhotoClick?.(placeId, parseInt(photoIndex, 10));
-					}
-				}
-			});
-
 			ro = new ResizeObserver(() => map?.resize());
 			ro.observe(container);
 		})();
 
 		return () => {
+			document.removeEventListener('click', handlePopupClick, true);
 			ro?.disconnect();
 			map?.remove();
 			map = null;
@@ -208,7 +240,7 @@
 		if (!mapReady || !map) return;
 		const sid = selectedPlaceId;
 		const _tick = recenterTick;
-		const offset = getFrameOffset();
+		const offset = getFrameOffset(sid);
 		const mode = mapMode;
 
 		markersMap.forEach((entry, id) => {
@@ -219,13 +251,18 @@
 			const entry = markersMap.get(sid);
 			if (entry) {
 				const lngLat = entry.marker.getLngLat();
+				if (entry.marker.getPopup().isOpen()) entry.marker.togglePopup();
 				map.flyTo({
 					center: [lngLat.lng, lngLat.lat],
 					zoom: Math.max(map.getZoom(), 13),
 					duration: 600,
 					offset,
 				});
-				if (!entry.marker.getPopup().isOpen()) entry.marker.togglePopup();
+				map.once('moveend', () => {
+					if (selectedPlaceId === sid && !entry.marker.getPopup().isOpen()) {
+						entry.marker.togglePopup();
+					}
+				});
 			}
 			markersMap.forEach((e, id) => {
 				if (id !== sid && e.marker.getPopup().isOpen()) e.marker.togglePopup();

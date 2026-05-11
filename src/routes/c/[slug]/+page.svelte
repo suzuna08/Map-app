@@ -18,6 +18,7 @@
 	let shareSettings: { notes: boolean; photos: boolean; tags: boolean } = (data as any).shareSettings ?? { notes: true, photos: true, tags: false };
 
 	let search = $state('');
+	let searchExpanded = $state(false);
 	let selectedPlaceId = $state<string | null>(null);
 	let recenterTick = $state(0);
 	let flippedPlaceId = $state<string | null>(null);
@@ -25,25 +26,44 @@
 	let saved = $state(false);
 	let lightboxPlaceId = $state<string | null>(null);
 	let lightboxIndex = $state(0);
-	let cardMenuPlaceId = $state<string | null>(null);
 
 	// Map resize state (mirrors MobileMapShell)
-	const MAP_MIN_HEIGHT = 80;
-	const MAP_DEFAULT_HEIGHT = 300;
-	const MAP_SNAP_COLLAPSED = 100;
-	const MAP_SNAP_EXPANDED_VH = 0.55;
+	const MAP_SNAP_COLLAPSED = 80;
 
-	let mapHeight = $state(MAP_DEFAULT_HEIGHT);
+	function getMapSnapMedium(vh: number): number {
+		return Math.max(120, Math.round(vh - 600));
+	}
+
+	function getMapSnapLarge(vh: number): number {
+		return Math.round(vh * 0.55);
+	}
+
+	let mapHeight = $state(typeof window !== 'undefined' ? getMapSnapMedium(window.innerHeight) : 130);
 	let mapDragging = $state(false);
 	let mapAnimating = $state(false);
 	let mapDragStartY = 0;
 	let mapDragStartHeight = 0;
 
-	let mapMaxHeight = $derived(typeof window !== 'undefined' ? window.innerHeight * 0.7 : 500);
-	let mapMode: 'collapsed' | 'expanded' = 'expanded';
+	let mapMaxHeight = $derived(typeof window !== 'undefined' ? getMapSnapLarge(window.innerHeight) : 500);
+	let mapMode = $derived<'collapsed' | 'expanded'>(mapHeight > MAP_SNAP_COLLAPSED + 20 ? 'expanded' : 'collapsed');
 
 	function clampMapHeight(h: number): number {
-		return Math.max(MAP_MIN_HEIGHT, Math.min(h, mapMaxHeight));
+		return Math.max(MAP_SNAP_COLLAPSED, Math.min(h, mapMaxHeight));
+	}
+
+	function snapMapToNearest(currentH: number): number {
+		const vh = window.innerHeight;
+		const snaps = [MAP_SNAP_COLLAPSED, getMapSnapMedium(vh), getMapSnapLarge(vh)];
+		let closest = snaps[0];
+		let minDist = Math.abs(currentH - closest);
+		for (const s of snaps) {
+			const dist = Math.abs(currentH - s);
+			if (dist < minDist) {
+				minDist = dist;
+				closest = s;
+			}
+		}
+		return closest;
 	}
 
 	function onMapPointerDown(e: PointerEvent) {
@@ -63,24 +83,17 @@
 	function onMapPointerUp() {
 		if (!mapDragging) return;
 		mapDragging = false;
-		const viewH = window.innerHeight;
 		mapAnimating = true;
-		if (mapHeight < MAP_SNAP_COLLAPSED) {
-			mapHeight = MAP_MIN_HEIGHT;
-		} else if (mapHeight > viewH * 0.4) {
-			mapHeight = clampMapHeight(viewH * MAP_SNAP_EXPANDED_VH);
-		}
+		mapHeight = snapMapToNearest(mapHeight);
 		setTimeout(() => { mapAnimating = false; }, 220);
 	}
 
 	function onMapDoubleTap() {
 		mapAnimating = true;
-		const viewH = window.innerHeight;
-		if (mapHeight > MAP_DEFAULT_HEIGHT + 20) {
-			mapHeight = MAP_DEFAULT_HEIGHT;
-		} else {
-			mapHeight = clampMapHeight(viewH * MAP_SNAP_EXPANDED_VH);
-		}
+		const vh = window.innerHeight;
+		const large = getMapSnapLarge(vh);
+		const medium = getMapSnapMedium(vh);
+		mapHeight = mapHeight >= large - 10 ? medium : large;
 		setTimeout(() => { mapAnimating = false; }, 220);
 	}
 
@@ -103,6 +116,13 @@
 
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({ message: 'Something went wrong' }));
+				if (res.status === 409) {
+					saved = true;
+					showToast('info', '', 'Already in your saved collections', [
+						{ label: 'View', handler: () => goto('/collections') }
+					]);
+					return;
+				}
 				showToast('error', '', err.message ?? 'Failed to save collection');
 				return;
 			}
@@ -110,7 +130,7 @@
 			const result = await res.json();
 			saved = true;
 			showToast('success', '', 'Collection saved!', [
-				{ label: 'View', handler: () => goto(`/collections/${result.id}`) }
+				{ label: 'View', handler: () => goto('/collections') }
 			]);
 		} catch {
 			showToast('error', '', 'Failed to save collection');
@@ -261,38 +281,70 @@
 
 	<!-- Scrollable content below map -->
 	<div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
-		<!-- Header: single row — avatar + name | search | count -->
+		<!-- Header: collapsible search -->
 		<div class="sticky top-0 z-20 border-b border-warm-200/80 bg-[#faf7f2] px-3 py-2 sm:px-6">
 			<div class="mx-auto max-w-lg flex items-center gap-2.5">
-				<div class="flex shrink-0 items-center justify-center">
-					<CollectionAvatar color={collection.color} emoji={collection.emoji} size="lg" decorative={false} />
-				</div>
-				<h1 class="shrink-0 truncate text-base font-extrabold text-warm-800" style="max-width: 30%">{collection.name}</h1>
-
-				<div class="relative min-w-0 flex-1">
-					<svg class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-					</svg>
-					<input
-						type="text"
-						bind:value={search}
-						placeholder="Search..."
-						class="w-full rounded-full border border-warm-200 bg-warm-50 py-1.5 pl-8 pr-8 text-xs font-medium text-warm-600 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:text-sm"
-					/>
-					{#if search}
+				{#if searchExpanded}
+					<!-- Expanded: full-width search input -->
+					<div class="relative min-w-0 flex-1">
+						<svg class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+						</svg>
+						<!-- svelte-ignore a11y_autofocus -->
+						<input
+							type="text"
+							bind:value={search}
+							placeholder="Search..."
+							autofocus
+							class="w-full rounded-full border border-warm-200 bg-warm-50 py-1.5 pl-8 pr-8 text-xs font-medium text-warm-600 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:text-sm"
+						/>
 						<button
-							onclick={() => { search = ''; }}
+							onclick={() => { search = ''; searchExpanded = false; }}
 							class="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600"
-							aria-label="Clear search"
+							aria-label="Close search"
 						>
-							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 								<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
 							</svg>
 						</button>
-					{/if}
-				</div>
+					</div>
+				{:else}
+					<!-- Collapsed: avatar + full name + search icon + count -->
+					<div class="flex shrink-0 items-center justify-center">
+						<CollectionAvatar color={collection.color} emoji={collection.emoji} size="lg" decorative={false} />
+					</div>
+				<h1 class="min-w-0 flex-1 truncate text-base font-extrabold text-warm-800">{collection.name}</h1>
 
-				<span class="shrink-0 text-xs font-semibold text-warm-500">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</span>
+				{#if !isOwner}
+					<button
+						onclick={handleSave}
+						disabled={saving || saved}
+						class="shrink-0 rounded-full px-3 py-1 text-xs font-bold transition-colors
+							{saved ? 'bg-sage-200 text-sage-700' : 'bg-brand-600 text-white hover:bg-brand-700'}
+							disabled:opacity-60"
+					>
+						{#if saving}
+							<svg class="inline h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12" /></svg>
+						{:else if saved}
+							Saved
+						{:else}
+							Save
+						{/if}
+					</button>
+				{/if}
+
+				<button
+					onclick={() => { searchExpanded = true; }}
+					class="shrink-0 rounded-full p-1.5 text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600"
+					aria-label="Search places"
+				>
+						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+						</svg>
+					</button>
+
+					<span class="shrink-0 text-xs font-semibold text-warm-500">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</span>
+				{/if}
 			</div>
 		</div>
 
@@ -344,12 +396,6 @@
 							<!-- Bottom row: tags left, menu right -->
 							<div class="mt-auto flex items-end justify-between gap-2 pt-3">
 								<div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-									{#if place.category}
-										<span class="rounded-full bg-warm-200 px-2.5 py-0.5 text-xs font-bold text-warm-600">{place.category}</span>
-									{/if}
-									{#if place.area}
-										<span class="rounded-full bg-sage-200 px-2.5 py-0.5 text-xs font-bold text-sage-700">{place.area}</span>
-									{/if}
 									{#each tags as tag (tag.id)}
 										<span
 											class="rounded-full px-2.5 py-0.5 text-xs font-bold"
@@ -358,49 +404,19 @@
 									{/each}
 								</div>
 
-								<!-- 3-dot menu -->
-								<div class="relative shrink-0">
-									<button
-										onclick={(e) => { e.stopPropagation(); cardMenuPlaceId = cardMenuPlaceId === place.id ? null : place.id; }}
-										class="rounded-md p-1 text-warm-300 transition-colors hover:bg-warm-100 hover:text-warm-500"
-										aria-label="More actions"
-									>
-										<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-											<circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" />
-										</svg>
-									</button>
-									{#if cardMenuPlaceId === place.id}
-										<div class="fixed inset-0 z-40" onclick={(e) => { e.stopPropagation(); cardMenuPlaceId = null; }} role="presentation"></div>
-										<div class="absolute bottom-full right-0 z-50 mb-1 w-48 rounded-lg border border-warm-200 bg-white py-1 shadow-lg">
-											{#if place.url}
-												<a
-													href={place.url}
-													target="_blank"
-													onclick={(e) => { e.stopPropagation(); cardMenuPlaceId = null; }}
-													class="flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium text-warm-600 hover:bg-warm-50"
-												>
-													<svg class="h-4 w-4 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-														<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
-													</svg>
-													Open in Map
-												</a>
-											{/if}
-											{#if !isOwner}
-												<button
-													onclick={(e) => { e.stopPropagation(); cardMenuPlaceId = null; handleSave(); }}
-													disabled={saving || saved}
-													class="flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium text-warm-600 hover:bg-warm-50 disabled:opacity-50"
-												>
-													<svg class="h-4 w-4 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-														<rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
-														<rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
-													</svg>
-													{saved ? 'Saved' : 'Save'} to Collection
-												</button>
-											{/if}
-										</div>
-									{/if}
-								</div>
+								{#if place.url}
+								<a
+									href={place.url}
+									target="_blank"
+									onclick={(e) => e.stopPropagation()}
+									class="shrink-0 rounded-md p-1 text-warm-300 transition-colors hover:bg-warm-100 hover:text-warm-500"
+									aria-label="Open in Map"
+								>
+									<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+									</svg>
+								</a>
+							{/if}
 							</div>
 						</article>
 

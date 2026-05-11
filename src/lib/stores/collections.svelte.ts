@@ -245,6 +245,96 @@ export async function loadCollectionBySlug(
 	};
 }
 
+export interface SavedCollectionRef {
+	id: string;
+	source_list_id: string;
+	saved_at: string;
+	source_collection: Collection | null;
+	placeCount: number;
+}
+
+export async function loadSavedCollections(
+	supabase: SupabaseClient<Database>,
+	userId: string
+): Promise<SavedCollectionRef[]> {
+	const { data, error } = await supabase
+		.from('saved_collections')
+		.select('id, source_list_id, saved_at, lists!saved_collections_source_list_id_fkey(id, user_id, name, description, color, emoji, visibility, share_slug, share_notes, share_photos, share_tags, sort_order, created_at, updated_at, list_places(place_id))')
+		.eq('user_id', userId)
+		.order('saved_at', { ascending: false });
+
+	if (error) {
+		console.error('[loadSavedCollections]', error);
+		return [];
+	}
+
+	return (data ?? []).map((row: any) => {
+		const source = row.lists;
+		const isAvailable = source && source.visibility === 'link_access';
+		return {
+			id: row.id,
+			source_list_id: row.source_list_id,
+			saved_at: row.saved_at,
+			source_collection: isAvailable ? { ...source, list_places: undefined } as Collection : null,
+			placeCount: isAvailable ? (source.list_places?.length ?? 0) : 0,
+		};
+	});
+}
+
+export async function removeSavedCollection(
+	supabase: SupabaseClient<Database>,
+	bookmarkId: string
+): Promise<boolean> {
+	const { error } = await supabase
+		.from('saved_collections')
+		.delete()
+		.eq('id', bookmarkId);
+	if (error) {
+		console.error('[removeSavedCollection]', error);
+		return false;
+	}
+	return true;
+}
+
+export async function loadSavedCollectionPlaces(
+	supabase: SupabaseClient<Database>,
+	sourceListId: string
+): Promise<{ places: Place[]; tags: { id: string; name: string; color: string | null }[]; shareSettings: { notes: boolean; photos: boolean; tags: boolean } } | null> {
+	const { data: col, error: colErr } = await supabase
+		.from('lists')
+		.select('id, user_id, visibility, share_notes, share_photos, share_tags, list_places(place_id, places(id, user_id, title, note, url, source_list, created_at, google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at, user_rating, user_rated_at))')
+		.eq('id', sourceListId)
+		.eq('visibility', 'link_access')
+		.single();
+
+	if (colErr || !col) return null;
+
+	const shareSettings = {
+		notes: (col as any).share_notes ?? true,
+		photos: (col as any).share_photos ?? true,
+		tags: (col as any).share_tags ?? false,
+	};
+
+	const listPlaces = (col as any).list_places as any[];
+	let places: Place[] = listPlaces.map((lp: any) => lp.places).filter(Boolean) as Place[];
+
+	if (!shareSettings.notes) {
+		places = places.map((p) => ({ ...p, note: null }));
+	}
+
+	let tags: { id: string; name: string; color: string | null }[] = [];
+	if (shareSettings.tags) {
+		const ownerId = (col as any).user_id;
+		const { data: tagData } = await supabase
+			.from('tags')
+			.select('id, name, color')
+			.eq('user_id', ownerId);
+		tags = (tagData ?? []) as { id: string; name: string; color: string | null }[];
+	}
+
+	return { places, tags, shareSettings };
+}
+
 const PLACE_COLUMNS = 'id, user_id, title, note, url, source_list, created_at, google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at, user_rating, user_rated_at';
 
 export interface CollectionBrowseData {

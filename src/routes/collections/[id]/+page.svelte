@@ -16,6 +16,9 @@
 	import { showToast, getToasts, dismissToast } from '$lib/stores/toasts.svelte';
 	import EmojiPicker from '$lib/components/EmojiPicker.svelte';
 	import CollectionAvatar from '$lib/components/CollectionAvatar.svelte';
+	import PhotoGrid from '$lib/components/PhotoGrid.svelte';
+	import PhotoLightbox from '$lib/components/PhotoLightbox.svelte';
+	import { loadPlacePhotos } from '$lib/photo-storage';
 
 	let { data } = $props();
 	let supabase = $derived(data.supabase);
@@ -53,6 +56,8 @@
 			showAddModal = false;
 			addSearch = '';
 			addTagFilter = {};
+			photoModalPlaceId = null;
+			popupLightbox = null;
 		}
 	});
 
@@ -225,6 +230,11 @@
 	}
 
 	async function openAddModal() {
+		if (addBtnEl) {
+			const rect = addBtnEl.getBoundingClientRect();
+			popoverTop = rect.bottom + 6;
+			popoverRight = Math.max(8, window.innerWidth - rect.right);
+		}
 		showAddModal = true;
 		addSearch = '';
 		addTagFilter = {};
@@ -386,8 +396,12 @@
 	}
 
 	function handleShareButtonClick() {
+		shareDropdownOpen = !shareDropdownOpen;
+	}
+
+	function handleToggleSharing() {
 		if (collection.visibility === 'link_access') {
-			shareDropdownOpen = !shareDropdownOpen;
+			setVisibility('private');
 		} else {
 			setVisibility('link_access');
 		}
@@ -486,6 +500,68 @@
 	let shareNotes = $derived(collection.share_notes ?? true);
 	let sharePhotos = $derived(collection.share_photos ?? true);
 	let shareTags = $derived(collection.share_tags ?? false);
+
+	let addBtnEl = $state<HTMLButtonElement | null>(null);
+	let addPopoverEl = $state<HTMLDivElement | null>(null);
+	let popoverTop = $state(60);
+	let popoverRight = $state(8);
+
+	$effect(() => {
+		if (!showAddModal) return;
+		function handleClickOutside(e: MouseEvent) {
+			if (
+				addPopoverEl && !addPopoverEl.contains(e.target as Node) &&
+				addBtnEl && !addBtnEl.contains(e.target as Node)
+			) {
+				showAddModal = false;
+				addSearch = '';
+				addTagFilter = {};
+				resetUrl();
+			}
+		}
+		function handleEscape(e: KeyboardEvent) {
+			if (e.key === 'Escape') {
+				showAddModal = false;
+				addSearch = '';
+				addTagFilter = {};
+				resetUrl();
+			}
+		}
+		document.addEventListener('mousedown', handleClickOutside, true);
+		document.addEventListener('keydown', handleEscape);
+		return () => {
+			document.removeEventListener('mousedown', handleClickOutside, true);
+			document.removeEventListener('keydown', handleEscape);
+		};
+	});
+
+	let searchFocused = $state(false);
+	let searchInputEl = $state<HTMLInputElement | null>(null);
+
+	let photoModalPlaceId = $state<string | null>(null);
+	let placePhotos = $state<Record<string, string[]>>({ ...(data.placePhotos ?? {}) });
+	let popupLightbox = $state<{ placeId: string; startIndex: number } | null>(null);
+
+	function handlePopupPhotoAction(placeId: string) {
+		photoModalPlaceId = placeId;
+	}
+
+	function handlePopupPhotoClick(placeId: string, photoIndex: number) {
+		popupLightbox = { placeId, startIndex: photoIndex };
+	}
+
+	async function closePhotoModal() {
+		const closingPlaceId = photoModalPlaceId;
+		photoModalPlaceId = null;
+		if (!closingPlaceId) return;
+		try {
+			const results = await loadPlacePhotos(supabase, closingPlaceId);
+			const urls = results.map(r => r.publicUrl);
+			placePhotos = { ...placePhotos, [closingPlaceId]: urls };
+		} catch (e) {
+			console.log('[closePhotoModal] failed to refresh photos', e);
+		}
+	}
 </script>
 
 <svelte:head>
@@ -544,116 +620,155 @@
 					<div class="flex shrink-0 items-center gap-1.5">
 						<div class="relative" bind:this={shareDropdownEl}>
 							<button onclick={handleShareButtonClick} class="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-bold transition-colors {collection.visibility === 'link_access' ? 'border-sage-200 bg-sage-50 text-sage-700 hover:bg-sage-100' : 'border-warm-200 text-warm-500 hover:bg-warm-50'}">
-								<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">{#if collection.visibility === 'link_access'}<circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />{:else}<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" />{/if}</svg>
+								<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">{#if collection.visibility === 'link_access'}<circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />{:else}<rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />{/if}</svg>
 								{collection.visibility === 'link_access' ? 'Shared' : 'Private'}
-								{#if collection.visibility === 'link_access'}
-									<svg class="h-2.5 w-2.5 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-								{/if}
+								<svg class="h-2.5 w-2.5 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9" /></svg>
 							</button>
-							{#if shareDropdownOpen && collection.visibility === 'link_access'}
+							{#if shareDropdownOpen}
 								<div class="absolute right-0 top-full z-20 mt-1 w-56 rounded-xl border border-warm-200 bg-white shadow-lg">
-									<button onclick={copyShareLink} class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-warm-50">
-										<svg class="h-4 w-4 shrink-0 text-warm-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
-										<span class="text-sm font-semibold text-warm-700">Copy link</span>
-									</button>
-									<div class="border-t border-warm-100"></div>
-									<div class="px-4 pt-3 pb-1">
-										<p class="text-xs font-semibold text-warm-400">Visible to others</p>
-									</div>
-									<button onclick={() => handleShareSettingChange('share_notes', !shareNotes)} class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50">
-										<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
-										<span class="flex-1 text-sm font-medium text-warm-700">Notes</span>
-										<div class="relative h-5 w-9 rounded-full transition-colors {shareNotes ? 'bg-brand-500' : 'bg-warm-300'}">
-											<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {shareNotes ? 'left-[18px]' : 'left-0.5'}"></div>
+									<!-- Share via link toggle -->
+									<button
+										onclick={handleToggleSharing}
+										class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-warm-50"
+									>
+										<svg class="h-4 w-4 shrink-0 text-warm-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
+										<span class="flex-1 text-sm font-semibold text-warm-700">Share via link</span>
+										<div class="relative h-5 w-9 rounded-full transition-colors {collection.visibility === 'link_access' ? 'bg-brand-500' : 'bg-warm-300'}">
+											<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {collection.visibility === 'link_access' ? 'left-[18px]' : 'left-0.5'}"></div>
 										</div>
 									</button>
-									<button onclick={() => handleShareSettingChange('share_photos', !sharePhotos)} class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50">
-										<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
-										<span class="flex-1 text-sm font-medium text-warm-700">Photos</span>
-										<div class="relative h-5 w-9 rounded-full transition-colors {sharePhotos ? 'bg-brand-500' : 'bg-warm-300'}">
-											<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {sharePhotos ? 'left-[18px]' : 'left-0.5'}"></div>
+
+									{#if collection.visibility === 'link_access'}
+										<div class="border-t border-warm-100"></div>
+										<button onclick={copyShareLink} class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-warm-50">
+											<svg class="h-4 w-4 shrink-0 text-warm-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
+											<span class="text-sm font-semibold text-warm-700">Copy link</span>
+										</button>
+										<div class="border-t border-warm-100"></div>
+										<div class="px-4 pt-3 pb-1">
+											<p class="text-xs font-semibold text-warm-400">Visible to others</p>
 										</div>
-									</button>
-									<button onclick={() => handleShareSettingChange('share_tags', !shareTags)} class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50">
-										<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>
-										<span class="flex-1 text-sm font-medium text-warm-700">Tags</span>
-										<div class="relative h-5 w-9 rounded-full transition-colors {shareTags ? 'bg-brand-500' : 'bg-warm-300'}">
-											<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {shareTags ? 'left-[18px]' : 'left-0.5'}"></div>
-										</div>
-									</button>
-									<div class="border-t border-warm-100"></div>
-									<button onclick={() => { setVisibility('private'); }} class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-danger-50">
-										<svg class="h-4 w-4 shrink-0 text-danger-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-										<span class="text-sm font-semibold text-danger-600">Turn off sharing</span>
-									</button>
+										<button onclick={() => handleShareSettingChange('share_notes', !shareNotes)} class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50">
+											<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+											<span class="flex-1 text-sm font-medium text-warm-700">Notes</span>
+											<div class="relative h-5 w-9 rounded-full transition-colors {shareNotes ? 'bg-brand-500' : 'bg-warm-300'}">
+												<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {shareNotes ? 'left-[18px]' : 'left-0.5'}"></div>
+											</div>
+										</button>
+										<button onclick={() => handleShareSettingChange('share_photos', !sharePhotos)} class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50">
+											<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
+											<span class="flex-1 text-sm font-medium text-warm-700">Photos</span>
+											<div class="relative h-5 w-9 rounded-full transition-colors {sharePhotos ? 'bg-brand-500' : 'bg-warm-300'}">
+												<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {sharePhotos ? 'left-[18px]' : 'left-0.5'}"></div>
+											</div>
+										</button>
+										<button onclick={() => handleShareSettingChange('share_tags', !shareTags)} class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50">
+											<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>
+											<span class="flex-1 text-sm font-medium text-warm-700">Tags</span>
+											<div class="relative h-5 w-9 rounded-full transition-colors {shareTags ? 'bg-brand-500' : 'bg-warm-300'}">
+												<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {shareTags ? 'left-[18px]' : 'left-0.5'}"></div>
+											</div>
+										</button>
+									{/if}
 								</div>
 							{/if}
 						</div>
-						<button onclick={() => { openAddModal(); }} class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700">
+						<button bind:this={addBtnEl} onclick={() => { if (showAddModal) { showAddModal = false; addSearch = ''; addTagFilter = {}; resetUrl(); } else { openAddModal(); } }} class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700">
 							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+							Add
 						</button>
 					</div>
 				</div>
 			</div>
 		</div>
 		<div class="flex items-center gap-2 border-t border-warm-200/60 px-3 py-1.5">
-			<p class="shrink-0 text-xs font-semibold text-warm-500">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</p>
-			<div class="relative min-w-0 flex-1">
-				<input type="text" bind:value={search} placeholder="Search..." class="w-full rounded-full border border-warm-200 bg-warm-50 py-1.5 pl-3.5 pr-8 text-xs font-medium text-warm-800 transition-colors placeholder:text-warm-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20" />
-				{#if search}<button onclick={() => { search = ''; }} class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600" aria-label="Clear search"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>{/if}
-			</div>
-			<div class="relative shrink-0">
+			{#if searchFocused || search}
+				<!-- Expanded search -->
 				<button
-					onclick={() => { collectionOptionsOpen = !collectionOptionsOpen; }}
-					class="flex items-center justify-center rounded-lg border border-warm-200 bg-white p-1.5 text-warm-400 transition-colors hover:bg-warm-50 hover:text-warm-600"
-					aria-label="Sort and view options"
+					onclick={() => { search = ''; searchFocused = false; searchInputEl?.blur(); }}
+					class="shrink-0 rounded-full p-1.5 text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600"
+					aria-label="Close search"
 				>
-					<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-						<line x1="4" y1="6" x2="20" y2="6" />
-						<line x1="4" y1="12" x2="20" y2="12" />
-						<line x1="4" y1="18" x2="20" y2="18" />
-						<circle cx="8" cy="6" r="2" fill="currentColor" />
-						<circle cx="14" cy="12" r="2" fill="currentColor" />
-						<circle cx="10" cy="18" r="2" fill="currentColor" />
+					<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6" /></svg>
+				</button>
+				<div class="relative min-w-0 flex-1">
+					<input
+						bind:this={searchInputEl}
+						type="text"
+						bind:value={search}
+						placeholder="Search..."
+						onfocus={() => { searchFocused = true; }}
+						onblur={() => { if (!search) searchFocused = false; }}
+						class="w-full rounded-xl border border-warm-200 bg-warm-50 py-3 pl-4 pr-10 text-base font-medium text-warm-800 transition-all placeholder:text-warm-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20"
+					/>
+					{#if search}<button onclick={() => { search = ''; searchInputEl?.focus(); }} class="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600" aria-label="Clear search"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>{/if}
+				</div>
+			{:else}
+				<!-- Collapsed: count + search icon + options -->
+				<p class="shrink-0 text-xs font-semibold text-warm-500">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</p>
+				<div class="min-w-0 flex-1"></div>
+				<button
+					onclick={() => { searchFocused = true; requestAnimationFrame(() => searchInputEl?.focus()); }}
+					class="shrink-0 rounded-full p-1.5 text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600"
+					aria-label="Search places"
+				>
+					<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
 					</svg>
 				</button>
-				{#if collectionOptionsOpen}
-					<div class="fixed inset-0 z-40" onclick={() => { collectionOptionsOpen = false; }} role="presentation"></div>
-					<div class="absolute right-0 top-full z-50 mt-1 w-44 rounded-lg border border-warm-200 bg-white p-2 shadow-lg">
-						<label for="coll-sort" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">Sort</label>
-						<select
-							id="coll-sort"
-							bind:value={sortBy}
-							onchange={() => { collectionOptionsOpen = false; }}
-							class="mb-2.5 w-full rounded-md border border-warm-200 bg-warm-50 px-2 py-1.5 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20"
-						>
-							<option value="newest">Recent</option>
-							<option value="az">A–Z</option>
-							<option value="rating">My Rating</option>
-						</select>
-						<span id="coll-view-label" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">View</span>
-						<div class="flex items-center gap-1 rounded-md border border-warm-200 bg-warm-50 p-0.5" role="group" aria-labelledby="coll-view-label">
-							<button
-								onclick={() => { viewMode = 'grid'; collectionOptionsOpen = false; }}
-								class="flex flex-1 items-center justify-center rounded px-2 py-1.5 transition-colors {viewMode === 'grid' ? 'bg-white text-warm-700 shadow-sm' : 'text-warm-400 hover:text-warm-600'}"
-								aria-label="Grid view"
+				<div class="relative shrink-0">
+					<button
+						onclick={() => { collectionOptionsOpen = !collectionOptionsOpen; }}
+						class="flex items-center justify-center rounded-lg border border-warm-200 bg-white p-1.5 text-warm-400 transition-colors hover:bg-warm-50 hover:text-warm-600"
+						aria-label="Sort and view options"
+					>
+						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+							<line x1="4" y1="6" x2="20" y2="6" />
+							<line x1="4" y1="12" x2="20" y2="12" />
+							<line x1="4" y1="18" x2="20" y2="18" />
+							<circle cx="8" cy="6" r="2" fill="currentColor" />
+							<circle cx="14" cy="12" r="2" fill="currentColor" />
+							<circle cx="10" cy="18" r="2" fill="currentColor" />
+						</svg>
+					</button>
+					{#if collectionOptionsOpen}
+						<div class="fixed inset-0 z-40" onclick={() => { collectionOptionsOpen = false; }} role="presentation"></div>
+						<div class="absolute right-0 top-full z-50 mt-1 w-44 rounded-lg border border-warm-200 bg-white p-2 shadow-lg">
+							<label for="coll-sort" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">Sort</label>
+							<select
+								id="coll-sort"
+								bind:value={sortBy}
+								onchange={() => { collectionOptionsOpen = false; }}
+								class="mb-2.5 w-full rounded-md border border-warm-200 bg-warm-50 px-2 py-1.5 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20"
 							>
-								<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
-							</button>
-							<button
-								onclick={() => { viewMode = 'list'; collectionOptionsOpen = false; }}
-								class="flex flex-1 items-center justify-center rounded px-2 py-1.5 transition-colors {viewMode === 'list' ? 'bg-white text-warm-700 shadow-sm' : 'text-warm-400 hover:text-warm-600'}"
-								aria-label="List view"
-							>
-								<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
-							</button>
+								<option value="newest">Recent</option>
+								<option value="az">A–Z</option>
+								<option value="rating">My Rating</option>
+							</select>
+							<span id="coll-view-label" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">View</span>
+							<div class="flex items-center gap-1 rounded-md border border-warm-200 bg-warm-50 p-0.5" role="group" aria-labelledby="coll-view-label">
+								<button
+									onclick={() => { viewMode = 'grid'; collectionOptionsOpen = false; }}
+									class="flex flex-1 items-center justify-center rounded px-2 py-1.5 transition-colors {viewMode === 'grid' ? 'bg-white text-warm-700 shadow-sm' : 'text-warm-400 hover:text-warm-600'}"
+									aria-label="Grid view"
+								>
+									<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
+								</button>
+								<button
+									onclick={() => { viewMode = 'list'; collectionOptionsOpen = false; }}
+									class="flex flex-1 items-center justify-center rounded px-2 py-1.5 transition-colors {viewMode === 'list' ? 'bg-white text-warm-700 shadow-sm' : 'text-warm-400 hover:text-warm-600'}"
+									aria-label="List view"
+								>
+									<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
+								</button>
+							</div>
 						</div>
-					</div>
-				{/if}
-			</div>
+					{/if}
+				</div>
+			{/if}
 		</div>
 	</div>
-	<MobileMapShell places={filteredPlaces} {selectedPlaceId} {recenterTick} onPlaceSelect={handleMapPlaceSelect} {maptilerKey} placePhotos={data.placePhotos} />
+	<MobileMapShell places={filteredPlaces} {selectedPlaceId} {recenterTick} onPlaceSelect={handleMapPlaceSelect} onPopupPhotoAction={handlePopupPhotoAction} onPopupPhotoClick={handlePopupPhotoClick} {maptilerKey} {placePhotos} />
 	<div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
 		<div class="mx-auto px-2.5 pt-1 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]">
 	<!-- Places -->
@@ -772,52 +887,60 @@
 					<div class="flex shrink-0 items-center gap-1.5 sm:gap-2">
 						<div class="relative" bind:this={shareDropdownEl}>
 							<button onclick={handleShareButtonClick} class="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-bold transition-colors sm:px-3 sm:py-1.5 {collection.visibility === 'link_access' ? 'border-sage-200 bg-sage-50 text-sage-700 hover:bg-sage-100' : 'border-warm-200 text-warm-500 hover:bg-warm-50'}">
-								<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">{#if collection.visibility === 'link_access'}<circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />{:else}<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" />{/if}</svg>
+								<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">{#if collection.visibility === 'link_access'}<circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />{:else}<rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />{/if}</svg>
 								{collection.visibility === 'link_access' ? 'Shared' : 'Private'}
-								{#if collection.visibility === 'link_access'}
-									<svg class="h-2.5 w-2.5 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-								{/if}
+								<svg class="h-2.5 w-2.5 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9" /></svg>
 							</button>
-							{#if shareDropdownOpen && collection.visibility === 'link_access'}
+							{#if shareDropdownOpen}
 								<div class="absolute right-0 top-full z-20 mt-1 w-56 rounded-xl border border-warm-200 bg-white shadow-lg">
-									<button onclick={copyShareLink} class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-warm-50">
-										<svg class="h-4 w-4 shrink-0 text-warm-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
-										<span class="text-sm font-semibold text-warm-700">Copy link</span>
-									</button>
-									<div class="border-t border-warm-100"></div>
-									<div class="px-4 pt-3 pb-1">
-										<p class="text-xs font-semibold text-warm-400">Visible to others</p>
-									</div>
-									<button onclick={() => handleShareSettingChange('share_notes', !shareNotes)} class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50">
-										<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
-										<span class="flex-1 text-sm font-medium text-warm-700">Notes</span>
-										<div class="relative h-5 w-9 rounded-full transition-colors {shareNotes ? 'bg-brand-500' : 'bg-warm-300'}">
-											<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {shareNotes ? 'left-[18px]' : 'left-0.5'}"></div>
+									<!-- Share via link toggle -->
+									<button
+										onclick={handleToggleSharing}
+										class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-warm-50"
+									>
+										<svg class="h-4 w-4 shrink-0 text-warm-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
+										<span class="flex-1 text-sm font-semibold text-warm-700">Share via link</span>
+										<div class="relative h-5 w-9 rounded-full transition-colors {collection.visibility === 'link_access' ? 'bg-brand-500' : 'bg-warm-300'}">
+											<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {collection.visibility === 'link_access' ? 'left-[18px]' : 'left-0.5'}"></div>
 										</div>
 									</button>
-									<button onclick={() => handleShareSettingChange('share_photos', !sharePhotos)} class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50">
-										<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
-										<span class="flex-1 text-sm font-medium text-warm-700">Photos</span>
-										<div class="relative h-5 w-9 rounded-full transition-colors {sharePhotos ? 'bg-brand-500' : 'bg-warm-300'}">
-											<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {sharePhotos ? 'left-[18px]' : 'left-0.5'}"></div>
+
+									{#if collection.visibility === 'link_access'}
+										<div class="border-t border-warm-100"></div>
+										<button onclick={copyShareLink} class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-warm-50">
+											<svg class="h-4 w-4 shrink-0 text-warm-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
+											<span class="text-sm font-semibold text-warm-700">Copy link</span>
+										</button>
+										<div class="border-t border-warm-100"></div>
+										<div class="px-4 pt-3 pb-1">
+											<p class="text-xs font-semibold text-warm-400">Visible to others</p>
 										</div>
-									</button>
-									<button onclick={() => handleShareSettingChange('share_tags', !shareTags)} class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50">
-										<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>
-										<span class="flex-1 text-sm font-medium text-warm-700">Tags</span>
-										<div class="relative h-5 w-9 rounded-full transition-colors {shareTags ? 'bg-brand-500' : 'bg-warm-300'}">
-											<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {shareTags ? 'left-[18px]' : 'left-0.5'}"></div>
-										</div>
-									</button>
-									<div class="border-t border-warm-100"></div>
-									<button onclick={() => { setVisibility('private'); }} class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-danger-50">
-										<svg class="h-4 w-4 shrink-0 text-danger-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-										<span class="text-sm font-semibold text-danger-600">Turn off sharing</span>
-									</button>
+										<button onclick={() => handleShareSettingChange('share_notes', !shareNotes)} class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50">
+											<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+											<span class="flex-1 text-sm font-medium text-warm-700">Notes</span>
+											<div class="relative h-5 w-9 rounded-full transition-colors {shareNotes ? 'bg-brand-500' : 'bg-warm-300'}">
+												<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {shareNotes ? 'left-[18px]' : 'left-0.5'}"></div>
+											</div>
+										</button>
+										<button onclick={() => handleShareSettingChange('share_photos', !sharePhotos)} class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50">
+											<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
+											<span class="flex-1 text-sm font-medium text-warm-700">Photos</span>
+											<div class="relative h-5 w-9 rounded-full transition-colors {sharePhotos ? 'bg-brand-500' : 'bg-warm-300'}">
+												<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {sharePhotos ? 'left-[18px]' : 'left-0.5'}"></div>
+											</div>
+										</button>
+										<button onclick={() => handleShareSettingChange('share_tags', !shareTags)} class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50">
+											<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>
+											<span class="flex-1 text-sm font-medium text-warm-700">Tags</span>
+											<div class="relative h-5 w-9 rounded-full transition-colors {shareTags ? 'bg-brand-500' : 'bg-warm-300'}">
+												<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {shareTags ? 'left-[18px]' : 'left-0.5'}"></div>
+											</div>
+										</button>
+									{/if}
 								</div>
 							{/if}
 						</div>
-						<button onclick={() => { openAddModal(); }} class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700 sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-sm">
+						<button bind:this={addBtnEl} onclick={() => { if (showAddModal) { showAddModal = false; addSearch = ''; addTagFilter = {}; resetUrl(); } else { openAddModal(); } }} class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700 sm:gap-1.5 sm:px-3.5 sm:py-1.5 sm:text-sm">
 							<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
 							<span class="hidden sm:inline">Add Places</span>
 						</button>
@@ -826,66 +949,88 @@
 			</div>
 		</div>
 		<div class="mx-auto flex max-w-none items-center gap-2 border-t border-warm-200/60 px-3 py-1.5 sm:px-6 sm:py-2 lg:px-4">
-			<p class="shrink-0 text-xs font-semibold text-warm-500 sm:text-base">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</p>
-			<div class="relative min-w-0 flex-1">
-				<input type="text" bind:value={search} placeholder="Search..." class="w-full rounded-full border border-warm-200 bg-warm-50 py-1.5 pl-3.5 pr-8 text-xs font-medium text-warm-800 transition-colors placeholder:text-warm-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20 sm:py-2 sm:pl-4 sm:pr-9 sm:text-sm" />
-				{#if search}<button onclick={() => { search = ''; }} class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600 sm:p-1" aria-label="Clear search"><svg class="h-3.5 w-3.5 sm:h-4 sm:w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>{/if}
-			</div>
-			<div class="relative shrink-0">
+			{#if searchFocused || search}
+				<!-- Expanded search -->
 				<button
-					onclick={() => { collectionOptionsOpen = !collectionOptionsOpen; }}
-					class="flex items-center justify-center rounded-lg border border-warm-200 bg-white p-1.5 text-warm-400 transition-colors hover:bg-warm-50 hover:text-warm-600 sm:py-1.5 sm:px-2"
-					aria-label="Sort and view options"
+					onclick={() => { search = ''; searchFocused = false; }}
+					class="shrink-0 rounded-full p-1.5 text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600"
+					aria-label="Close search"
 				>
-					<svg class="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-						<line x1="4" y1="6" x2="20" y2="6" />
-						<line x1="4" y1="12" x2="20" y2="12" />
-						<line x1="4" y1="18" x2="20" y2="18" />
-						<circle cx="8" cy="6" r="2" fill="currentColor" />
-						<circle cx="14" cy="12" r="2" fill="currentColor" />
-						<circle cx="10" cy="18" r="2" fill="currentColor" />
+					<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6" /></svg>
+				</button>
+				<div class="relative min-w-0 flex-1">
+					<input type="text" bind:value={search} placeholder="Search..." autofocus class="w-full rounded-full border border-warm-200 bg-warm-50 py-2 pl-4 pr-9 text-sm font-medium text-warm-800 transition-colors placeholder:text-warm-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20" onfocus={() => { searchFocused = true; }} onblur={() => { if (!search) searchFocused = false; }} />
+					{#if search}<button onclick={() => { search = ''; }} class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600" aria-label="Clear search"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>{/if}
+				</div>
+			{:else}
+				<!-- Collapsed: count + search icon + options -->
+				<p class="shrink-0 text-xs font-semibold text-warm-500 sm:text-base">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</p>
+				<div class="min-w-0 flex-1"></div>
+				<button
+					onclick={() => { searchFocused = true; }}
+					class="shrink-0 rounded-full p-1.5 text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600"
+					aria-label="Search places"
+				>
+					<svg class="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
 					</svg>
 				</button>
-				{#if collectionOptionsOpen}
-					<div class="fixed inset-0 z-40" onclick={() => { collectionOptionsOpen = false; }} role="presentation"></div>
-					<div class="absolute right-0 top-full z-50 mt-1 w-44 rounded-lg border border-warm-200 bg-white p-2 shadow-lg">
-						<label for="coll-desk-sort" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">Sort</label>
-						<select
-							id="coll-desk-sort"
-							bind:value={sortBy}
-							onchange={() => { collectionOptionsOpen = false; }}
-							class="mb-2.5 w-full rounded-md border border-warm-200 bg-warm-50 px-2 py-1.5 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20"
-						>
-							<option value="newest">Recent</option>
-							<option value="az">A–Z</option>
-							<option value="rating">My Rating</option>
-						</select>
-						<span id="coll-desk-view-label" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">View</span>
-						<div class="flex items-center gap-1 rounded-md border border-warm-200 bg-warm-50 p-0.5" role="group" aria-labelledby="coll-desk-view-label">
-							<button
-								onclick={() => { viewMode = 'grid'; collectionOptionsOpen = false; }}
-								class="flex flex-1 items-center justify-center rounded px-2 py-1.5 transition-colors {viewMode === 'grid' ? 'bg-white text-warm-700 shadow-sm' : 'text-warm-400 hover:text-warm-600'}"
-								aria-label="Grid view"
+				<div class="relative shrink-0">
+					<button
+						onclick={() => { collectionOptionsOpen = !collectionOptionsOpen; }}
+						class="flex items-center justify-center rounded-lg border border-warm-200 bg-white p-1.5 text-warm-400 transition-colors hover:bg-warm-50 hover:text-warm-600 sm:py-1.5 sm:px-2"
+						aria-label="Sort and view options"
+					>
+						<svg class="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+							<line x1="4" y1="6" x2="20" y2="6" />
+							<line x1="4" y1="12" x2="20" y2="12" />
+							<line x1="4" y1="18" x2="20" y2="18" />
+							<circle cx="8" cy="6" r="2" fill="currentColor" />
+							<circle cx="14" cy="12" r="2" fill="currentColor" />
+							<circle cx="10" cy="18" r="2" fill="currentColor" />
+						</svg>
+					</button>
+					{#if collectionOptionsOpen}
+						<div class="fixed inset-0 z-40" onclick={() => { collectionOptionsOpen = false; }} role="presentation"></div>
+						<div class="absolute right-0 top-full z-50 mt-1 w-44 rounded-lg border border-warm-200 bg-white p-2 shadow-lg">
+							<label for="coll-desk-sort" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">Sort</label>
+							<select
+								id="coll-desk-sort"
+								bind:value={sortBy}
+								onchange={() => { collectionOptionsOpen = false; }}
+								class="mb-2.5 w-full rounded-md border border-warm-200 bg-warm-50 px-2 py-1.5 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20"
 							>
-								<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
-							</button>
-							<button
-								onclick={() => { viewMode = 'list'; collectionOptionsOpen = false; }}
-								class="flex flex-1 items-center justify-center rounded px-2 py-1.5 transition-colors {viewMode === 'list' ? 'bg-white text-warm-700 shadow-sm' : 'text-warm-400 hover:text-warm-600'}"
-								aria-label="List view"
-							>
-								<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
-							</button>
+								<option value="newest">Recent</option>
+								<option value="az">A–Z</option>
+								<option value="rating">My Rating</option>
+							</select>
+							<span id="coll-desk-view-label" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">View</span>
+							<div class="flex items-center gap-1 rounded-md border border-warm-200 bg-warm-50 p-0.5" role="group" aria-labelledby="coll-desk-view-label">
+								<button
+									onclick={() => { viewMode = 'grid'; collectionOptionsOpen = false; }}
+									class="flex flex-1 items-center justify-center rounded px-2 py-1.5 transition-colors {viewMode === 'grid' ? 'bg-white text-warm-700 shadow-sm' : 'text-warm-400 hover:text-warm-600'}"
+									aria-label="Grid view"
+								>
+									<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
+								</button>
+								<button
+									onclick={() => { viewMode = 'list'; collectionOptionsOpen = false; }}
+									class="flex flex-1 items-center justify-center rounded px-2 py-1.5 transition-colors {viewMode === 'list' ? 'bg-white text-warm-700 shadow-sm' : 'text-warm-400 hover:text-warm-600'}"
+									aria-label="List view"
+								>
+									<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
+								</button>
+							</div>
 						</div>
-					</div>
-				{/if}
-			</div>
+					{/if}
+				</div>
+			{/if}
 		</div>
 	</div>
 
 	<div class="flex flex-col lg:flex-row">
 		<div class="relative z-0 overflow-hidden h-[35vh] shrink-0 border-b border-warm-200 sm:h-[38vh] lg:order-2 lg:sticky lg:top-[120px] lg:h-[calc(100dvh-120px)] lg:w-[42%] lg:self-start lg:border-b-0 lg:border-l">
-			<MapView places={filteredPlaces} {selectedPlaceId} {recenterTick} onPlaceSelect={handleMapPlaceSelect} {maptilerKey} placePhotos={data.placePhotos} />
+			<MapView places={filteredPlaces} {selectedPlaceId} {recenterTick} onPlaceSelect={handleMapPlaceSelect} onPopupPhotoAction={handlePopupPhotoAction} onPopupPhotoClick={handlePopupPhotoClick} {maptilerKey} {placePhotos} />
 		</div>
 		<div class="min-w-0 flex-1 lg:order-1">
 			<div class="mx-auto px-2.5 py-3 sm:px-6 sm:py-4 lg:px-4 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]">
@@ -915,25 +1060,21 @@
 	</div>
 </div>
 {/if}
-<!-- Add places modal -->
+<!-- Add places popover -->
 {#if showAddModal}
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="fixed inset-0 z-[60] flex items-end justify-center sm:items-center" onclick={() => { showAddModal = false; addSearch = ''; addTagFilter = {}; resetUrl(); }}>
-		<div class="absolute inset-0 bg-warm-900/40 backdrop-blur-sm"></div>
-		<div
-			class="relative z-10 flex w-full flex-col border border-warm-200 bg-[#faf7f2] shadow-xl sm:max-h-[85dvh] sm:max-w-lg sm:rounded-2xl"
-			style={isMobile ? `height: ${vvHeight}px;` : ''}
-			onclick={(e) => e.stopPropagation()}
-		>
-			<div class="flex items-center justify-between border-b border-warm-100 px-4 py-3 sm:px-5">
-				<h2 class="text-sm font-bold text-warm-800 sm:text-base">Add places to {collection.name}</h2>
-				<button onclick={() => { showAddModal = false; addSearch = ''; addTagFilter = {}; resetUrl(); }} class="rounded-lg p-1.5 text-warm-400 hover:bg-warm-100 hover:text-warm-600" aria-label="Close">
-					<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-					</svg>
-				</button>
-			</div>
+	<div
+		bind:this={addPopoverEl}
+		class="fixed z-[60] flex max-w-md flex-col overflow-hidden rounded-xl border border-warm-200 bg-[#faf7f2] shadow-xl"
+		style="{isMobile ? `top: ${popoverTop}px; left: 50%; transform: translateX(-50%);` : `top: ${popoverTop}px; right: ${popoverRight}px;`} width: min(28rem, calc(100vw - 1rem)); max-height: min(60vh, 480px, calc(100dvh - {popoverTop + 16}px));"
+	>
+		<div class="flex items-center justify-between border-b border-warm-100 px-4 py-2.5">
+			<h2 class="text-sm font-bold text-warm-800">Add places to {collection.name}</h2>
+			<button onclick={() => { showAddModal = false; addSearch = ''; addTagFilter = {}; resetUrl(); }} class="rounded-lg p-1.5 text-warm-400 hover:bg-warm-100 hover:text-warm-600" aria-label="Close">
+				<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+				</svg>
+			</button>
+		</div>
 
 		<!-- Smart search / URL input -->
 		<div class="border-b border-warm-100 px-4 py-2">
@@ -1037,42 +1178,84 @@
 			{/if}
 		</div>
 
-			<div class="flex-1 overflow-y-auto px-2 py-2 sm:px-3">
-				{#each nonMemberPlaces as p (p.id)}
-					{@const pTags = (placeTagsMap[p.id] ?? []).filter((t) => t.source === 'user')}
-					<button
-						onclick={() => handleAddPlace(p.id)}
-						class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-warm-50"
-					>
-						<svg class="h-4 w-4 shrink-0 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-						</svg>
-						<div class="min-w-0 flex-1">
-							<p class="truncate text-sm font-semibold text-warm-800">{p.title}</p>
+		<div class="flex-1 overflow-y-auto px-2 py-2">
+			{#each nonMemberPlaces as p (p.id)}
+				{@const pTags = (placeTagsMap[p.id] ?? []).filter((t) => t.source === 'user')}
+				<button
+					onclick={() => handleAddPlace(p.id)}
+					class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-warm-50"
+				>
+					<svg class="h-4 w-4 shrink-0 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+					</svg>
+					<div class="min-w-0 flex-1">
+						<p class="truncate text-sm font-semibold text-warm-800">{p.title}</p>
+					</div>
+					{#if pTags.length > 0}
+						<div class="flex shrink-0 items-center gap-1">
+							{#each pTags.slice(0, 2) as tag (tag.id)}
+								<span
+									class="rounded-full px-1.5 py-px text-xs font-semibold"
+									style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
+								>{tag.name}</span>
+							{/each}
+							{#if pTags.length > 2}
+								<span class="text-xs font-bold text-warm-400">+{pTags.length - 2}</span>
+							{/if}
 						</div>
-						{#if pTags.length > 0}
-							<div class="flex shrink-0 items-center gap-1">
-								{#each pTags.slice(0, 2) as tag (tag.id)}
-									<span
-										class="rounded-full px-1.5 py-px text-xs font-semibold"
-										style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
-									>{tag.name}</span>
-								{/each}
-								{#if pTags.length > 2}
-									<span class="text-xs font-bold text-warm-400">+{pTags.length - 2}</span>
-								{/if}
-							</div>
-						{/if}
-					</button>
-				{:else}
-					<p class="py-8 text-center text-sm text-warm-400">
-						{addSearch ? 'No matching places' : 'All your places are already in this collection'}
-					</p>
-				{/each}
+					{/if}
+				</button>
+			{:else}
+				<p class="py-8 text-center text-sm text-warm-400">
+					{addSearch ? 'No matching places' : 'All your places are already in this collection'}
+				</p>
+			{/each}
+		</div>
+	</div>
+{/if}
+{/if}
+
+<!-- Photo modal (triggered from map popup camera icon) -->
+{#if photoModalPlaceId}
+	{@const photoPlace = places.find(p => p.id === photoModalPlaceId)}
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="fixed inset-0 z-[60] flex items-end justify-center sm:items-center" onclick={closePhotoModal}>
+		<div class="absolute inset-0 bg-warm-900/40 backdrop-blur-sm"></div>
+		<div
+			class="relative z-10 flex max-h-[80dvh] w-full flex-col rounded-t-2xl border border-warm-200 bg-white shadow-xl sm:max-w-md sm:rounded-2xl"
+			onclick={(e) => e.stopPropagation()}
+		>
+			<div class="flex items-center justify-between border-b border-warm-100 px-4 py-3 sm:px-5">
+				<div class="flex items-center gap-2 min-w-0">
+					<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+						<circle cx="12" cy="13" r="4"/>
+					</svg>
+					<h2 class="truncate text-sm font-bold text-warm-800 sm:text-base">{photoPlace?.title ?? 'Photos'}</h2>
+				</div>
+				<button onclick={closePhotoModal} class="rounded-lg p-1.5 text-warm-400 hover:bg-warm-100 hover:text-warm-600" aria-label="Close">
+					<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+					</svg>
+				</button>
+			</div>
+			<div class="flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
+				<PhotoGrid {supabase} placeId={photoModalPlaceId} userId={session?.user?.id ?? ''} />
 			</div>
 		</div>
 	</div>
 {/if}
+
+{#if popupLightbox}
+	{@const urls = placePhotos[popupLightbox.placeId] ?? []}
+	{#if urls.length > 0}
+		<PhotoLightbox
+			{urls}
+			startIndex={popupLightbox.startIndex}
+			onClose={() => { popupLightbox = null; }}
+		/>
+	{/if}
 {/if}
 
 <!-- Toasts -->

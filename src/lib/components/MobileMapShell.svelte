@@ -15,23 +15,43 @@
 
 	let { places, selectedPlaceId, recenterTick = 0, onPlaceSelect, onPopupPhotoAction, onPopupPhotoClick, maptilerKey = '', placePhotos = {} }: Props = $props();
 
-	const MIN_HEIGHT = 80;
-	const DEFAULT_HEIGHT = 128;
-	const SNAP_COLLAPSED = 100;
-	const SNAP_EXPANDED_VH = 0.55;
+	const SNAP_COLLAPSED = 80;
 
-	let mapHeight = $state(DEFAULT_HEIGHT);
+	function getSnapMedium(vh: number): number {
+		return Math.max(120, Math.round(vh - 600));
+	}
+
+	function getSnapLarge(vh: number): number {
+		return Math.round(vh * 0.55);
+	}
+
+	let mapHeight = $state(typeof window !== 'undefined' ? getSnapMedium(window.innerHeight) : 130);
 	let dragging = $state(false);
 	let animating = $state(false);
 
 	let dragStartY = 0;
 	let dragStartHeight = 0;
 
-	let maxHeight = $derived(typeof window !== 'undefined' ? window.innerHeight * 0.7 : 500);
-	let mapMode = $derived<'collapsed' | 'expanded'>(mapHeight > 180 ? 'expanded' : 'collapsed');
+	let maxHeight = $derived(typeof window !== 'undefined' ? getSnapLarge(window.innerHeight) : 500);
+	let mapMode = $derived<'collapsed' | 'expanded'>(mapHeight > SNAP_COLLAPSED + 20 ? 'expanded' : 'collapsed');
 
 	function clampHeight(h: number): number {
-		return Math.max(MIN_HEIGHT, Math.min(h, maxHeight));
+		return Math.max(SNAP_COLLAPSED, Math.min(h, maxHeight));
+	}
+
+	function snapToNearest(currentH: number): number {
+		const vh = window.innerHeight;
+		const snaps = [SNAP_COLLAPSED, getSnapMedium(vh), getSnapLarge(vh)];
+		let closest = snaps[0];
+		let minDist = Math.abs(currentH - closest);
+		for (const s of snaps) {
+			const dist = Math.abs(currentH - s);
+			if (dist < minDist) {
+				minDist = dist;
+				closest = s;
+			}
+		}
+		return closest;
 	}
 
 	function onPointerDown(e: PointerEvent) {
@@ -51,25 +71,17 @@
 	function onPointerUp() {
 		if (!dragging) return;
 		dragging = false;
-
-		const viewH = window.innerHeight;
 		animating = true;
-		if (mapHeight < SNAP_COLLAPSED) {
-			mapHeight = MIN_HEIGHT;
-		} else if (mapHeight > viewH * 0.4) {
-			mapHeight = clampHeight(viewH * SNAP_EXPANDED_VH);
-		}
+		mapHeight = snapToNearest(mapHeight);
 		setTimeout(() => { animating = false; }, 220);
 	}
 
 	function onDoubleTap() {
 		animating = true;
-		const viewH = window.innerHeight;
-		if (mapHeight > DEFAULT_HEIGHT + 20) {
-			mapHeight = DEFAULT_HEIGHT;
-		} else {
-			mapHeight = clampHeight(viewH * SNAP_EXPANDED_VH);
-		}
+		const vh = window.innerHeight;
+		const large = getSnapLarge(vh);
+		const medium = getSnapMedium(vh);
+		mapHeight = mapHeight >= large - 10 ? medium : large;
 		setTimeout(() => { animating = false; }, 220);
 	}
 </script>

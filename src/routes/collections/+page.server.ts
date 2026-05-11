@@ -4,7 +4,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const supabase = locals.supabase;
 	const userId = locals.user?.id;
 
-	const [listsRes, photosRes] = await Promise.all([
+	const [listsRes, photosRes, savedRes] = await Promise.all([
 		supabase
 			.from('lists')
 			.select('*, list_places(place_id)')
@@ -15,12 +15,17 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.select('place_id, storage_path, sort_order')
 			.eq('user_id', userId!)
 			.order('sort_order', { ascending: true })
-			.order('created_at', { ascending: true })
+			.order('created_at', { ascending: true }),
+		supabase
+			.from('saved_collections')
+			.select('id, source_list_id, saved_at, lists!saved_collections_source_list_id_fkey(id, user_id, name, description, color, emoji, visibility, share_slug, share_notes, share_photos, share_tags, sort_order, created_at, updated_at, list_places(place_id))')
+			.eq('user_id', userId!)
+			.order('saved_at', { ascending: false })
 	]);
 
-	const rows = listsRes.data ?? [];
+	const rows = (listsRes.data ?? []) as any[];
 	const collectionPlacesMap: Record<string, string[]> = {};
-	const collections = rows.map(({ list_places, ...col }) => {
+	const collections = rows.map(({ list_places, ...col }: any) => {
 		collectionPlacesMap[col.id] = (list_places as { place_id: string }[]).map((lp) => lp.place_id);
 		return col;
 	});
@@ -31,5 +36,17 @@ export const load: PageServerLoad = async ({ locals }) => {
 		(placePhotos[row.place_id] ??= []).push(publicUrl);
 	}
 
-	return { collections, collectionPlacesMap, placePhotos };
+	const savedCollections = (savedRes.data ?? []).map((row: any) => {
+		const source = row.lists;
+		const isAvailable = source && source.visibility === 'link_access';
+		return {
+			id: row.id,
+			source_list_id: row.source_list_id,
+			saved_at: row.saved_at,
+			source_collection: isAvailable ? { ...source, list_places: undefined } : null,
+			placeCount: isAvailable ? (source?.list_places?.length ?? 0) : 0,
+		};
+	});
+
+	return { collections, collectionPlacesMap, placePhotos, savedCollections };
 };
