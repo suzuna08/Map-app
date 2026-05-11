@@ -401,18 +401,21 @@ export interface Database {
 					user_id: string;
 					source_list_id: string;
 					saved_at: string;
+					sort_order: number;
 				};
 				Insert: {
 					id?: string;
 					user_id: string;
 					source_list_id: string;
 					saved_at?: string;
+					sort_order?: number;
 				};
 				Update: {
 					id?: string;
 					user_id?: string;
 					source_list_id?: string;
 					saved_at?: string;
+					sort_order?: number;
 				};
 				Relationships: [
 					{

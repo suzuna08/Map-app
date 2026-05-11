@@ -439,7 +439,7 @@
 											</svg>
 										</button>
 									</div>
-									<div class="flex-1 overflow-y-auto rounded-lg border border-warm-100 bg-warm-50 p-3">
+									<div class="flex-1 overflow-y-auto">
 										<p class="whitespace-pre-wrap text-sm leading-relaxed text-warm-700">{place.note?.trim()}</p>
 									</div>
 								</article>

@@ -116,6 +116,19 @@ export async function reorderCollections(
 	return failed.length === 0;
 }
 
+export async function reorderSavedCollections(
+	supabase: SupabaseClient<Database>,
+	orderedIds: string[]
+): Promise<boolean> {
+	const updates = orderedIds.map((id, i) =>
+		supabase.from('saved_collections').update({ sort_order: i }).eq('id', id)
+	);
+	const results = await Promise.all(updates);
+	const failed = results.filter((r) => r.error);
+	if (failed.length > 0) console.error('[reorderSavedCollections] update failed', failed[0].error);
+	return failed.length === 0;
+}
+
 export async function addPlaceToCollection(
 	supabase: SupabaseClient<Database>,
 	collectionId: string,
@@ -313,10 +326,10 @@ export async function removeSavedCollection(
 export async function loadSavedCollectionPlaces(
 	supabase: SupabaseClient<Database>,
 	sourceListId: string
-): Promise<{ places: Place[]; tags: { id: string; name: string; color: string | null }[]; shareSettings: { notes: boolean; photos: boolean; tags: boolean } } | null> {
+): Promise<{ places: Place[]; tags: { id: string; name: string; color: string | null }[]; placeTags: Record<string, { id: string; name: string; color: string | null }[]>; shareSettings: { notes: boolean; photos: boolean; tags: boolean } } | null> {
 	const { data: col, error: colErr } = await supabase
 		.from('lists')
-		.select('id, user_id, visibility, share_notes, share_photos, share_tags, list_places(place_id, places(id, user_id, title, note, url, source_list, created_at, google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at, user_rating, user_rated_at))')
+		.select('id, user_id, visibility, share_notes, share_photos, share_tags, list_places(place_id)')
 		.eq('id', sourceListId)
 		.eq('visibility', 'link_access')
 		.single();
@@ -329,15 +342,35 @@ export async function loadSavedCollectionPlaces(
 		tags: (col as any).share_tags ?? false,
 	};
 
-	const listPlaces = (col as any).list_places as any[];
-	let places: Place[] = listPlaces.map((lp: any) => lp.places).filter(Boolean) as Place[];
+	const placeIds = ((col as any).list_places as { place_id: string }[]).map((lp) => lp.place_id);
+	if (placeIds.length === 0) return { places: [], tags: [], placeTags: {}, shareSettings };
+
+	const { data: placesData } = await supabase
+		.from('places')
+		.select('id, user_id, title, note, url, source_list, created_at, google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at, user_rating, user_rated_at')
+		.in('id', placeIds);
+
+	let places: Place[] = (placesData ?? []) as Place[];
 
 	if (!shareSettings.notes) {
 		places = places.map((p) => ({ ...p, note: null }));
 	}
 
 	let tags: { id: string; name: string; color: string | null }[] = [];
-	if (shareSettings.tags) {
+	const placeTags: Record<string, { id: string; name: string; color: string | null }[]> = {};
+
+	if (shareSettings.tags && placeIds.length > 0) {
+		const { data: ptData } = await supabase
+			.from('place_tags')
+			.select('place_id, tag_id, tags:tag_id(id, name, color)')
+			.in('place_id', placeIds);
+
+		for (const row of (ptData ?? []) as { place_id: string; tags: { id: string; name: string; color: string | null } }[]) {
+			if (row.tags) {
+				(placeTags[row.place_id] ??= []).push(row.tags);
+			}
+		}
+
 		const ownerId = (col as any).user_id;
 		const { data: tagData } = await supabase
 			.from('tags')
@@ -346,7 +379,7 @@ export async function loadSavedCollectionPlaces(
 		tags = (tagData ?? []) as { id: string; name: string; color: string | null }[];
 	}
 
-	return { places, tags, shareSettings };
+	return { places, tags, placeTags, shareSettings };
 }
 
 const PLACE_COLUMNS = 'id, user_id, title, note, url, source_list, created_at, google_place_id, category, primary_type, rating, rating_count, price_level, address, area, description, lat, lng, phone, website, enriched_at, user_rating, user_rated_at';

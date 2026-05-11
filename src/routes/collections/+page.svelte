@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Place, Tag, Collection } from '$lib/types/database';
-	import { createCollection, deleteCollection, loadCollections, updateCollection, loadCollectionPlaces, addPlacesToCollection, removePlaceFromCollection, enableSharing, disableSharing, reorderCollections, removeSavedCollection, loadSavedCollectionPlaces } from '$lib/stores/collections.svelte';
+	import { createCollection, deleteCollection, loadCollections, updateCollection, loadCollectionPlaces, addPlacesToCollection, removePlaceFromCollection, enableSharing, disableSharing, reorderCollections, reorderSavedCollections, removeSavedCollection, loadSavedCollectionPlaces } from '$lib/stores/collections.svelte';
 	import type { CollectionMemberMap, SavedCollectionRef } from '$lib/stores/collections.svelte';
 	import { buildPlaceTagsMap, refreshTagsData } from '$lib/stores/places.svelte';
 	import { showToast, getToasts, dismissToast } from '$lib/stores/toasts.svelte';
@@ -33,10 +33,17 @@
 	let savedBrowsePlaces = $state<Place[]>([]);
 	let savedBrowseLoading = $state(false);
 	let savedShareSettings = $state<{ notes: boolean; photos: boolean; tags: boolean }>({ notes: true, photos: true, tags: false });
+	let savedPlaceTags = $state<Record<string, { id: string; name: string; color: string | null }[]>>({});
 	let savedImportedIds = $state<Set<string>>(new Set());
 
 	let selectedSaved = $derived(savedCollections.find((s) => s.id === selectedSavedId) ?? null);
 	let isSavedMode = $derived(selectedSavedId !== null);
+
+	type TabItem = { kind: 'owned'; id: string; col: Collection } | { kind: 'saved'; id: string; saved: (typeof savedCollections)[number] };
+	let tabItems = $derived<TabItem[]>([
+		...collections.map((col) => ({ kind: 'owned' as const, id: col.id, col })),
+		...savedCollections.map((s) => ({ kind: 'saved' as const, id: `saved:${s.id}`, saved: s })),
+	]);
 
 	// Browse mode state
 	let selectedCollectionId = $state<string | null>(null);
@@ -273,11 +280,22 @@
 
 	// Drag-to-reorder via sortable action
 	function handleCollectionReorder(orderedIds: string[]) {
+		const ownedIds = orderedIds.filter((id) => !id.startsWith('saved:'));
+		const savedIds = orderedIds.filter((id) => id.startsWith('saved:')).map((id) => id.slice(6));
+
 		const prev = collections;
-		collections = orderedIds
+		collections = ownedIds
 			.map((id) => prev.find((c) => c.id === id))
 			.filter((c): c is Collection => c !== null);
-		reorderCollections(supabase, orderedIds);
+		reorderCollections(supabase, ownedIds);
+
+		if (savedIds.length > 0) {
+			const prevSaved = savedCollections;
+			savedCollections = savedIds
+				.map((id) => prevSaved.find((s) => s.id === id))
+				.filter((s): s is (typeof prevSaved)[number] => s !== null);
+			reorderSavedCollections(supabase, savedIds);
+		}
 	}
 
 	let selectedCollection = $derived(collections.find((c) => c.id === selectedCollectionId) ?? null);
@@ -296,6 +314,7 @@
 	}
 
 	$effect(() => {
+		if (selectedSavedId) return;
 		const urlCol = page.url.searchParams.get('collection');
 		if (urlCol && !selectedCollectionId && collections.some((c) => c.id === urlCol)) {
 			selectCollection(urlCol);
@@ -706,8 +725,10 @@
 		if (result) {
 			savedBrowsePlaces = result.places;
 			savedShareSettings = result.shareSettings;
+			savedPlaceTags = result.placeTags;
 		} else {
 			savedBrowsePlaces = [];
+			savedPlaceTags = {};
 		}
 		savedBrowseLoading = false;
 	}
@@ -833,77 +854,66 @@
 						itemSelector: '[data-col-id]',
 						idAttribute: 'data-col-id',
 						longPressMs: 350,
-						disabled: collections.length < 2,
+						disabled: (collections.length + savedCollections.length) < 2,
 						ignoreDragFrom: 'button[aria-label="Collection actions"]',
 					}}
 				>
-				{#each collections as col (col.id)}
-						<div class="relative shrink-0" data-col-id={col.id}>
+				{#each tabItems as item (item.id)}
+					{#if item.kind === 'owned'}
+						<div class="relative shrink-0" data-col-id={item.col.id}>
 							<button
-								onclick={() => selectCollection(col.id)}
+								onclick={() => selectCollection(item.col.id)}
 								class="group flex items-center gap-1.5 border-b-[3px] pl-2 pr-5 pb-2.5 pt-1.5 text-left transition-all
-									{selectedCollectionId === col.id ? 'border-brand-600 text-warm-800' : 'border-transparent text-warm-400 hover:text-warm-600'}"
+									{selectedCollectionId === item.col.id ? 'border-brand-600 text-warm-800' : 'border-transparent text-warm-400 hover:text-warm-600'}"
 							>
-								<CollectionAvatar color={col.color} emoji={col.emoji} size="xs" />
-								<p class="truncate text-xs font-bold">{col.name}</p>
+								<CollectionAvatar color={item.col.color} emoji={item.col.emoji} size="xs" />
+								<p class="truncate text-xs font-bold">{item.col.name}</p>
 							</button>
 							<button
-								onclick={(e) => { e.stopPropagation(); const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); tabMenuPos = { top: rect.bottom + 4, left: Math.min(rect.left, window.innerWidth - 168) }; tabMenuOpenId = tabMenuOpenId === col.id ? null : col.id; }}
+								onclick={(e) => { e.stopPropagation(); const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); tabMenuPos = { top: rect.bottom + 4, left: Math.min(rect.left, window.innerWidth - 168) }; tabMenuOpenId = tabMenuOpenId === item.col.id ? null : item.col.id; }}
 								class="absolute right-0 top-0 flex items-center justify-center rounded-full p-1 text-warm-300 transition-colors hover:bg-warm-200/60 hover:text-warm-500"
 								aria-label="Collection actions"
 							>
 								<svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></svg>
 							</button>
 						</div>
-					{/each}
-					{#if savedCollections.length > 0}
-						<div class="mx-1 h-5 w-px shrink-0 bg-warm-200/60"></div>
-						{#each savedCollections as saved (saved.id)}
-							<div class="relative shrink-0">
-								<button
-									onclick={() => selectSavedCollection(saved.id)}
-									class="group flex items-center gap-1.5 border-b-[3px] pl-2 pr-2 pb-2.5 pt-1.5 text-left transition-all
-										{selectedSavedId === saved.id ? 'border-brand-600 text-warm-800' : 'border-transparent text-warm-400 hover:text-warm-600'}"
-								>
-									{#if saved.source_collection}
-										<div class="relative">
-											<CollectionAvatar color={saved.source_collection.color} emoji={saved.source_collection.emoji} size="xs" />
-											<svg class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 text-sage-500" viewBox="0 0 24 24" fill="currentColor"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
-										</div>
-										<p class="truncate text-xs font-bold">{saved.source_collection.name}</p>
-									{:else}
-										<div class="flex h-5 w-5 items-center justify-center rounded-full bg-warm-200">
-											<svg class="h-3 w-3 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
-										</div>
-								<p class="truncate text-xs font-bold text-warm-300">{t('shared.unavailable')}</p>
+					{:else}
+						<div class="relative shrink-0" data-col-id="saved:{item.saved.id}">
+							<button
+								onclick={() => selectSavedCollection(item.saved.id)}
+								class="group flex items-center gap-1.5 border-b-[3px] pl-2 pr-5 pb-2.5 pt-1.5 text-left transition-all
+									{selectedSavedId === item.saved.id ? 'border-brand-600 text-warm-800' : 'border-transparent text-warm-400 hover:text-warm-600'}"
+							>
+								{#if item.saved.source_collection}
+									<div class="relative">
+										<CollectionAvatar color={item.saved.source_collection.color} emoji={item.saved.source_collection.emoji} size="xs" />
+										<svg class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 text-sage-500" viewBox="0 0 24 24" fill="currentColor"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
+									</div>
+									<p class="truncate text-xs font-bold">{item.saved.source_collection.name}</p>
+								{:else}
+									<div class="flex h-5 w-5 items-center justify-center rounded-full bg-warm-200">
+										<svg class="h-3 w-3 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+									</div>
+									<p class="truncate text-xs font-bold text-warm-300">{t('shared.unavailable')}</p>
 								{/if}
 							</button>
+							<button
+								onclick={(e) => { e.stopPropagation(); const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); tabMenuPos = { top: rect.bottom + 4, left: Math.min(rect.left, window.innerWidth - 168) }; tabMenuOpenId = tabMenuOpenId === item.saved.id ? null : item.saved.id; }}
+								class="absolute right-0 top-0 flex items-center justify-center rounded-full p-1 text-warm-300 transition-colors hover:bg-warm-200/60 hover:text-warm-500"
+								aria-label="Collection actions"
+							>
+								<svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></svg>
+							</button>
 						</div>
-					{/each}
-				{/if}
+					{/if}
+				{/each}
 			</div>
 		</div>
 	</div>
 
 	{#if isSavedMode && selectedSaved}
 		<!-- Read-only saved collection browse -->
-		<div class="shrink-0 border-b border-warm-200/40 bg-[#faf7f2] px-3 py-2">
-			<div class="flex items-center gap-2">
-				{#if selectedSaved.source_collection}
-					<svg class="h-4 w-4 shrink-0 text-sage-500" viewBox="0 0 24 24" fill="currentColor"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
-					<span class="min-w-0 flex-1 truncate text-xs font-medium text-warm-500">{t('shared.savedCollectionHint')}</span>
-				{:else}
-					<span class="text-xs font-medium text-warm-400">{t('shared.noLongerShared')}</span>
-				{/if}
-				<button
-					onclick={() => handleRemoveSavedCollection(selectedSaved.id)}
-					class="shrink-0 rounded-lg border border-warm-200 px-2 py-1 text-xs font-medium text-warm-500 transition-colors hover:bg-warm-100 hover:text-warm-600"
-				>
-					{t('shared.remove')}
-				</button>
-				</div>
-			</div>
-			{#if savedBrowseLoading}
+		{#if savedBrowseLoading}
 				<div class="flex flex-1 items-center justify-center">
 					<svg class="h-8 w-8 animate-spin text-brand-500" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
 				</div>
@@ -925,29 +935,63 @@
 						<div class="flex flex-col gap-2">
 							{#each sortedSavedPlaces as place (place.id)}
 								{@const imported = savedImportedIds.has(place.id)}
-								<div class="rounded-xl border border-warm-200 bg-white p-3 transition-all {selectedPlaceId === place.id ? 'ring-2 ring-brand-400/30 border-brand-400' : ''}">
-									<div class="flex items-start gap-2">
-										<div class="min-w-0 flex-1">
-											<p class="truncate text-sm font-extrabold text-warm-800">{place.title}</p>
-											{#if place.category || place.area}
-												<p class="mt-0.5 truncate text-xs text-warm-400">
-													{[place.category, place.area].filter(Boolean).join(' · ')}
-												</p>
+								{@const tags = savedPlaceTags[place.id] ?? []}
+								<!-- svelte-ignore a11y_no_static_element_interactions -->
+								<!-- svelte-ignore a11y_click_events_have_key_events -->
+								<article
+									class="flex cursor-pointer flex-col rounded-xl border bg-white p-3 transition-all {selectedPlaceId === place.id ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}"
+									onclick={() => handleCardSelect(place.id)}
+								>
+									<div class="mb-0.5 flex items-center justify-between gap-2">
+										<h3 class="min-w-0 flex-1 line-clamp-1 text-[15px] font-extrabold leading-snug text-warm-800">{place.title}</h3>
+										<div class="flex shrink-0 items-center gap-0.5">
+											{#if place.user_rating != null}
+												<span class="text-sm font-medium text-warm-700">{place.user_rating.toFixed(1)}</span><span class="text-sm text-brand-500">★</span>
+											{:else}
+												<span class="whitespace-nowrap text-sm font-medium text-warm-300">{t('common.notRated')}</span>
 											{/if}
-											{#if savedShareSettings.notes && place.note}
-												<p class="mt-1 line-clamp-2 text-xs italic text-warm-500">{place.note}</p>
+											<button
+												onclick={(e) => { e.stopPropagation(); if (!imported) handleImportPlace(place.id); }}
+												disabled={imported}
+												class="rounded-md p-1 transition-colors
+													{imported ? 'text-sage-500' : 'text-warm-300 hover:bg-warm-100 hover:text-warm-500'}"
+												aria-label={imported ? 'Added' : 'Add to My Places'}
+											>
+												{#if imported}
+													<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+												{:else}
+													<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0z" /><path d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0z" /><circle cx="18" cy="18" r="4.5" fill="currentColor" stroke="none" /><path d="M18 16v4M16 18h4" stroke="white" stroke-width="1.5" stroke-linecap="round" /></svg>
+												{/if}
+											</button>
+										</div>
+									</div>
+									{#if savedShareSettings.notes && place.note?.trim()}
+										<p class="mt-0.5 line-clamp-2 text-sm italic leading-snug text-brand-500">{place.note.trim()}</p>
+									{/if}
+									<div class="mt-auto flex items-end justify-between gap-2 pt-2.5">
+										<div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+											{#if savedShareSettings.tags}
+												{#each tags as tag (tag.id)}
+													<span
+														class="rounded-full px-2.5 py-0.5 text-xs font-bold"
+														style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
+													>{tag.name}</span>
+												{/each}
 											{/if}
 										</div>
-										<button
-											onclick={() => imported ? null : handleImportPlace(place.id)}
-											disabled={imported}
-											class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors
-												{imported ? 'bg-sage-100 text-sage-600' : 'bg-brand-600 text-white hover:bg-brand-700'}"
-										>
-											{imported ? t('shared.addedToMyPlaces') : t('collection.add')}
-										</button>
+										{#if place.url}
+											<a
+												href={place.url}
+												target="_blank"
+												onclick={(e) => e.stopPropagation()}
+												class="shrink-0 rounded-md p-1 text-warm-300 transition-colors hover:bg-warm-100 hover:text-warm-500"
+												aria-label="Open in Map"
+											>
+												<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
+											</a>
+										{/if}
 									</div>
-								</div>
+								</article>
 							{/each}
 						</div>
 					{/if}
@@ -1207,44 +1251,42 @@
 						itemSelector: '[data-col-id]',
 						idAttribute: 'data-col-id',
 						longPressMs: 350,
-						disabled: collections.length < 2,
+						disabled: (collections.length + savedCollections.length) < 2,
 						ignoreDragFrom: 'button[aria-label="Collection actions"]',
 					}}
 				>
-						{#each collections as col (col.id)}
-							<div class="relative shrink-0" data-col-id={col.id}>
-								<button
-									onclick={() => selectCollection(col.id)}
-									class="group flex items-center gap-1.5 border-b-[3px] pl-2 pr-5 pb-2.5 pt-1.5 text-left transition-all sm:gap-2 sm:pl-2.5 sm:pr-6
-										{selectedCollectionId === col.id ? 'border-brand-600 text-warm-800' : 'border-transparent text-warm-400 hover:text-warm-600'}"
-								>
-									<CollectionAvatar color={col.color} emoji={col.emoji} size="xs" />
-									<p class="truncate text-xs font-bold sm:text-sm">{col.name}</p>
-								</button>
-								<button
-									onclick={(e) => { e.stopPropagation(); const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); tabMenuPos = { top: rect.bottom + 4, left: Math.min(rect.left, window.innerWidth - 168) }; tabMenuOpenId = tabMenuOpenId === col.id ? null : col.id; }}
-									class="absolute right-0 top-0 flex items-center justify-center rounded-full p-1 text-warm-300 transition-colors hover:bg-warm-200/60 hover:text-warm-500"
-									aria-label="Collection actions"
-								>
-									<svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></svg>
-								</button>
-							</div>
-						{/each}
-						{#if savedCollections.length > 0}
-							<div class="mx-1.5 h-5 w-px shrink-0 bg-warm-200/60"></div>
-							{#each savedCollections as saved (saved.id)}
-								<div class="relative shrink-0">
+						{#each tabItems as item (item.id)}
+							{#if item.kind === 'owned'}
+								<div class="relative shrink-0" data-col-id={item.col.id}>
 									<button
-										onclick={() => selectSavedCollection(saved.id)}
-										class="group flex items-center gap-1.5 border-b-[3px] pl-2 pr-2 pb-2.5 pt-1.5 text-left transition-all sm:gap-2 sm:pl-2.5 sm:pr-3
-											{selectedSavedId === saved.id ? 'border-brand-600 text-warm-800' : 'border-transparent text-warm-400 hover:text-warm-600'}"
+										onclick={() => selectCollection(item.col.id)}
+										class="group flex items-center gap-1.5 border-b-[3px] pl-2 pr-5 pb-2.5 pt-1.5 text-left transition-all sm:gap-2 sm:pl-2.5 sm:pr-6
+											{selectedCollectionId === item.col.id ? 'border-brand-600 text-warm-800' : 'border-transparent text-warm-400 hover:text-warm-600'}"
 									>
-										{#if saved.source_collection}
+										<CollectionAvatar color={item.col.color} emoji={item.col.emoji} size="xs" />
+										<p class="truncate text-xs font-bold sm:text-sm">{item.col.name}</p>
+									</button>
+									<button
+										onclick={(e) => { e.stopPropagation(); const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); tabMenuPos = { top: rect.bottom + 4, left: Math.min(rect.left, window.innerWidth - 168) }; tabMenuOpenId = tabMenuOpenId === item.col.id ? null : item.col.id; }}
+										class="absolute right-0 top-0 flex items-center justify-center rounded-full p-1 text-warm-300 transition-colors hover:bg-warm-200/60 hover:text-warm-500"
+										aria-label="Collection actions"
+									>
+										<svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></svg>
+									</button>
+								</div>
+							{:else}
+								<div class="relative shrink-0" data-col-id="saved:{item.saved.id}">
+									<button
+										onclick={() => selectSavedCollection(item.saved.id)}
+										class="group flex items-center gap-1.5 border-b-[3px] pl-2 pr-5 pb-2.5 pt-1.5 text-left transition-all sm:gap-2 sm:pl-2.5 sm:pr-6
+											{selectedSavedId === item.saved.id ? 'border-brand-600 text-warm-800' : 'border-transparent text-warm-400 hover:text-warm-600'}"
+									>
+										{#if item.saved.source_collection}
 											<div class="relative">
-												<CollectionAvatar color={saved.source_collection.color} emoji={saved.source_collection.emoji} size="xs" />
+												<CollectionAvatar color={item.saved.source_collection.color} emoji={item.saved.source_collection.emoji} size="xs" />
 												<svg class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 text-sage-500" viewBox="0 0 24 24" fill="currentColor"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
 											</div>
-											<p class="truncate text-xs font-bold sm:text-sm">{saved.source_collection.name}</p>
+											<p class="truncate text-xs font-bold sm:text-sm">{item.saved.source_collection.name}</p>
 										{:else}
 											<div class="flex h-5 w-5 items-center justify-center rounded-full bg-warm-200">
 												<svg class="h-3 w-3 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
@@ -1252,9 +1294,16 @@
 											<p class="truncate text-xs font-bold text-warm-300 sm:text-sm">{t('shared.unavailable')}</p>
 										{/if}
 									</button>
+									<button
+										onclick={(e) => { e.stopPropagation(); const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); tabMenuPos = { top: rect.bottom + 4, left: Math.min(rect.left, window.innerWidth - 168) }; tabMenuOpenId = tabMenuOpenId === item.saved.id ? null : item.saved.id; }}
+										class="absolute right-0 top-0 flex items-center justify-center rounded-full p-1 text-warm-300 transition-colors hover:bg-warm-200/60 hover:text-warm-500"
+										aria-label="Collection actions"
+									>
+										<svg class="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></svg>
+									</button>
 								</div>
-							{/each}
-						{/if}
+							{/if}
+						{/each}
 					</div>
 				</div>
 				</div>
@@ -1424,22 +1473,6 @@
 			</div>
 			{#if isSavedMode && selectedSaved}
 				<!-- Desktop read-only saved collection view -->
-				<div class="border-b border-warm-200/40 bg-[#faf7f2] px-3 py-2 sm:px-4 lg:px-4">
-					<div class="flex items-center gap-2">
-						{#if selectedSaved.source_collection}
-						<svg class="h-4 w-4 shrink-0 text-sage-500" viewBox="0 0 24 24" fill="currentColor"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
-						<span class="min-w-0 flex-1 text-xs font-medium text-warm-500 sm:text-sm">{t('shared.savedCollectionHint')}</span>
-					{:else}
-						<span class="text-xs font-medium text-warm-400 sm:text-sm">{t('shared.noLongerShared')}</span>
-					{/if}
-					<button
-						onclick={() => handleRemoveSavedCollection(selectedSaved.id)}
-						class="shrink-0 rounded-lg border border-warm-200 px-2.5 py-1.5 text-xs font-medium text-warm-500 transition-colors hover:bg-warm-100 hover:text-warm-600 sm:text-sm"
-					>
-						{t('shared.remove')}
-					</button>
-					</div>
-				</div>
 				{#if savedBrowseLoading}
 					<div class="flex items-center justify-center py-20">
 						<svg class="h-8 w-8 animate-spin text-brand-500" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
@@ -1457,38 +1490,66 @@
 								<p class="text-base text-warm-500">{search ? t('collection.noMatch') : t('collection.empty')}</p>
 							</div>
 						{:else}
-							<div class="grid grid-cols-1 gap-2 @lg:grid-cols-2 @lg:gap-3">
+						<div class="grid grid-cols-1 gap-2 @lg:grid-cols-2 @lg:gap-3">
 								{#each sortedSavedPlaces as place (place.id)}
 									{@const imported = savedImportedIds.has(place.id)}
-									<div class="rounded-xl border border-warm-200 bg-white p-4 transition-all {selectedPlaceId === place.id ? 'ring-2 ring-brand-400/30 border-brand-400' : ''}">
-										<div class="flex items-start gap-3">
-											<div class="min-w-0 flex-1">
-												<p class="text-sm font-extrabold text-warm-800 sm:text-base">{place.title}</p>
-												{#if place.category || place.area}
-													<p class="mt-0.5 text-xs text-warm-400 sm:text-sm">
-														{[place.category, place.area].filter(Boolean).join(' · ')}
-													</p>
+									{@const tags = savedPlaceTags[place.id] ?? []}
+									<!-- svelte-ignore a11y_no_static_element_interactions -->
+									<!-- svelte-ignore a11y_click_events_have_key_events -->
+									<article
+										class="flex cursor-pointer flex-col rounded-xl border bg-white p-3 transition-all {selectedPlaceId === place.id ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}"
+										onclick={() => handleCardSelect(place.id)}
+									>
+										<div class="mb-0.5 flex items-center justify-between gap-2">
+											<h3 class="min-w-0 flex-1 line-clamp-1 text-[15px] font-extrabold leading-snug text-warm-800">{place.title}</h3>
+											<div class="flex shrink-0 items-center gap-0.5">
+												{#if place.user_rating != null}
+													<span class="text-sm font-medium text-warm-700">{place.user_rating.toFixed(1)}</span><span class="text-sm text-brand-500">★</span>
+												{:else}
+													<span class="whitespace-nowrap text-sm font-medium text-warm-300">{t('common.notRated')}</span>
 												{/if}
-												{#if savedShareSettings.notes && place.note}
-													<p class="mt-1.5 line-clamp-2 text-xs italic text-warm-500 sm:text-sm">{place.note}</p>
-												{/if}
-												{#if place.rating}
-													<div class="mt-1.5 flex items-center gap-1">
-														<svg class="h-3 w-3 text-amber-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
-														<span class="text-xs font-semibold text-warm-600">{place.rating}</span>
-													</div>
+												<button
+													onclick={(e) => { e.stopPropagation(); if (!imported) handleImportPlace(place.id); }}
+													disabled={imported}
+													class="rounded-md p-1 transition-colors
+														{imported ? 'text-sage-500' : 'text-warm-300 hover:bg-warm-100 hover:text-warm-500'}"
+													aria-label={imported ? 'Added' : 'Add to My Places'}
+												>
+													{#if imported}
+														<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+													{:else}
+														<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0z" /><path d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0z" /><circle cx="18" cy="18" r="4.5" fill="currentColor" stroke="none" /><path d="M18 16v4M16 18h4" stroke="white" stroke-width="1.5" stroke-linecap="round" /></svg>
+													{/if}
+												</button>
+											</div>
+										</div>
+										{#if savedShareSettings.notes && place.note?.trim()}
+											<p class="mt-0.5 line-clamp-2 text-sm italic leading-snug text-brand-500">{place.note.trim()}</p>
+										{/if}
+										<div class="mt-auto flex items-end justify-between gap-2 pt-2.5">
+											<div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+												{#if savedShareSettings.tags}
+													{#each tags as tag (tag.id)}
+														<span
+															class="rounded-full px-2.5 py-0.5 text-xs font-bold"
+															style="background-color: {tag.color ?? '#6b7280'}; color: {textColorForBg(tag.color ?? '#6b7280')}"
+														>{tag.name}</span>
+													{/each}
 												{/if}
 											</div>
-											<button
-												onclick={() => imported ? null : handleImportPlace(place.id)}
-												disabled={imported}
-												class="shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors sm:text-sm
-													{imported ? 'bg-sage-100 text-sage-600' : 'bg-brand-600 text-white hover:bg-brand-700'}"
-											>
-												{imported ? t('shared.addedToMyPlaces') : t('shared.addToMyPlaces')}
-											</button>
+											{#if place.url}
+												<a
+													href={place.url}
+													target="_blank"
+													onclick={(e) => e.stopPropagation()}
+													class="shrink-0 rounded-md p-1 text-warm-300 transition-colors hover:bg-warm-100 hover:text-warm-500"
+													aria-label="Open in Map"
+												>
+													<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
+												</a>
+											{/if}
 										</div>
-									</div>
+									</article>
 								{/each}
 							</div>
 						{/if}
@@ -1539,6 +1600,7 @@
 <!-- Tab context menu (portaled to escape overflow containers) -->
 {#if tabMenuOpenId}
 	{@const menuCol = collections.find((c) => c.id === tabMenuOpenId)}
+	{@const menuSaved = savedCollections.find((s) => s.id === tabMenuOpenId)}
 	{#if menuCol}
 		<div class="fixed inset-0 z-[70]" onclick={() => closeTabMenu()} role="presentation"></div>
 		<div bind:this={tabMenuEl} class="fixed z-[71] w-40 rounded-xl border border-warm-200 bg-white py-1 shadow-lg" style="top: {tabMenuPos.top}px; left: {tabMenuPos.left}px;">
@@ -1563,6 +1625,17 @@
 				{t('common.delete')}
 			</button>
 		{/if}
+		</div>
+	{:else if menuSaved}
+		<div class="fixed inset-0 z-[70]" onclick={() => closeTabMenu()} role="presentation"></div>
+		<div class="fixed z-[71] w-44 rounded-xl border border-warm-200 bg-white py-1 shadow-lg" style="top: {tabMenuPos.top}px; left: {tabMenuPos.left}px;">
+			<button
+				onclick={() => { closeTabMenu(); handleRemoveSavedCollection(menuSaved.id); }}
+				class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-danger-600 transition-colors hover:bg-danger-50"
+			>
+				<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+				{t('shared.removeFromSaved')}
+			</button>
 		</div>
 	{/if}
 {/if}

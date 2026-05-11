@@ -18,9 +18,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 			.order('created_at', { ascending: true }),
 		supabase
 			.from('saved_collections')
-			.select('id, source_list_id, saved_at')
+			.select('id, source_list_id, saved_at, sort_order')
 			.eq('user_id', userId!)
-			.order('saved_at', { ascending: false })
+			.order('sort_order', { ascending: true })
+			.order('saved_at', { ascending: true })
 	]);
 
 	const rows = (listsRes.data ?? []) as any[];
