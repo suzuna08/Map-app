@@ -4,6 +4,7 @@
 	import { updateSavedView, deleteSavedView } from '$lib/stores/saved-views.svelte';
 	import { showToast } from '$lib/stores/toasts.svelte';
 	import { sortable } from '$lib/actions/sortable';
+	import { t } from '$lib/i18n/locale.svelte';
 
 	let {
 		supabase,
@@ -195,7 +196,7 @@
 				<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
 				</svg>
-				Rename
+				{t('collections.rename')}
 			</button>
 			{#if onCreateCollection}
 				<button
@@ -205,7 +206,7 @@
 					<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
 					</svg>
-					New Collection
+					{t('collections.newCollection')}
 				</button>
 			{/if}
 			{#if onAddToCollection}
@@ -216,7 +217,7 @@
 					<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
 					</svg>
-					Add to Collection…
+					{t('collections.addToCollection')}
 				</button>
 			{/if}
 			<div class="my-1 border-t border-warm-100"></div>
@@ -227,7 +228,7 @@
 				<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
 				</svg>
-				Delete
+				{t('common.delete')}
 			</button>
 		</div>
 	{/if}

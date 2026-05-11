@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
+	import { t } from '$lib/i18n/locale.svelte';
 
 	let { data } = $props();
 	let supabase = $derived(data.supabase);
@@ -56,7 +57,7 @@
 			if (err) {
 				error = err.message;
 			} else {
-				message = 'Check your email for a confirmation link!';
+				message = t('login.checkEmail');
 			}
 		} else {
 			const { error: err } = await supabase.auth.signInWithPassword({ email, password });
@@ -83,22 +84,22 @@
 				</svg>
 			</div>
 			<h1 class="text-2xl font-bold text-warm-800">
-				{isSignUp ? 'Create your account' : 'Welcome back'}
+				{isSignUp ? t('login.createAccount') : t('login.welcome')}
 			</h1>
 			<p class="mt-1 text-sm text-warm-500">
-				{isSignUp ? 'Start organizing your saved places' : 'Sign in to your account'}
+				{isSignUp ? t('login.subtitle.signUp') : t('login.subtitle.signIn')}
 			</p>
 		</div>
 
 		{#if confirmError}
 			<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-				Your confirmation link was invalid or has expired. Please sign up again.
+				{t('login.confirmError')}
 			</div>
 		{/if}
 
 		{#if confirmSuccess}
 			<div class="mb-4 rounded-lg bg-sage-100 p-3 text-sm text-sage-800">
-				Email confirmed! Sign in with your credentials.
+				{t('login.confirmSuccess')}
 			</div>
 		{/if}
 
@@ -112,7 +113,7 @@
 
 		<form onsubmit={handleSubmit} class="space-y-4">
 			<div>
-				<label for="email" class="mb-1 block text-sm font-semibold text-warm-700">Email</label>
+				<label for="email" class="mb-1 block text-sm font-semibold text-warm-700">{t('login.email')}</label>
 				<input
 					id="email"
 					type="email"
@@ -124,7 +125,7 @@
 			</div>
 
 			<div>
-				<label for="password" class="mb-1 block text-sm font-semibold text-warm-700">Password</label>
+				<label for="password" class="mb-1 block text-sm font-semibold text-warm-700">{t('login.password')}</label>
 				<input
 					id="password"
 					type="password"
@@ -142,20 +143,20 @@
 				class="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-brand-700 disabled:opacity-50"
 			>
 				{#if loading}
-					Processing...
+					{t('login.processing')}
 				{:else}
-					{isSignUp ? 'Create Account' : 'Sign In'}
+					{isSignUp ? t('login.signUp') : t('login.signIn')}
 				{/if}
 			</button>
 		</form>
 
 		<p class="mt-6 text-center text-sm text-warm-500">
-			{isSignUp ? 'Already have an account?' : "Don't have an account?"}
+			{isSignUp ? t('login.hasAccount') : t('login.noAccount')}
 			<button
 				onclick={() => { isSignUp = !isSignUp; error = ''; message = ''; }}
 				class="font-bold text-brand-600 hover:text-brand-700"
 			>
-				{isSignUp ? 'Sign in' : 'Sign up'}
+				{isSignUp ? t('login.switchToSignIn') : t('login.switchToSignUp')}
 			</button>
 		</p>
 	</div>

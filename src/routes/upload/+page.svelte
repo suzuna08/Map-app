@@ -5,6 +5,7 @@
 	import { getNextOrderIndex } from '$lib/tag-order';
 	import { normalizeTagName, toDisplayName } from '$lib/tag-utils';
 	import { applyTagToPlaces } from '$lib/stores/places.svelte';
+	import { t } from '$lib/i18n/locale.svelte';
 
 	let { data } = $props();
 	let supabase = $derived(data.supabase);
@@ -187,11 +188,9 @@
 	class="mx-auto max-w-2xl px-4 py-6 sm:px-6 pb-[max(3rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+1.5rem))]"
 >
 	<div class="mb-8">
-		<h1 class="text-2xl font-bold text-warm-800">Upload Google Maps Places</h1>
+		<h1 class="text-2xl font-bold text-warm-800">{t('upload.heading')}</h1>
 		<p class="mt-1 text-sm text-warm-500">
-			Import CSV files exported from Google Takeout. Go to
-			<a href="https://takeout.google.com" target="_blank" class="font-semibold text-brand-600 underline">takeout.google.com</a>,
-			select "Saved" data, and download your saved places.
+			{@html t('upload.description')}
 		</p>
 	</div>
 
@@ -217,8 +216,8 @@
 			<polyline points="17 8 12 3 7 8" />
 			<line x1="12" y1="3" x2="12" y2="15" />
 		</svg>
-		<p class="mt-3 text-sm font-semibold text-warm-700">Drag & drop CSV files here</p>
-		<p class="mt-1 text-xs text-warm-500">or click to browse</p>
+		<p class="mt-3 text-sm font-semibold text-warm-700">{t('upload.dragDrop')}</p>
+		<p class="mt-1 text-xs text-warm-500">{t('upload.orClick')}</p>
 		<input
 			type="file"
 			accept=".csv"
@@ -236,7 +235,7 @@
 					<div class="flex items-center justify-between">
 						<div>
 							<h3 class="font-bold text-warm-800">{result.fileName}</h3>
-							<p class="text-sm text-warm-500">{result.places.length} places found</p>
+							<p class="text-sm text-warm-500">{t('upload.placesFound').replace('{count}', String(result.places.length))}</p>
 						</div>
 						<div class="flex h-10 w-10 items-center justify-center rounded-full bg-sage-200">
 							<svg class="h-5 w-5 text-sage-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -274,7 +273,7 @@
 
 					{#if result.errors.length > 0}
 						<div class="mt-3 rounded-lg bg-amber-50 p-3">
-							<p class="text-xs font-medium text-amber-700">Parse warnings:</p>
+							<p class="text-xs font-medium text-amber-700">{t('upload.parseWarnings')}</p>
 							{#each result.errors as err}
 								<p class="text-xs text-amber-600">{err}</p>
 							{/each}
@@ -296,10 +295,10 @@
 								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
 								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
 							</svg>
-							Importing...
+							{t('upload.importing')}
 						</span>
 					{:else}
-						Import {totalPlaces} places to your library
+						{t('upload.importButton').replace('{count}', String(totalPlaces))}
 					{/if}
 				</button>
 			{/if}
@@ -313,28 +312,28 @@
 							<polyline points="22 4 12 14.01 9 11.01" />
 						</svg>
 						<div>
-							{#if uploadResult.added > 0}
-								<p class="font-bold text-sage-800">
-									{uploadResult.added} new {uploadResult.added === 1 ? 'place' : 'places'} added!
-								</p>
-							{:else}
-								<p class="font-bold text-sage-800">All places already in your library.</p>
-							{/if}
-							{#if uploadResult.skipped > 0}
-								<p class="mt-0.5 text-sm font-medium text-warm-500">
-									{uploadResult.skipped} {uploadResult.skipped === 1 ? 'place' : 'places'} already existed (skipped)
-								</p>
-							{/if}
-							{#if uploadResult.tagsCreated.length > 0}
-								<p class="mt-1 text-sm font-medium text-brand-600">
-									{uploadResult.tagsCreated.length === 1 ? 'Tag' : 'Tags'} created: {uploadResult.tagsCreated.join(', ')}
-								</p>
-							{/if}
-							{#if uploadResult.tagged > 0}
-								<p class="mt-0.5 text-sm font-medium text-warm-500">
-									{uploadResult.tagged} {uploadResult.tagged === 1 ? 'place' : 'places'} auto-tagged from file names
-								</p>
-							{/if}
+						{#if uploadResult.added > 0}
+							<p class="font-bold text-sage-800">
+								{t('upload.newPlacesAdded').replace('{count}', String(uploadResult.added))}
+							</p>
+						{:else}
+							<p class="font-bold text-sage-800">{t('upload.allAlreadyExist')}</p>
+						{/if}
+						{#if uploadResult.skipped > 0}
+							<p class="mt-0.5 text-sm font-medium text-warm-500">
+								{t('upload.skippedPlaces').replace('{count}', String(uploadResult.skipped))}
+							</p>
+						{/if}
+						{#if uploadResult.tagsCreated.length > 0}
+							<p class="mt-1 text-sm font-medium text-brand-600">
+								{t('upload.tagsCreated').replace('{tags}', uploadResult.tagsCreated.join(', '))}
+							</p>
+						{/if}
+						{#if uploadResult.tagged > 0}
+							<p class="mt-0.5 text-sm font-medium text-warm-500">
+								{t('upload.autoTagged').replace('{count}', String(uploadResult.tagged))}
+							</p>
+						{/if}
 							{#if uploadResult.errors.length > 0}
 								{#each uploadResult.errors as err}
 									<p class="mt-1 text-sm text-red-600">{err}</p>
@@ -350,9 +349,9 @@
 										<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
 										<polyline points="22 4 12 14.01 9 11.01" />
 									</svg>
-									<p class="text-sm font-medium text-sage-700">
-										Fetched details for {enrichProgress.enriched} of {enrichProgress.total} places
-									</p>
+								<p class="text-sm font-medium text-sage-700">
+									{t('upload.fetchedPlaces').replace('{x}', String(enrichProgress.enriched)).replace('{y}', String(enrichProgress.total))}
+								</p>
 								</div>
 							{:else}
 								<div class="flex items-center gap-2">
@@ -360,9 +359,9 @@
 										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
 										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
 									</svg>
-									<p class="text-sm font-medium text-warm-600">
-										Fetching details... {enrichProgress.enriched} / {enrichProgress.total}
-									</p>
+								<p class="text-sm font-medium text-warm-600">
+									{t('upload.fetchingDetails').replace('{x}', String(enrichProgress.enriched)).replace('{y}', String(enrichProgress.total))}
+								</p>
 								</div>
 								<div class="mt-2 h-1.5 overflow-hidden rounded-full bg-warm-200">
 									<div
@@ -375,17 +374,17 @@
 					{/if}
 					<div class="mt-4 flex items-center gap-3">
 						<a
-							href="/places"
-							class="inline-block rounded-lg bg-brand-600 px-4 py-2 text-sm font-bold text-white hover:bg-brand-700"
-						>
-							View your places
-						</a>
-						<button
-							onclick={() => { parseResults = []; uploadResult = null; enrichProgress = null; }}
-							class="rounded-lg px-4 py-2 text-sm font-bold text-warm-500 hover:bg-warm-200 hover:text-warm-700"
-						>
-							Upload more
-						</button>
+						href="/places"
+						class="inline-block rounded-lg bg-brand-600 px-4 py-2 text-sm font-bold text-white hover:bg-brand-700"
+					>
+						{t('upload.viewPlaces')}
+					</a>
+					<button
+						onclick={() => { parseResults = []; uploadResult = null; enrichProgress = null; }}
+						class="rounded-lg px-4 py-2 text-sm font-bold text-warm-500 hover:bg-warm-200 hover:text-warm-700"
+					>
+						{t('upload.uploadMore')}
+					</button>
 					</div>
 				</div>
 			{/if}

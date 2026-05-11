@@ -9,6 +9,7 @@
 	import { colorForTag } from '$lib/tag-colors';
 	import { getNextOrderIndex } from '$lib/tag-order';
 	import { normalizeTagName, toDisplayName } from '$lib/tag-utils';
+	import { t } from '$lib/i18n/locale.svelte';
 
 	interface Props {
 		place: Place;
@@ -288,7 +289,7 @@
 					<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
 						<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
 					</svg>
-					<span class="text-xs font-bold">Confirm?</span>
+					<span class="text-xs font-bold">{t('placeCard.confirm')}</span>
 				{:else}
 					<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -349,7 +350,7 @@
 													<svg class="h-4 w-4 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 														<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
 													</svg>
-													Open in Map
+													{t('placeAction.openInMap')}
 												</a>
 											{/if}
 											{#if onCollectionPickerToggle}
@@ -361,7 +362,7 @@
 														<rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
 														<rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
 													</svg>
-													Add to Collection
+													{t('placeAction.addToCollection')}
 												</button>
 											{/if}
 											{#if !place.enriched_at && place.url}
@@ -373,7 +374,7 @@
 													<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 														<path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" />
 													</svg>
-													{enrichingId === place.id ? 'Fetching...' : 'Get Details'}
+													{enrichingId === place.id ? t('places.fetching') : t('placeCard.getDetails')}
 												</button>
 											{/if}
 											{#if place.category || place.area}
@@ -385,7 +386,7 @@
 													<svg class="h-4 w-4 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 														<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" />
 													</svg>
-													{autoTagging ? 'Tagging...' : 'Auto Tag'}
+													{autoTagging ? t('placeAction.tagging') : t('placeAction.autoTag')}
 												</button>
 											{/if}
 											{#if isCollectionContext}
@@ -396,20 +397,20 @@
 													<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 														<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
 													</svg>
-													Remove / Delete
+													{t('placeAction.removeDelete')}
 												</button>
 											{:else if confirmDelete}
 												<div class="border-t border-warm-100 px-3 py-2">
-													<p class="mb-1.5 text-xs font-medium text-danger-600">Delete this place?</p>
+													<p class="mb-1.5 text-xs font-medium text-danger-600">{t('placeAction.deleteConfirm')}</p>
 													<div class="flex items-center gap-2">
 														<button
 															onclick={(e) => { e.stopPropagation(); onDelete(place.id); confirmDelete = false; cardMenuOpen = false; }}
 															class="rounded-md bg-danger-600 px-3 py-1 text-xs font-bold text-white hover:bg-danger-700"
-														>Confirm</button>
+														>{t('placeAction.confirm')}</button>
 														<button
 															onclick={(e) => { e.stopPropagation(); confirmDelete = false; }}
 															class="text-xs font-medium text-warm-400 hover:text-warm-600"
-														>Cancel</button>
+														>{t('common.cancel')}</button>
 													</div>
 												</div>
 											{:else}
@@ -420,7 +421,7 @@
 													<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 														<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
 													</svg>
-													Delete
+													{t('placeAction.delete')}
 												</button>
 											{/if}
 										</div>
@@ -458,11 +459,11 @@
 						<div class="mb-1 flex items-center justify-between">
 							<h3 class="min-w-0 flex-1 truncate text-base font-extrabold leading-snug text-warm-800">{place.title}</h3>
 							<div class="ml-2 flex items-center gap-1.5">
-								{#if saving}
-									<span class="text-xs text-warm-400">Saving...</span>
-								{:else if saved}
-									<span class="text-xs text-sage-600">Saved</span>
-								{/if}
+							{#if saving}
+								<span class="text-xs text-warm-400">{t('placeCard.saving')}</span>
+							{:else if saved}
+								<span class="text-xs text-sage-600">{t('placeCard.saved')}</span>
+							{/if}
 								<button
 									onclick={flipToFront}
 									class="rounded-md p-1 text-warm-400 hover:bg-warm-100 hover:text-warm-600"
@@ -478,7 +479,7 @@
 							id="note-mobile-{place.id}"
 							bind:value={noteText}
 							oninput={scheduleAutoSave}
-							placeholder="Write your notes here..."
+							placeholder={t('placeCard.notePlaceholder')}
 							class="flex-1 w-full resize-none border-none bg-transparent p-0 text-sm leading-relaxed text-stone-500 placeholder:text-warm-300/70 placeholder:italic focus:outline-none"
 						></textarea>
 					</article>
@@ -533,7 +534,7 @@
 											<svg class="h-4 w-4 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 												<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
 											</svg>
-											Open in Map
+											{t('placeAction.openInMap')}
 										</a>
 									{/if}
 									{#if onCollectionPickerToggle}
@@ -545,7 +546,7 @@
 												<rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
 												<rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
 											</svg>
-											Add to Collection
+											{t('placeAction.addToCollection')}
 										</button>
 									{/if}
 									{#if !place.enriched_at && place.url}
@@ -557,7 +558,7 @@
 											<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 												<path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" />
 											</svg>
-											{enrichingId === place.id ? 'Fetching...' : 'Get Details'}
+											{enrichingId === place.id ? t('places.fetching') : t('placeCard.getDetails')}
 										</button>
 									{/if}
 									{#if place.category || place.area}
@@ -569,7 +570,7 @@
 											<svg class="h-4 w-4 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 												<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" />
 											</svg>
-											{autoTagging ? 'Tagging...' : 'Auto Tag'}
+											{autoTagging ? t('placeAction.tagging') : t('placeAction.autoTag')}
 										</button>
 									{/if}
 									{#if isCollectionContext}
@@ -580,20 +581,20 @@
 											<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 												<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
 											</svg>
-											Remove / Delete
+											{t('placeAction.removeDelete')}
 										</button>
 									{:else if confirmDelete}
 										<div class="border-t border-warm-100 px-3 py-2">
-											<p class="mb-1.5 text-xs font-medium text-danger-600">Delete this place?</p>
+											<p class="mb-1.5 text-xs font-medium text-danger-600">{t('placeAction.deleteConfirm')}</p>
 											<div class="flex items-center gap-2">
 												<button
 													onclick={(e) => { e.stopPropagation(); onDelete(place.id); confirmDelete = false; cardMenuOpen = false; }}
 													class="rounded-md bg-danger-600 px-3 py-1 text-xs font-bold text-white hover:bg-danger-700"
-												>Confirm</button>
+												>{t('placeAction.confirm')}</button>
 												<button
 													onclick={(e) => { e.stopPropagation(); confirmDelete = false; }}
 													class="text-xs font-medium text-warm-400 hover:text-warm-600"
-												>Cancel</button>
+												>{t('common.cancel')}</button>
 											</div>
 										</div>
 									{:else}
@@ -604,7 +605,7 @@
 											<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 												<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
 											</svg>
-											Delete
+											{t('placeAction.delete')}
 										</button>
 									{/if}
 								</div>
@@ -642,11 +643,11 @@
 				<div class="mb-1 flex items-center justify-between">
 				<h3 class="min-w-0 flex-1 truncate text-base font-extrabold tracking-tight leading-snug text-warm-800">{place.title}</h3>
 				<div class="flex shrink-0 items-center gap-2">
-						{#if saving}
-							<span class="text-xs text-warm-400">Saving...</span>
-						{:else if saved}
-							<span class="text-xs text-sage-600">Saved</span>
-						{/if}
+					{#if saving}
+						<span class="text-xs text-warm-400">{t('placeCard.saving')}</span>
+					{:else if saved}
+						<span class="text-xs text-sage-600">{t('placeCard.saved')}</span>
+					{/if}
 						<button
 							onclick={flipToFront}
 							class="rounded-lg p-2 text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600"
@@ -663,7 +664,7 @@
 					id="note-desktop-{place.id}"
 					bind:value={noteText}
 					oninput={scheduleAutoSave}
-					placeholder="Write your notes about this place..."
+					placeholder={t('placeCard.notePlaceholderDesktop')}
 					class="flex-1 resize-none border-none bg-transparent p-0 text-sm leading-relaxed text-stone-500 placeholder:text-warm-300/70 placeholder:italic focus:outline-none"
 				></textarea>
 			</article>

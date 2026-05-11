@@ -259,7 +259,7 @@ export async function loadSavedCollections(
 ): Promise<SavedCollectionRef[]> {
 	const { data, error } = await supabase
 		.from('saved_collections')
-		.select('id, source_list_id, saved_at, lists!saved_collections_source_list_id_fkey(id, user_id, name, description, color, emoji, visibility, share_slug, share_notes, share_photos, share_tags, sort_order, created_at, updated_at, list_places(place_id))')
+		.select('id, source_list_id, saved_at')
 		.eq('user_id', userId)
 		.order('saved_at', { ascending: false });
 
@@ -268,15 +268,29 @@ export async function loadSavedCollections(
 		return [];
 	}
 
-	return (data ?? []).map((row: any) => {
-		const source = row.lists;
-		const isAvailable = source && source.visibility === 'link_access';
+	const rows = (data ?? []) as { id: string; source_list_id: string; saved_at: string }[];
+	if (rows.length === 0) return [];
+
+	const sourceIds = rows.map((r) => r.source_list_id);
+	const { data: sourceLists } = await supabase
+		.from('lists')
+		.select('id, user_id, name, description, color, emoji, visibility, share_slug, share_notes, share_photos, share_tags, sort_order, created_at, updated_at, list_places(place_id)')
+		.in('id', sourceIds)
+		.eq('visibility', 'link_access');
+
+	const sourceMap = new Map<string, any>();
+	for (const list of (sourceLists ?? []) as any[]) {
+		sourceMap.set(list.id, list);
+	}
+
+	return rows.map((row) => {
+		const source = sourceMap.get(row.source_list_id);
 		return {
 			id: row.id,
 			source_list_id: row.source_list_id,
 			saved_at: row.saved_at,
-			source_collection: isAvailable ? { ...source, list_places: undefined } as Collection : null,
-			placeCount: isAvailable ? (source.list_places?.length ?? 0) : 0,
+			source_collection: source ? { ...source, list_places: undefined } as Collection : null,
+			placeCount: source ? (source.list_places?.length ?? 0) : 0,
 		};
 	});
 }

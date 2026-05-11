@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Place, Tag, Collection, BrowseScope, SavedView, SavedViewFilters, TagGroup } from '$lib/types/database';
+	import { t } from '$lib/i18n/locale.svelte';
 	import PlaceCard from '$lib/components/PlaceCard.svelte';
 	import PlaceListItem from '$lib/components/PlaceListItem.svelte';
 	import TagManager from '$lib/components/TagManager.svelte';
@@ -56,7 +57,7 @@
 	let loading = $state(!serverData.loaded);
 	let search = $state('');
 	let selectedTagMap = $state<Record<string, boolean>>({});
-	let filterMode = $state<'all' | 'any'>('all');
+	let filterMode = $state<'all' | 'any'>('any');
 	let selectedSource = $state('all');
 	let enriching = $state(false);
 	let enrichingId = $state<string | null>(null);
@@ -355,7 +356,7 @@
 			activeSavedViewId = null;
 			appliedSnapshot = null;
 			selectedTagMap = {};
-			filterMode = 'all';
+			filterMode = 'any';
 			selectedSource = 'all';
 			search = '';
 			return;
@@ -701,7 +702,7 @@
 
 	function clearAllFilters() {
 		selectedTagMap = {};
-		filterMode = 'all';
+		filterMode = 'any';
 		selectedSource = 'all';
 		search = '';
 		if (activeSavedViewId) {
@@ -907,7 +908,7 @@
 									<line x1="7" y1="7" x2="7.01" y2="7" />
 								</svg>
 								<span class="truncate text-xs font-medium text-brand-700">
-									Adding into: <span class="font-bold">{selectedCustomTagNames.join(' + ')}</span>
+									{t('places.addingInto')} <span class="font-bold">{selectedCustomTagNames.join(' + ')}</span>
 								</span>
 							</div>
 							<button
@@ -923,13 +924,13 @@
 										<rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
 										<path d="M7 11V7a5 5 0 0 1 10 0v4" />
 									</svg>
-									Auto-tag ON
+									{t('places.autoTagOn')}
 								{:else}
 									<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
 										<rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
 										<path d="M7 11V7a5 5 0 0 1 9.9-1" />
 									</svg>
-									Auto-tag OFF
+									{t('places.autoTagOff')}
 								{/if}
 							</button>
 						</div>
@@ -967,7 +968,7 @@
 						>
 							{#if showChipsRow}
 								<div class="flex min-w-0 items-center gap-2 lg:items-baseline lg:gap-2.5">
-									<span class="hidden shrink-0 text-sm font-bold text-warm-400 lg:inline" style="width: 3rem">Filters</span>
+									<span class="hidden shrink-0 text-sm font-bold text-warm-400 lg:inline" style="width: 3rem">{t('filters.title')}</span>
 									<div
 										class="-mx-0.5 flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto px-0.5 py-0.5 [scrollbar-width:none] sm:mx-0 sm:px-0 lg:flex-wrap lg:overflow-x-visible [&::-webkit-scrollbar]:hidden"
 									>
@@ -975,10 +976,10 @@
 											<span
 												class="mr-0.5 shrink-0 whitespace-nowrap text-[10px] font-semibold leading-tight text-brand-600 sm:mr-1 sm:text-xs"
 											>
-												Editing<span class="hidden sm:inline">{' view'}</span>
+												{t('places.editing')}<span class="hidden sm:inline">{t('places.editingView')}</span>
 											</span>
 										{/if}
-										<span class="shrink-0 text-xs font-bold text-warm-400 sm:text-sm lg:hidden">Filters</span>
+										<span class="shrink-0 text-xs font-bold text-warm-400 sm:text-sm lg:hidden">{t('filters.title')}</span>
 										{#if activeSearchTerms.length > 0}
 											{#each activeSearchTerms as term, i (i)}
 												<button
@@ -1007,13 +1008,13 @@
 													class="px-2 py-0.5 transition-colors {filterMode === 'all'
 														? 'bg-warm-700 text-white'
 														: 'bg-white text-warm-400 hover:bg-warm-50 hover:text-warm-600'}"
-												>and</button>
+												>{t('places.and')}</button>
 												<button
 													onclick={() => { filterMode = 'any'; }}
 													class="px-2 py-0.5 transition-colors {filterMode === 'any'
 														? 'bg-warm-700 text-white'
 														: 'bg-white text-warm-400 hover:bg-warm-50 hover:text-warm-600'}"
-												>or</button>
+												>{t('places.or')}</button>
 											</div>
 										{/if}
 										{#each selectedCustomIds as tagId (tagId)}
@@ -1074,7 +1075,7 @@
 												class="whitespace-nowrap text-xs font-medium text-warm-400 transition-colors hover:text-warm-600 sm:text-sm"
 												aria-label="Clear all filters"
 											>
-												Clear
+												{t('filters.clear')}
 											</button>
 										{/if}
 									</div>
@@ -1084,8 +1085,8 @@
 									<p
 										class="min-w-0 flex-1 truncate text-[10px] font-semibold leading-tight text-brand-600 sm:text-xs"
 									>
-										Editing<span class="hidden sm:inline">{' view'}</span>
-									</p>
+									{t('places.editing')}<span class="hidden sm:inline">{t('places.editingView')}</span>
+								</p>
 									<div
 										class="flex shrink-0 items-center gap-2 sm:gap-2.5"
 										role="group"
@@ -1116,21 +1117,21 @@
 				{#if unenrichedCount > 0}
 					<div class="mb-1.5 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 sm:mb-4 sm:rounded-xl sm:p-3">
 						<span class="text-xs text-amber-700 sm:text-sm">
-							{unenrichedCount} missing details
+							{t('places.missingDetails').replace('{count}', String(unenrichedCount))}
 						</span>
 						<button
 							onclick={enrichBatch}
 							disabled={enriching}
 							class="rounded-md bg-amber-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50 sm:rounded-lg sm:px-3 sm:py-1.5"
 						>
-							{enriching ? 'Fetching...' : 'Fetch Details'}
+							{enriching ? t('places.fetching') : t('places.fetchDetails')}
 						</button>
 					</div>
 				{/if}
 
 				{#if enrichResult}
 					<div class="mb-1.5 rounded-lg bg-sage-50 p-2 text-xs text-sage-700 sm:mb-4 sm:rounded-xl sm:p-3 sm:text-sm">
-						Fetched details for {enrichResult.enriched} of {enrichResult.total} places.
+						{t('places.fetchedDetails').replace('{enriched}', String(enrichResult.enriched)).replace('{total}', String(enrichResult.total))}
 					</div>
 				{/if}
 
@@ -1172,10 +1173,10 @@
 								<line x1="12" y1="5" x2="12" y2="19" />
 								<line x1="5" y1="12" x2="19" y2="12" />
 							</svg>
-							Edit
+							{t('places.editTags')}
 						</button>
 						{#if userTags.length === 0}
-							<span class="shrink-0 text-xs text-warm-400">No custom tags yet</span>
+							<span class="shrink-0 text-xs text-warm-400">{t('places.noCustomTags')}</span>
 						{/if}
 					</div>
 					{#if showTagManager}
@@ -1203,7 +1204,7 @@
 				<!-- ======== DESKTOP tags row (lg+) ======== -->
 				<div class="relative z-10 mb-1 hidden lg:block">
 					<div class="flex items-center gap-2.5">
-						<span class="shrink-0 text-sm font-bold text-warm-400" style="width: 3rem">Tags</span>
+						<span class="shrink-0 text-sm font-bold text-warm-400" style="width: 3rem">{t('common.tags')}</span>
 						<div
 							class="flex items-center gap-1.5 overflow-x-auto py-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
 							use:sortable={{
@@ -1242,10 +1243,10 @@
 									<line x1="12" y1="5" x2="12" y2="19" />
 									<line x1="5" y1="12" x2="19" y2="12" />
 								</svg>
-								Edit
-							</button>
-							{#if userTags.length === 0}
-								<span class="shrink-0 text-xs text-warm-400">No custom tags yet</span>
+								{t('places.editTags')}
+						</button>
+						{#if userTags.length === 0}
+							<span class="shrink-0 text-xs text-warm-400">{t('places.noCustomTags')}</span>
 							{/if}
 						</div>
 					</div>
@@ -1280,13 +1281,13 @@
 							onclick={() => { showAddToCollection = true; }}
 							class="shrink-0 rounded-md bg-brand-500 px-2 py-0.5 text-xs font-bold text-white transition-colors hover:bg-brand-600"
 						>
-							+ Add places
+							{t('places.addPlaces')}
 						</button>
 						<button
 							onclick={() => { browseScope = { type: 'all' }; }}
 							class="shrink-0 rounded-md px-2 py-0.5 text-xs font-bold text-brand-500 transition-colors hover:bg-brand-100"
 						>
-							Show all
+							{t('places.showAll')}
 						</button>
 					</div>
 				{/if}
@@ -1310,7 +1311,7 @@
 							onkeydown={(e) => { handleSearchKeydown(e); }}
 							onfocus={() => { searchFocused = true; }}
 							onblur={() => { if (!search) searchFocused = false; }}
-							placeholder={searchFocused && isMobile ? 'Search or paste a Google Maps link' : 'Search places, tags, or paste a Google Maps URL'}
+							placeholder={searchFocused && isMobile ? t('search.placeholderMobile') : t('search.placeholder')}
 							class="w-full border border-warm-200 bg-warm-50 font-medium text-warm-800 transition-all placeholder:text-warm-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20
 								{searchFocused && isMobile ? 'rounded-xl py-3 pl-4 pr-10 text-base' : 'rounded-full py-1.5 pl-3.5 text-sm sm:py-2 sm:pl-4 sm:text-sm'}
 								{detectedUrl || urlAdding ? 'pr-10 sm:pr-11' : 'pr-8 sm:pr-9'}"
@@ -1380,22 +1381,22 @@
 							{#if mobileOptionsOpen}
 								<div class="fixed inset-0 z-40" onclick={() => { mobileOptionsOpen = false; }} role="presentation"></div>
 								<div class="absolute right-0 top-full z-50 mt-1 w-44 rounded-lg border border-warm-200 bg-white p-2 shadow-lg">
-									<label for="mobile-sort" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">Sort</label>
+									<label for="mobile-sort" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">{t('filters.sort')}</label>
 									<select
 										id="mobile-sort"
 										bind:value={sortBy}
 										onchange={() => { mobileOptionsOpen = false; }}
 										class="mb-2.5 w-full rounded-md border border-warm-200 bg-warm-50 px-2 py-1.5 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20"
 									>
-										<option value="newest">Recent</option>
-										<option value="oldest">Oldest</option>
+										<option value="newest">{t('filters.recent')}</option>
+										<option value="oldest">{t('filters.oldest')}</option>
 										<option value="az">A–Z</option>
 										<option value="za">Z–A</option>
-										<option value="rating">Rating</option>
-										<option value="most-tags">Most tagged</option>
-										<option value="tag-group">Tag group</option>
+										<option value="rating">{t('filters.rating')}</option>
+<option value="most-tags">{t('places.mostTagged')}</option>
+									<option value="tag-group">{t('places.tagGroup')}</option>
 									</select>
-									<span id="mobile-view-label" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">View</span>
+									<span id="mobile-view-label" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">{t('filters.view')}</span>
 									<div class="flex items-center gap-1 rounded-md border border-warm-200 bg-warm-50 p-0.5" role="group" aria-labelledby="mobile-view-label">
 										<button
 											onclick={() => { viewMode = 'grid'; mobileOptionsOpen = false; }}
@@ -1449,11 +1450,11 @@
 							<circle cx="12" cy="10" r="3" />
 						</svg>
 						<p class="mt-3 text-base text-warm-500">
-							{places.length === 0 ? 'No places yet' : 'No places match your filters'}
+							{places.length === 0 ? t('places.noPlacesYet') : t('places.noPlacesMatch')}
 						</p>
 						{#if places.length === 0}
 							<a href="/upload" class="mt-2 inline-block text-base text-brand-600 hover:text-brand-700">
-								Upload some CSV files to get started
+								{t('places.uploadToStart')}
 							</a>
 						{/if}
 					</div>
@@ -1587,7 +1588,7 @@
 				onclick={(e) => e.stopPropagation()}
 			>
 				<div class="flex items-center justify-between border-b border-warm-100 px-4 py-3 sm:px-5">
-					<h2 class="text-sm font-bold text-warm-800 sm:text-base">Add places to {activeCollectionName}</h2>
+					<h2 class="text-sm font-bold text-warm-800 sm:text-base">{t('collection.addPlacesTo').replace('{name}', activeCollectionName ?? '')}</h2>
 					<button onclick={() => { showAddToCollection = false; }} class="rounded-lg p-1.5 text-warm-400 hover:bg-warm-100 hover:text-warm-600" aria-label="Close">
 						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -1612,7 +1613,7 @@
 						{/if}
 						</button>
 					{:else}
-						<p class="py-8 text-center text-sm text-warm-400">All places are already in this collection.</p>
+						<p class="py-8 text-center text-sm text-warm-400">{t('places.allInCollection')}</p>
 					{/each}
 				</div>
 			</div>

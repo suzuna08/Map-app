@@ -4,12 +4,13 @@
 	import { createSavedView, buildFiltersSnapshot } from '$lib/stores/saved-views.svelte';
 	import { showToast } from '$lib/stores/toasts.svelte';
 	import { onMount } from 'svelte';
+	import { t } from '$lib/i18n/locale.svelte';
 
 	let {
 		supabase,
 		userId,
 		selectedCustomIds = [],
-		filterMode = 'all',
+		filterMode = 'any',
 		selectedSource = 'all',
 		sortBy = 'newest',
 		viewMode = 'grid',
@@ -154,7 +155,7 @@
 	<div class="fixed inset-0 z-50 bg-black/30" onclick={closeMobileSheet} role="presentation"></div>
 	<div class="fixed bottom-0 left-0 right-0 z-50 flex max-h-[70dvh] flex-col rounded-t-2xl bg-white shadow-xl">
 		<div class="flex items-center justify-between border-b border-warm-100 px-5 pt-4 pb-3">
-			<h3 class="text-sm font-bold text-warm-800">Bookmarks</h3>
+			<h3 class="text-sm font-bold text-warm-800">{t('bookmark.bookmarks')}</h3>
 			<button
 				onclick={closeMobileSheet}
 				class="rounded-full p-1 text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600"
@@ -191,7 +192,7 @@
 					{/each}
 				</div>
 			{:else}
-				<p class="py-4 text-center text-sm text-warm-400">No bookmarks yet</p>
+				<p class="py-4 text-center text-sm text-warm-400">{t('bookmark.noBookmarks')}</p>
 			{/if}
 		</div>
 
@@ -201,7 +202,7 @@
 					bind:this={createInputEl}
 					bind:value={newViewName}
 					onkeydown={handleCreateKeydown}
-					placeholder="Bookmark name…"
+					placeholder={t('bookmark.placeholder')}
 					class="mb-3 w-full rounded-lg border border-warm-200 bg-warm-50 px-3 py-2.5 text-sm font-medium text-warm-800 placeholder:text-warm-400 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/20"
 				/>
 				<div class="flex items-center gap-3">
@@ -210,7 +211,7 @@
 						onclick={cancelCreate}
 						class="flex-1 rounded-lg border border-warm-200 bg-white py-2.5 text-sm font-semibold text-warm-500 transition-colors hover:bg-warm-50"
 					>
-						Cancel
+						{t('common.cancel')}
 					</button>
 					<button
 						onmousedown={(e) => e.preventDefault()}
@@ -218,7 +219,7 @@
 						disabled={!newViewName.trim()}
 						class="flex-1 rounded-lg bg-brand-500 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
 					>
-						Save
+						{t('common.save')}
 					</button>
 				</div>
 			{:else}
@@ -230,7 +231,7 @@
 						<line x1="12" y1="5" x2="12" y2="19" />
 						<line x1="5" y1="12" x2="19" y2="12" />
 					</svg>
-					New bookmark
+					{t('bookmark.new')}
 				</button>
 			{/if}
 		</div>
@@ -251,13 +252,13 @@
 		<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 			<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
 		</svg>
-		<span class="hidden sm:inline">Bookmark</span>
+		<span class="hidden sm:inline">{t('bookmark.title')}</span>
 	</button>
 	{#if showCreateInput && !isMobile}
 		<!-- Desktop: non-modal popover -->
 		<div class="absolute right-0 top-full z-50 mt-2 w-56 rounded-lg border border-warm-200 bg-white p-3 shadow-lg">
 			<div class="mb-2 flex items-center justify-between">
-				<span class="text-xs font-bold text-warm-700">Bookmark</span>
+				<span class="text-xs font-bold text-warm-700">{t('bookmark.title')}</span>
 				<button
 					onclick={cancelCreate}
 					class="rounded-full p-0.5 text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600"
@@ -274,7 +275,7 @@
 				bind:value={newViewName}
 				onkeydown={handleCreateKeydown}
 				onblur={handleCreateBlur}
-				placeholder="Bookmark name…"
+				placeholder={t('bookmark.placeholder')}
 				class="mb-3 w-full rounded-md border border-warm-200 bg-warm-50 px-2.5 py-1.5 text-sm font-medium text-warm-800 placeholder:text-warm-400 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/20"
 			/>
 			<div class="flex items-center gap-2">
@@ -283,7 +284,7 @@
 					onclick={cancelCreate}
 					class="flex-1 rounded-md border border-warm-200 bg-white py-1.5 text-xs font-semibold text-warm-500 transition-colors hover:bg-warm-50"
 				>
-					Cancel
+					{t('common.cancel')}
 				</button>
 				<button
 					onmousedown={(e) => e.preventDefault()}
@@ -291,7 +292,7 @@
 					disabled={!newViewName.trim()}
 					class="flex-1 rounded-md bg-brand-500 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
 				>
-					Save
+					{t('common.save')}
 				</button>
 			</div>
 		</div>

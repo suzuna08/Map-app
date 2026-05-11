@@ -2,6 +2,7 @@
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import type { Tag } from '$lib/types/database';
 	import { getNextOrderIndex, reindexAfterDelete } from '$lib/tag-order';
+	import { t } from '$lib/i18n/locale.svelte';
 
 	interface Props {
 		supabase: SupabaseClient;
@@ -130,7 +131,7 @@
 					<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
 					<circle cx="12" cy="10" r="3" />
 				</svg>
-				All Places
+				{t('tagSidebar.allPlaces')}
 			</div>
 			<span class="text-[13px] text-warm-400">{totalPlaces}</span>
 		</button>
@@ -139,7 +140,7 @@
 		{#if categoryTags.length > 0}
 			<div class="mt-5">
 				<div class="mb-2 px-3">
-					<span class="text-[13px] font-bold uppercase tracking-wider text-warm-400">Category</span>
+					<span class="text-[13px] font-bold uppercase tracking-wider text-warm-400">{t('tagSidebar.category')}</span>
 				</div>
 				<div class="space-y-0.5">
 				{#each categoryTags as tag (tag.id)}
@@ -165,7 +166,7 @@
 		{#if areaTags.length > 0}
 			<div class="mt-5">
 				<div class="mb-2 px-3">
-					<span class="text-[13px] font-bold uppercase tracking-wider text-warm-400">Area</span>
+					<span class="text-[13px] font-bold uppercase tracking-wider text-warm-400">{t('tagSidebar.area')}</span>
 				</div>
 				<div class="space-y-0.5">
 				{#each areaTags as tag (tag.id)}
@@ -190,7 +191,7 @@
 		<!-- User tags -->
 		<div class="mt-5">
 			<div class="mb-2 flex items-center justify-between px-3">
-				<span class="text-[13px] font-bold uppercase tracking-wider text-warm-400">My Tags</span>
+				<span class="text-[13px] font-bold uppercase tracking-wider text-warm-400">{t('tagSidebar.myTags')}</span>
 				<button
 					onclick={() => { showNewTag = !showNewTag; }}
 					class="rounded p-0.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600"
@@ -209,7 +210,7 @@
 					type="text"
 					bind:value={newTagName}
 					onkeydown={handleKeydown}
-					placeholder="Tag name..."
+					placeholder={t('tagSidebar.tagNamePlaceholder')}
 					class="min-w-0 flex-1 rounded-md border border-warm-200 bg-white px-2.5 py-1.5 text-[15px] focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400"
 					autofocus
 				/>
@@ -218,7 +219,7 @@
 					disabled={!newTagName.trim() || creating}
 					class="shrink-0 rounded-md bg-brand-500 px-2 py-1.5 text-[13px] font-bold text-white transition-colors hover:bg-brand-600 disabled:opacity-40"
 				>
-					{creating ? '...' : 'Add'}
+					{creating ? '...' : t('tagSidebar.add')}
 				</button>
 			</form>
 		{/if}
@@ -259,7 +260,7 @@
 			{/each}
 
 				{#if userTags.length === 0 && !showNewTag}
-					<p class="px-3 py-2 text-[13px] text-warm-400">No tags yet. Create one to organize your places.</p>
+					<p class="px-3 py-2 text-[13px] text-warm-400">{t('tagSidebar.noTags')}</p>
 				{/if}
 			</div>
 		</div>
@@ -268,7 +269,7 @@
 		{#if sourceLists.length > 0}
 			<div class="mt-6">
 				<div class="mb-2 px-3">
-					<span class="text-[13px] font-bold uppercase tracking-wider text-warm-400">Sources</span>
+					<span class="text-[13px] font-bold uppercase tracking-wider text-warm-400">{t('tagSidebar.sources')}</span>
 				</div>
 				<div class="space-y-0.5">
 					{#each sourceLists as source}

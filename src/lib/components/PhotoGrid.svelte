@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import type { PlacePhoto } from '$lib/types/database';
+	import { t } from '$lib/i18n/locale.svelte';
 	import { uploadPlacePhoto, deletePlacePhoto, loadPlacePhotos, validateFile } from '$lib/photo-storage';
 	import { sortable } from '$lib/actions/sortable';
 	import PhotoLightbox from './PhotoLightbox.svelte';
@@ -284,7 +285,7 @@
 		</button>
 	</div>
 	{#if photos.length >= 2}
-		<p class="mt-2 text-center text-[10px] font-medium text-warm-400">Drag to reorder</p>
+		<p class="mt-2 text-center text-[10px] font-medium text-warm-400">{t('photos.dragToReorder')}</p>
 	{/if}
 {/if}
 

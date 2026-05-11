@@ -4,6 +4,7 @@
 	import { TAG_PALETTE } from '$lib/tag-colors';
 	import { reindexAfterDelete } from '$lib/tag-order';
 	import { normalizeTagName, toDisplayName } from '$lib/tag-utils';
+	import { t } from '$lib/i18n/locale.svelte';
 
 	interface Props {
 		tag: Tag;
@@ -110,7 +111,7 @@
 				<svg class="h-3.5 w-3.5 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
 				</svg>
-				Rename
+				{t('tagMenu.rename')}
 			</button>
 			<button
 				onclick={() => { mode = 'color'; }}
@@ -119,7 +120,7 @@
 				<svg class="h-3.5 w-3.5 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
 				</svg>
-				Change color
+				{t('tagMenu.changeColor')}
 			</button>
 			<div class="mx-2 my-0.5 border-t border-warm-100"></div>
 			<button
@@ -130,13 +131,13 @@
 					<polyline points="3 6 5 6 21 6" />
 					<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
 				</svg>
-				Delete tag
+				{t('tagMenu.deleteTag')}
 			</button>
 		</div>
 
 	{:else if mode === 'rename'}
 		<div class="p-3">
-			<label class="mb-1.5 block text-xs font-bold text-warm-400">Rename tag</label>
+			<label class="mb-1.5 block text-xs font-bold text-warm-400">{t('tagMenu.renameTag')}</label>
 			<input
 				bind:this={inputEl}
 				bind:value={renameValue}
@@ -151,21 +152,21 @@
 					onclick={() => { mode = 'menu'; warning = ''; }}
 					class="rounded-md px-2.5 py-1 text-xs text-warm-500 hover:bg-warm-100"
 				>
-					Back
+					{t('tagMenu.back')}
 				</button>
 				<button
 					onclick={renameTag}
 					disabled={!renameValue.trim() || saving}
 					class="rounded-md bg-brand-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
 				>
-					{saving ? 'Saving...' : 'Save'}
+					{saving ? t('tagMenu.saving') : t('common.save')}
 				</button>
 			</div>
 		</div>
 
 	{:else if mode === 'color'}
 		<div class="p-3">
-			<label class="mb-2 block text-xs font-bold text-warm-400">Choose color</label>
+			<label class="mb-2 block text-xs font-bold text-warm-400">{t('tagMenu.chooseColor')}</label>
 			<div class="flex flex-wrap gap-2">
 				{#each TAG_PALETTE as color}
 					<button
@@ -188,13 +189,13 @@
 					onclick={() => { mode = 'menu'; }}
 					class="rounded-md px-2.5 py-1 text-xs text-warm-500 hover:bg-warm-100"
 				>
-					Cancel
+					{t('common.cancel')}
 				</button>
 				<button
 					onclick={deleteTag}
 					class="rounded-md bg-danger-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-danger-800"
 				>
-					Delete
+					{t('common.delete')}
 				</button>
 			</div>
 		</div>

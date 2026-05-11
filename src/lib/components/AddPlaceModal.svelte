@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Place } from '$lib/types/database';
+	import { t } from '$lib/i18n/locale.svelte';
 
 	interface Props {
 		onClose: () => void;
@@ -47,7 +48,7 @@
 
 			if (!res.ok) {
 				status = 'error';
-				errorMessage = data.message || data.error?.message || 'Something went wrong';
+				errorMessage = data.message || data.error?.message || t('addPlace.networkError');
 				return;
 			}
 
@@ -65,7 +66,7 @@
 			}
 		} catch {
 			status = 'error';
-			errorMessage = 'Network error. Please check your connection and try again.';
+			errorMessage = t('addPlace.networkError');
 		}
 	}
 
@@ -97,7 +98,7 @@
 	<div class="w-full max-w-lg rounded-2xl border border-warm-200 bg-white shadow-2xl">
 		<!-- Header -->
 		<div class="flex items-center justify-between border-b border-warm-100 px-5 py-4">
-			<h2 class="text-base font-extrabold text-warm-800">Add Place</h2>
+			<h2 class="text-base font-extrabold text-warm-800">{t('addPlace.title')}</h2>
 			<button
 				onclick={onClose}
 				class="rounded-lg p-1.5 text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600"
@@ -118,7 +119,7 @@
 					? 'border-b-2 border-brand-600 text-brand-700'
 					: 'text-warm-400 hover:text-warm-600'}"
 			>
-				Paste URL
+				{t('addPlace.pasteUrl')}
 			</button>
 			<button
 				onclick={() => { activeTab = 'upload'; }}
@@ -126,7 +127,7 @@
 					? 'border-b-2 border-brand-600 text-brand-700'
 					: 'text-warm-400 hover:text-warm-600'}"
 			>
-				Upload CSV
+				{t('addPlace.uploadCsv')}
 			</button>
 		</div>
 
@@ -136,7 +137,7 @@
 				<!-- URL Tab -->
 				{#if status === 'idle' || status === 'error'}
 					<p class="mb-3 text-xs text-warm-500">
-						Paste a Google Maps link to quickly add a single place.
+						{t('addPlace.urlHint')}
 					</p>
 					<div class="flex gap-2">
 						<input
@@ -151,7 +152,7 @@
 							disabled={!urlInput.trim()}
 							class="shrink-0 rounded-lg bg-brand-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-brand-700 disabled:opacity-40"
 						>
-							Add
+							{t('addPlace.add')}
 						</button>
 					</div>
 					{#if status === 'error'}
@@ -166,7 +167,7 @@
 							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
 							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
 						</svg>
-						<p class="mt-3 text-sm font-medium text-warm-500">Looking up place details...</p>
+						<p class="mt-3 text-sm font-medium text-warm-500">{t('addPlace.lookingUp')}</p>
 					</div>
 
 				{:else if status === 'success' && resultPlace}
@@ -176,7 +177,7 @@
 								<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
 								<polyline points="22 4 12 14.01 9 11.01" />
 							</svg>
-							<span class="text-sm font-bold text-sage-800">Place added!</span>
+							<span class="text-sm font-bold text-sage-800">{t('addPlace.success')}</span>
 						</div>
 						<h3 class="text-base font-extrabold text-warm-800">{resultPlace.title}</h3>
 						{#if resultPlace.address}
@@ -206,7 +207,7 @@
 									<path d="M2 17l10 5 10-5" />
 									<path d="M2 12l10 5 10-5" />
 								</svg>
-								<span class="text-xs font-bold text-brand-700">Suggested Tags</span>
+								<span class="text-xs font-bold text-brand-700">{t('addPlace.suggestedTags')}</span>
 							</div>
 							<div class="flex flex-wrap gap-1.5">
 								{#each intelSuggestions.suggested_tags as tag}
@@ -231,13 +232,13 @@
 							onclick={onClose}
 							class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-bold text-white hover:bg-brand-700"
 						>
-							View in library
+							{t('addPlace.viewLibrary')}
 						</a>
 						<button
 							onclick={reset}
 							class="rounded-lg px-4 py-2 text-sm font-bold text-warm-500 hover:bg-warm-100 hover:text-warm-700"
 						>
-							Add another
+							{t('addPlace.addAnother')}
 						</button>
 					</div>
 
@@ -249,7 +250,7 @@
 								<line x1="12" y1="8" x2="12" y2="12" />
 								<line x1="12" y1="16" x2="12.01" y2="16" />
 							</svg>
-							<span class="text-sm font-bold text-amber-800">Already in your library</span>
+							<span class="text-sm font-bold text-amber-800">{t('addPlace.duplicate')}</span>
 						</div>
 						<h3 class="text-base font-extrabold text-warm-800">{resultPlace.title}</h3>
 						{#if resultPlace.address}
@@ -262,13 +263,13 @@
 							onclick={onClose}
 							class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-bold text-white hover:bg-brand-700"
 						>
-							View in library
+							{t('addPlace.viewLibrary')}
 						</a>
 						<button
 							onclick={reset}
 							class="rounded-lg px-4 py-2 text-sm font-bold text-warm-500 hover:bg-warm-100 hover:text-warm-700"
 						>
-							Try another
+							{t('addPlace.tryAnother')}
 						</button>
 					</div>
 				{/if}
@@ -281,8 +282,8 @@
 						<polyline points="17 8 12 3 7 8" />
 						<line x1="12" y1="3" x2="12" y2="15" />
 					</svg>
-					<p class="mt-3 text-sm font-semibold text-warm-700">Bulk import from Google Takeout</p>
-					<p class="mt-1 text-xs text-warm-400">Upload CSV files exported from your Google Maps saved places.</p>
+					<p class="mt-3 text-sm font-semibold text-warm-700">{t('addPlace.bulkImport')}</p>
+					<p class="mt-1 text-xs text-warm-400">{t('addPlace.uploadHint')}</p>
 					<a
 						href="/upload"
 						onclick={onClose}
@@ -293,7 +294,7 @@
 							<polyline points="17 8 12 3 7 8" />
 							<line x1="12" y1="3" x2="12" y2="15" />
 						</svg>
-						Go to Upload page
+						{t('addPlace.goToUpload')}
 					</a>
 				</div>
 			{/if}

@@ -5,6 +5,7 @@
 	import { getNextOrderIndex, saveTagOrder, reindexAfterDelete } from '$lib/tag-order';
 	import { normalizeTagName, toDisplayName } from '$lib/tag-utils';
 	import { sortable } from '$lib/actions/sortable';
+	import { t } from '$lib/i18n/locale.svelte';
 
 	interface Props {
 		supabase: SupabaseClient;
@@ -139,7 +140,7 @@
 <div class="flex max-h-[60vh] flex-col overflow-hidden">
 	<!-- Header -->
 	<div class="flex items-center justify-between px-4 py-3.5">
-		<h2 class="text-base font-bold text-warm-800">Manage Tags</h2>
+		<h2 class="text-base font-bold text-warm-800">{t('tagManager.title')}</h2>
 		<button
 			onclick={onClose}
 			class="rounded-lg p-1 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600"
@@ -168,14 +169,14 @@
 				bind:value={newTagName}
 				oninput={() => { newTagColorOverride = null; duplicateWarning = ''; }}
 				onkeydown={handleNewKeydown}
-				placeholder="New tag..."
+				placeholder={t('tagManager.newPlaceholder')}
 				class="flex-1 border-0 bg-transparent py-0.5 text-[0.9375rem] text-warm-700 placeholder-warm-400 focus:outline-none"
 			/>
 			{#if newTagName.trim()}
 				<button
 					onclick={createTag}
 					class="rounded-md bg-brand-600 px-2.5 py-0.5 text-xs font-medium text-white hover:bg-brand-700"
-				>Add</button>
+				>{t('tagManager.add')}</button>
 			{/if}
 		</div>
 		{#if newTagName.trim()}
@@ -205,16 +206,16 @@
 		}}
 	>
 		{#if allTags.length === 0}
-			<p class="py-6 text-center text-xs text-warm-400">No tags yet</p>
+			<p class="py-6 text-center text-xs text-warm-400">{t('tagManager.noTags')}</p>
 		{/if}
 
 		{#each allTags as tag (tag.id)}
 			{#if confirmDeleteId === tag.id}
 			<div class="flex items-center justify-between rounded-lg bg-danger-50 px-2.5 py-1.5">
-				<span class="text-[0.8125rem] text-danger-700">Delete "{tag.name}"?</span>
+				<span class="text-[0.8125rem] text-danger-700">{t('tagManager.deleteConfirm').replace('{name}', tag.name)}</span>
 				<div class="flex items-center gap-1">
-					<button onclick={() => { confirmDeleteId = null; }} class="rounded-md px-2 py-0.5 text-xs text-warm-500 hover:bg-white">Cancel</button>
-					<button onclick={() => deleteTag(tag.id)} class="rounded-md bg-danger-600 px-2 py-0.5 text-xs font-medium text-white hover:bg-danger-800">Delete</button>
+					<button onclick={() => { confirmDeleteId = null; }} class="rounded-md px-2 py-0.5 text-xs text-warm-500 hover:bg-white">{t('common.cancel')}</button>
+					<button onclick={() => deleteTag(tag.id)} class="rounded-md bg-danger-600 px-2 py-0.5 text-xs font-medium text-white hover:bg-danger-800">{t('common.delete')}</button>
 				</div>
 			</div>
 			{:else}
@@ -284,7 +285,7 @@
 <div class="fixed inset-x-4 top-[10%] z-[60] mx-auto max-h-[80dvh] max-w-md overflow-hidden rounded-2xl border border-warm-200 bg-warm-50 shadow-2xl sm:right-auto sm:left-1/2 sm:top-[15%] sm:max-h-[70vh] sm:w-full sm:-translate-x-1/2 lg:left-[calc(16rem+(100vw-16rem)*0.29)]">
 	<!-- Header -->
 	<div class="flex items-center justify-between px-5 py-4">
-		<h2 class="text-base font-bold text-warm-800">Manage Tags</h2>
+		<h2 class="text-base font-bold text-warm-800">{t('tagManager.title')}</h2>
 		<button
 			onclick={onClose}
 			class="rounded-lg p-1.5 text-warm-400 transition-colors hover:bg-warm-200 hover:text-warm-600"
@@ -313,7 +314,7 @@
 				bind:value={newTagName}
 				oninput={() => { newTagColorOverride = null; duplicateWarning = ''; }}
 				onkeydown={handleNewKeydown}
-				placeholder="New tag..."
+				placeholder={t('tagManager.newPlaceholder')}
 				class="flex-1 border-0 bg-transparent py-1 text-base text-warm-700 placeholder-warm-400 focus:outline-none sm:text-sm"
 			/>
 			{#if newTagName.trim()}
@@ -321,7 +322,7 @@
 					onclick={createTag}
 					class="rounded-lg bg-brand-600 px-3 py-1 text-xs font-medium text-white hover:bg-brand-700"
 				>
-					Add
+					{t('tagManager.add')}
 				</button>
 			{/if}
 		</div>
@@ -352,23 +353,23 @@
 		}}
 	>
 		{#if allTags.length === 0}
-			<p class="py-8 text-center text-sm text-warm-400">No tags yet</p>
+			<p class="py-8 text-center text-sm text-warm-400">{t('tagManager.noTags')}</p>
 		{/if}
 
 		{#each allTags as tag (tag.id)}
 			{#if confirmDeleteId === tag.id}
 			<!-- Delete confirmation -->
 			<div class="flex items-center justify-between rounded-lg bg-danger-50 px-3 py-2">
-				<span class="text-xs text-danger-700">Delete "{tag.name}"?</span>
+				<span class="text-xs text-danger-700">{t('tagManager.deleteConfirm').replace('{name}', tag.name)}</span>
 				<div class="flex items-center gap-1">
 					<button
 						onclick={() => { confirmDeleteId = null; }}
 						class="rounded-md px-2 py-0.5 text-xs text-warm-500 hover:bg-white"
-					>Cancel</button>
+					>{t('common.cancel')}</button>
 					<button
 						onclick={() => deleteTag(tag.id)}
 						class="rounded-md bg-danger-600 px-2 py-0.5 text-xs font-medium text-white hover:bg-danger-800"
-					>Delete</button>
+					>{t('common.delete')}</button>
 				</div>
 			</div>
 			{:else}

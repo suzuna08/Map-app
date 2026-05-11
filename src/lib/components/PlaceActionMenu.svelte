@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { bottomDockSuppressed } from '$lib/stores/bottom-dock-suppressed';
+	import { t } from '$lib/i18n/locale.svelte';
 
 	interface Props {
 		anchorX: number;
@@ -77,19 +78,19 @@
 	>
 		{#if confirmingDelete}
 			<div class="px-3 py-2">
-				<p class="text-xs font-medium text-warm-600">Delete this place permanently?</p>
+				<p class="text-xs font-medium text-warm-600">{t('placeAction.deleteConfirmPermanent')}</p>
 				<div class="mt-2 flex items-center justify-end gap-1.5">
 					<button
 						onclick={handleCancelDelete}
 						class="rounded-md px-2.5 py-1 text-xs font-medium text-warm-500 hover:bg-warm-100"
 					>
-						Cancel
+						{t('common.cancel')}
 					</button>
 					<button
 						onclick={handleDelete}
 						class="rounded-md bg-danger-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-danger-700"
 					>
-						Delete
+						{t('common.delete')}
 					</button>
 				</div>
 			</div>
@@ -101,7 +102,7 @@
 				<svg class="h-3.5 w-3.5 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<path d="M18 6L6 18M6 6l12 12" />
 				</svg>
-				<span class="text-sm font-medium text-warm-700">Remove from collection</span>
+				<span class="text-sm font-medium text-warm-700">{t('placeAction.removeFromCollection')}</span>
 			</button>
 			<button
 				onclick={handleDelete}
@@ -110,7 +111,7 @@
 				<svg class="h-3.5 w-3.5 shrink-0 text-danger-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
 				</svg>
-				<span class="text-sm font-medium text-danger-600">Delete place</span>
+				<span class="text-sm font-medium text-danger-600">{t('placeAction.deletePlace')}</span>
 			</button>
 		{/if}
 	</div>

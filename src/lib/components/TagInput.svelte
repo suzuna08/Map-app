@@ -5,6 +5,7 @@
 	import { getNextOrderIndex, saveTagOrder } from '$lib/tag-order';
 	import { normalizeTagName, toDisplayName } from '$lib/tag-utils';
 	import { sortable } from '$lib/actions/sortable';
+	import { t } from '$lib/i18n/locale.svelte';
 
 	interface Props {
 		supabase: SupabaseClient;
@@ -232,14 +233,14 @@
 			onclick={(e) => { e.stopPropagation(); expanded = true; }}
 			class="rounded-full bg-warm-100 px-2 py-0.5 text-xs font-bold text-warm-500 transition-colors hover:bg-warm-200 hover:text-warm-700"
 		>
-			+{overflowCount} more
+			{t('tagInput.more').replace('{count}', String(overflowCount))}
 		</button>
 	{:else if expanded && displayUserTags.length > maxVisible}
 		<button
 			onclick={(e) => { e.stopPropagation(); expanded = false; }}
 			class="rounded-full bg-warm-100 px-2 py-0.5 text-xs font-bold text-warm-500 transition-colors hover:bg-warm-200 hover:text-warm-700"
 		>
-			less
+			{t('tagInput.less')}
 		</button>
 	{/if}
 
@@ -252,7 +253,7 @@
 				onblur={() => { setTimeout(() => { showSuggestions = false; showInput = false; inputValue = ''; dropdownPos = null; stopPosTracking(); }, 180); }}
 				oninput={() => { updateDropdownPos(); }}
 				onkeydown={handleKeydown}
-				placeholder="tag name..."
+				placeholder={t('tagInput.placeholder')}
 				class="w-24 rounded-full border border-warm-200 bg-warm-50 px-2 py-0.5 text-sm text-warm-700 placeholder-warm-400 focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-400 sm:w-28 sm:px-2.5 sm:py-1"
 			/>
 		</div>
@@ -297,7 +298,7 @@
 					class="h-2.5 w-2.5 shrink-0 rounded-full"
 					style="background-color: {colorForTag(toDisplayName(inputValue))}"
 				></span>
-				Create "{toDisplayName(inputValue)}"
+				{t('tagInput.create').replace('{name}', toDisplayName(inputValue))}
 			</button>
 		{/if}
 	</div>

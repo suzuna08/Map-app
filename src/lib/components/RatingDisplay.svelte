@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import RatingEditor from './RatingEditor.svelte';
+	import { t } from '$lib/i18n/locale.svelte';
 
 	interface Props {
 		placeId: string;
@@ -69,7 +70,7 @@
 	{#if userRating != null}
 		<span class="text-warm-700">{userRating.toFixed(1)}</span><span class="text-brand-500">★</span>
 	{:else}
-		<span class="whitespace-nowrap text-warm-300">Not rated</span>
+		<span class="whitespace-nowrap text-warm-300">{t('common.notRated')}</span>
 	{/if}
 </button>
 

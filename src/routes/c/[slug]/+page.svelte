@@ -7,6 +7,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { textColorForBg } from '$lib/tag-colors';
+	import { t } from '$lib/i18n/locale.svelte';
 
 	let { data } = $props();
 	let collection = (data as any).collection as Collection;
@@ -294,7 +295,7 @@
 						<input
 							type="text"
 							bind:value={search}
-							placeholder="Search..."
+							placeholder={t('shared.search')}
 							autofocus
 							class="w-full rounded-full border border-warm-200 bg-warm-50 py-1.5 pl-8 pr-8 text-xs font-medium text-warm-600 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20 sm:text-sm"
 						/>
@@ -323,13 +324,13 @@
 							{saved ? 'bg-sage-200 text-sage-700' : 'bg-brand-600 text-white hover:bg-brand-700'}
 							disabled:opacity-60"
 					>
-						{#if saving}
-							<svg class="inline h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12" /></svg>
-						{:else if saved}
-							Saved
-						{:else}
-							Save
-						{/if}
+					{#if saving}
+						<svg class="inline h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12" /></svg>
+					{:else if saved}
+						{t('shared.saved')}
+					{:else}
+						{t('shared.save')}
+					{/if}
 					</button>
 				{/if}
 
@@ -343,7 +344,7 @@
 						</svg>
 					</button>
 
-					<span class="shrink-0 text-xs font-semibold text-warm-500">{filteredPlaces.length} {filteredPlaces.length === 1 ? 'place' : 'places'}</span>
+					<span class="shrink-0 text-xs font-semibold text-warm-500">{filteredPlaces.length} {filteredPlaces.length === 1 ? t('collection.place') : t('collection.places')}</span>
 				{/if}
 			</div>
 		</div>
@@ -353,7 +354,7 @@
 	<!-- Places -->
 	{#if filteredPlaces.length === 0}
 		<div class="py-16 text-center">
-			<p class="text-sm text-warm-500">{search ? 'No places match your search' : 'This collection is empty'}</p>
+			<p class="text-sm text-warm-500">{search ? t('shared.noMatch') : t('shared.empty')}</p>
 		</div>
 	{:else}
 		<div class="flex flex-col gap-2">
@@ -453,7 +454,7 @@
 	<!-- Footer -->
 	<div class="mt-6 pb-4 text-center">
 		<p class="text-xs text-warm-300">
-			Shared via <a href="/" class="font-semibold text-brand-500 hover:text-brand-600">MyPlaces</a>
+			{t('shared.sharedVia')} <a href="/" class="font-semibold text-brand-500 hover:text-brand-600">{t('shared.appName')}</a>
 		</p>
 	</div>
 		</div>

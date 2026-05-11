@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Collection } from '$lib/types/database';
 	import type { CollectionMemberMap } from '$lib/stores/collections.svelte';
+	import { t } from '$lib/i18n/locale.svelte';
 	import CollectionAvatar from './CollectionAvatar.svelte';
 	import EmojiPicker from './EmojiPicker.svelte';
 
@@ -129,7 +130,7 @@
 							{/each}
 						</div>
 						<div class="mt-2 border-t border-warm-100 pt-2">
-							<span class="mb-1 block text-xs font-bold text-warm-400">Icon</span>
+							<span class="mb-1 block text-xs font-bold text-warm-400">{t('collection.icon')}</span>
 							<EmojiPicker selected={collection.emoji ?? null} onSelect={(em) => { if (onEmojiChange) onEmojiChange(em); }} />
 						</div>
 					</div>
@@ -142,10 +143,10 @@
 					<button type="button" class="cursor-pointer truncate text-left text-base font-extrabold text-warm-800 transition-colors hover:text-brand-600 sm:text-lg" onclick={() => { editingName = true; editName = collection.name; }}>{collection.name}</button>
 				{/if}
 				{#if editingDesc}
-					<input type="text" bind:value={editDesc} onkeydown={(e) => { if (e.key === 'Enter') saveDescription(); if (e.key === 'Escape') editingDesc = false; }} onblur={saveDescription} placeholder="Add a description..." class="mt-0.5 w-full rounded-lg border border-warm-200 bg-warm-50 px-2 py-0.5 text-xs text-warm-500 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20" autofocus />
+					<input type="text" bind:value={editDesc} onkeydown={(e) => { if (e.key === 'Enter') saveDescription(); if (e.key === 'Escape') editingDesc = false; }} onblur={saveDescription} placeholder={t('collection.addDescription')} class="mt-0.5 w-full rounded-lg border border-warm-200 bg-warm-50 px-2 py-0.5 text-xs text-warm-500 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20" autofocus />
 				{:else}
 					<div class="flex items-center gap-2 mt-0.5">
-						<button type="button" class="cursor-pointer text-left text-xs text-warm-400 transition-colors hover:text-warm-500" onclick={() => { editingDesc = true; editDesc = collection.description ?? ''; }}>{collection.description || 'Add a description...'}</button>
+						<button type="button" class="cursor-pointer text-left text-xs text-warm-400 transition-colors hover:text-warm-500" onclick={() => { editingDesc = true; editDesc = collection.description ?? ''; }}>{collection.description || t('collection.addDescription')}</button>
 					</div>
 				{/if}
 			</div>
@@ -157,7 +158,7 @@
 						class="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-bold transition-colors {collection.visibility === 'link_access' ? 'border-sage-200 bg-sage-50 text-sage-700 hover:bg-sage-100' : 'border-warm-200 text-warm-500 hover:bg-warm-50'}"
 					>
 						<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">{#if collection.visibility === 'link_access'}<circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />{:else}<rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />{/if}</svg>
-						{collection.visibility === 'link_access' ? 'Shared' : 'Private'}
+						{collection.visibility === 'link_access' ? t('collection.shared') : t('collection.private')}
 						<svg class="h-2.5 w-2.5 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9" /></svg>
 					</button>
 					{#if shareDropdownOpen}
@@ -168,7 +169,7 @@
 								class="flex w-full items-center gap-2.5 px-4 py-3 text-left transition-colors hover:bg-warm-50"
 							>
 								<svg class="h-4 w-4 shrink-0 text-warm-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
-								<span class="flex-1 text-sm font-semibold text-warm-700">Share via link</span>
+								<span class="flex-1 text-sm font-semibold text-warm-700">{t('collection.shareViaLink')}</span>
 								<div class="relative h-5 w-9 rounded-full transition-colors {collection.visibility === 'link_access' ? 'bg-brand-500' : 'bg-warm-300'}">
 									<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {collection.visibility === 'link_access' ? 'left-[18px]' : 'left-0.5'}"></div>
 								</div>
@@ -183,14 +184,14 @@
 									class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-warm-50"
 								>
 									<svg class="h-4 w-4 shrink-0 text-warm-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
-									<span class="text-sm font-semibold text-warm-700">Copy link</span>
+									<span class="text-sm font-semibold text-warm-700">{t('collection.copyLink')}</span>
 								</button>
 
 								<div class="border-t border-warm-100"></div>
 
 								<!-- Visible to others -->
 								<div class="px-4 pt-3 pb-1">
-									<p class="text-xs font-semibold text-warm-400">Visible to others</p>
+									<p class="text-xs font-semibold text-warm-400">{t('collection.visibleToOthers')}</p>
 								</div>
 
 								<!-- Notes toggle -->
@@ -199,7 +200,7 @@
 									class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50"
 								>
 									<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
-									<span class="flex-1 text-sm font-medium text-warm-700">Notes</span>
+									<span class="flex-1 text-sm font-medium text-warm-700">{t('collection.notes')}</span>
 									<div class="relative h-5 w-9 rounded-full transition-colors {shareNotes ? 'bg-brand-500' : 'bg-warm-300'}">
 										<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {shareNotes ? 'left-[18px]' : 'left-0.5'}"></div>
 									</div>
@@ -211,7 +212,7 @@
 									class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50"
 								>
 									<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
-									<span class="flex-1 text-sm font-medium text-warm-700">Photos</span>
+									<span class="flex-1 text-sm font-medium text-warm-700">{t('collection.photos')}</span>
 									<div class="relative h-5 w-9 rounded-full transition-colors {sharePhotos ? 'bg-brand-500' : 'bg-warm-300'}">
 										<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {sharePhotos ? 'left-[18px]' : 'left-0.5'}"></div>
 									</div>
@@ -223,7 +224,7 @@
 									class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50"
 								>
 									<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>
-									<span class="flex-1 text-sm font-medium text-warm-700">Tags</span>
+									<span class="flex-1 text-sm font-medium text-warm-700">{t('collection.tags')}</span>
 									<div class="relative h-5 w-9 rounded-full transition-colors {shareTags ? 'bg-brand-500' : 'bg-warm-300'}">
 										<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {shareTags ? 'left-[18px]' : 'left-0.5'}"></div>
 									</div>
@@ -240,7 +241,7 @@
 					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
 					</svg>
-					<span class="hidden sm:inline">Add Places</span>
+					<span class="hidden sm:inline">{t('collection.addPlaces')}</span>
 				</button>
 				<!-- Overflow menu -->
 				<div class="relative" bind:this={overflowEl}>
@@ -256,23 +257,23 @@
 						{#if onDeleteCollection}
 								{#if confirmDelete}
 									<div class="flex items-center gap-1.5 px-3 py-2">
-										<button
-											onclick={() => { onDeleteCollection(); overflowOpen = false; confirmDelete = false; }}
-											class="rounded-md bg-danger-100 px-2 py-1 text-xs font-bold text-danger-700 hover:bg-danger-200"
-										>Delete</button>
-										<button
-											onclick={() => { confirmDelete = false; }}
-											class="text-xs text-warm-400 hover:text-warm-600"
-										>Cancel</button>
+									<button
+										onclick={() => { onDeleteCollection(); overflowOpen = false; confirmDelete = false; }}
+										class="rounded-md bg-danger-100 px-2 py-1 text-xs font-bold text-danger-700 hover:bg-danger-200"
+									>{t('common.delete')}</button>
+									<button
+										onclick={() => { confirmDelete = false; }}
+										class="text-xs text-warm-400 hover:text-warm-600"
+									>{t('common.cancel')}</button>
 									</div>
 								{:else}
-									<button
-										onclick={() => { confirmDelete = true; }}
-										class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-danger-600 transition-colors hover:bg-danger-50"
-									>
-										<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-										Delete collection
-									</button>
+								<button
+									onclick={() => { confirmDelete = true; }}
+									class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-danger-600 transition-colors hover:bg-danger-50"
+								>
+									<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+									{t('collection.deleteCollection')}
+								</button>
 								{/if}
 							{/if}
 						</div>

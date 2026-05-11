@@ -3,6 +3,7 @@
 	import { dockMode, type DockMode } from '$lib/stores/dock-scroll-state';
 	import { browser } from '$app/environment';
 	import { onMount } from 'svelte';
+	import { t } from '$lib/i18n/locale.svelte';
 
 	let pathname = $derived(page.url.pathname);
 	let mode = $state<DockMode>('active');
@@ -187,8 +188,9 @@
 
 	const dockTabBase =
 		'flex min-h-[2.5rem] w-[4.5rem] shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 py-1.5 text-center text-[9px] font-bold leading-tight transition-colors sm:w-[5rem] sm:text-[10px]';
-	const dockTabActive = 'bg-brand-100 text-brand-800';
-	const dockTabIdle = 'text-warm-500 hover:bg-warm-100 hover:text-warm-700';
+	const dockTabActive = 'text-brand-700 dock-tab-filled';
+	const dockTabActiveOutline = 'text-brand-700';
+	const dockTabIdle = 'text-warm-500 hover:text-warm-700';
 	const iconWrap = 'flex h-4 w-4 shrink-0 items-center justify-center sm:h-5 sm:w-5';
 
 	let placesActive = $derived(pathname === '/places');
@@ -283,7 +285,7 @@
 				<div class="flex h-5 w-5 items-center justify-center text-brand-600">
 					<svg class="h-full w-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-						<circle cx="12" cy="10" r="3" />
+						<circle cx="12" cy="10" r="4" />
 					</svg>
 				</div>
 			</button>
@@ -367,10 +369,10 @@
 		<span class={iconWrap} aria-hidden="true">
 			<svg class="h-full w-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 				<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-				<circle cx="12" cy="10" r="3" />
+				<circle cx="12" cy="10" r="4" />
 			</svg>
 		</span>
-		<span class="max-w-full text-center leading-tight">Places</span>
+		<span class="max-w-full text-center leading-tight">{t('nav.places')}</span>
 	</a>
 
 	<a
@@ -386,7 +388,7 @@
 				<rect x="14" y="14" width="7" height="7" rx="1" />
 			</svg>
 		</span>
-		<span class="max-w-full text-center leading-tight">Collections</span>
+		<span class="max-w-full text-center leading-tight">{t('nav.collections')}</span>
 	</a>
 
 	<a
@@ -404,13 +406,13 @@
 				stroke-linecap="round"
 				stroke-linejoin="round"
 			>
-				<path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
 				<path
 					d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"
 				/>
+				<circle cx="12" cy="12" r="5" />
 			</svg>
 		</span>
-		<span class="max-w-full text-center leading-tight">Settings</span>
+		<span class="max-w-full text-center leading-tight">{t('nav.settings')}</span>
 	</a>
 {/snippet}
 
@@ -423,10 +425,10 @@
 		<span class="flex h-5 w-5 items-center justify-center" aria-hidden="true">
 			<svg class="h-full w-full" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 				<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-				<circle cx="12" cy="10" r="3" />
+				<circle cx="12" cy="10" r="4" />
 			</svg>
 		</span>
-		<span class="text-[8px] font-bold leading-tight">Places</span>
+		<span class="text-[8px] font-bold leading-tight">{t('nav.places')}</span>
 	</a>
 
 	<a
@@ -442,7 +444,7 @@
 				<rect x="14" y="14" width="7" height="7" rx="1" />
 			</svg>
 		</span>
-		<span class="text-[8px] font-bold leading-tight">Collections</span>
+		<span class="text-[8px] font-bold leading-tight">{t('nav.collections')}</span>
 	</a>
 
 	<a
@@ -460,18 +462,27 @@
 				stroke-linecap="round"
 				stroke-linejoin="round"
 			>
-				<path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
 				<path
 					d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"
 				/>
+				<circle cx="12" cy="12" r="5" />
 			</svg>
 		</span>
-		<span class="text-[8px] font-bold leading-tight">Settings</span>
+		<span class="text-[8px] font-bold leading-tight">{t('nav.settings')}</span>
 	</a>
 {/snippet}
 
 <style>
 	/* ---- Shared ---- */
+	:global(.dock-tab-filled) svg {
+		fill: currentColor;
+		stroke: currentColor;
+	}
+
+	:global(.dock-tab-filled) svg circle {
+		fill: var(--color-warm-50, #faf9f7);
+	}
+
 	nav:not(.mobile-dock-expanded) {
 		pointer-events: none;
 	}
@@ -527,8 +538,20 @@
 	}
 
 	.mobile-dock-link-active {
-		background-color: var(--color-brand-100);
-		color: var(--color-brand-800);
+		color: var(--color-brand-700);
+	}
+
+	.mobile-dock-link-active :global(svg) {
+		fill: currentColor;
+		stroke: currentColor;
+	}
+
+	.mobile-dock-link-active :global(svg circle) {
+		fill: var(--color-warm-50, #faf9f7);
+	}
+
+	.mobile-dock-link-active-outline {
+		color: var(--color-brand-700);
 	}
 
 	.mobile-dock-link-idle {

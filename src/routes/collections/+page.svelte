@@ -17,6 +17,7 @@
 	import { sortable } from '$lib/actions/sortable';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
+	import { t } from '$lib/i18n/locale.svelte';
 
 	let { data } = $props();
 	let supabase = $derived(data.supabase);
@@ -874,32 +875,32 @@
 										<div class="flex h-5 w-5 items-center justify-center rounded-full bg-warm-200">
 											<svg class="h-3 w-3 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
 										</div>
-										<p class="truncate text-xs font-bold text-warm-300">Unavailable</p>
-									{/if}
-								</button>
-							</div>
-						{/each}
-					{/if}
-				</div>
+								<p class="truncate text-xs font-bold text-warm-300">{t('shared.unavailable')}</p>
+								{/if}
+							</button>
+						</div>
+					{/each}
+				{/if}
 			</div>
 		</div>
+	</div>
 
-		{#if isSavedMode && selectedSaved}
-			<!-- Read-only saved collection browse -->
-			<div class="shrink-0 border-b border-warm-200/40 bg-[#faf7f2] px-3 py-2">
-				<div class="flex items-center gap-2">
-					{#if selectedSaved.source_collection}
-						<svg class="h-4 w-4 shrink-0 text-sage-500" viewBox="0 0 24 24" fill="currentColor"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
-						<span class="min-w-0 flex-1 truncate text-xs font-medium text-warm-500">Saved collection &middot; tap a place to add it to your account</span>
-					{:else}
-						<span class="text-xs font-medium text-warm-400">This collection is no longer shared</span>
-					{/if}
-					<button
-						onclick={() => handleRemoveSavedCollection(selectedSaved.id)}
-						class="shrink-0 rounded-lg border border-warm-200 px-2 py-1 text-xs font-medium text-warm-500 transition-colors hover:bg-warm-100 hover:text-warm-600"
-					>
-						Remove
-					</button>
+	{#if isSavedMode && selectedSaved}
+		<!-- Read-only saved collection browse -->
+		<div class="shrink-0 border-b border-warm-200/40 bg-[#faf7f2] px-3 py-2">
+			<div class="flex items-center gap-2">
+				{#if selectedSaved.source_collection}
+					<svg class="h-4 w-4 shrink-0 text-sage-500" viewBox="0 0 24 24" fill="currentColor"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
+					<span class="min-w-0 flex-1 truncate text-xs font-medium text-warm-500">{t('shared.savedCollectionHint')}</span>
+				{:else}
+					<span class="text-xs font-medium text-warm-400">{t('shared.noLongerShared')}</span>
+				{/if}
+				<button
+					onclick={() => handleRemoveSavedCollection(selectedSaved.id)}
+					class="shrink-0 rounded-lg border border-warm-200 px-2 py-1 text-xs font-medium text-warm-500 transition-colors hover:bg-warm-100 hover:text-warm-600"
+				>
+					{t('shared.remove')}
+				</button>
 				</div>
 			</div>
 			{#if savedBrowseLoading}
@@ -907,49 +908,49 @@
 					<svg class="h-8 w-8 animate-spin text-brand-500" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
 				</div>
 			{:else if !selectedSaved.source_collection}
-				<div class="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-					<svg class="h-10 w-10 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
-					<p class="text-sm text-warm-500">This collection is no longer available. The owner may have made it private or deleted it.</p>
-					<button onclick={() => handleRemoveSavedCollection(selectedSaved.id)} class="text-sm font-semibold text-brand-600 hover:text-brand-700">Remove from saved</button>
-				</div>
+			<div class="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+				<svg class="h-10 w-10 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+				<p class="text-sm text-warm-500">{t('shared.noLongerAvailable')}</p>
+				<button onclick={() => handleRemoveSavedCollection(selectedSaved.id)} class="text-sm font-semibold text-brand-600 hover:text-brand-700">{t('shared.removeFromSaved')}</button>
+			</div>
 			{:else}
 				<MobileMapShell places={filteredSavedPlaces} {selectedPlaceId} {recenterTick} onPlaceSelect={handleMapPlaceSelect} maptilerKey={data.maptilerKey} placePhotos={{}} />
 				<div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
 					<div class="mx-auto px-2.5 pt-1 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]">
-						{#if sortedSavedPlaces.length === 0}
-							<div class="py-16 text-center">
-								<p class="text-sm text-warm-500">{search ? 'No places match your search' : 'This collection is empty'}</p>
-							</div>
-						{:else}
-							<div class="flex flex-col gap-2">
-								{#each sortedSavedPlaces as place (place.id)}
-									{@const imported = savedImportedIds.has(place.id)}
-									<div class="rounded-xl border border-warm-200 bg-white p-3 transition-all {selectedPlaceId === place.id ? 'ring-2 ring-brand-400/30 border-brand-400' : ''}">
-										<div class="flex items-start gap-2">
-											<div class="min-w-0 flex-1">
-												<p class="truncate text-sm font-extrabold text-warm-800">{place.title}</p>
-												{#if place.category || place.area}
-													<p class="mt-0.5 truncate text-xs text-warm-400">
-														{[place.category, place.area].filter(Boolean).join(' · ')}
-													</p>
-												{/if}
-												{#if savedShareSettings.notes && place.note}
-													<p class="mt-1 line-clamp-2 text-xs italic text-warm-500">{place.note}</p>
-												{/if}
-											</div>
-											<button
-												onclick={() => imported ? null : handleImportPlace(place.id)}
-												disabled={imported}
-												class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors
-													{imported ? 'bg-sage-100 text-sage-600' : 'bg-brand-600 text-white hover:bg-brand-700'}"
-											>
-												{imported ? 'Added' : 'Add'}
-											</button>
+					{#if sortedSavedPlaces.length === 0}
+						<div class="py-16 text-center">
+							<p class="text-sm text-warm-500">{search ? t('collection.noMatch') : t('collection.empty')}</p>
+						</div>
+					{:else}
+						<div class="flex flex-col gap-2">
+							{#each sortedSavedPlaces as place (place.id)}
+								{@const imported = savedImportedIds.has(place.id)}
+								<div class="rounded-xl border border-warm-200 bg-white p-3 transition-all {selectedPlaceId === place.id ? 'ring-2 ring-brand-400/30 border-brand-400' : ''}">
+									<div class="flex items-start gap-2">
+										<div class="min-w-0 flex-1">
+											<p class="truncate text-sm font-extrabold text-warm-800">{place.title}</p>
+											{#if place.category || place.area}
+												<p class="mt-0.5 truncate text-xs text-warm-400">
+													{[place.category, place.area].filter(Boolean).join(' · ')}
+												</p>
+											{/if}
+											{#if savedShareSettings.notes && place.note}
+												<p class="mt-1 line-clamp-2 text-xs italic text-warm-500">{place.note}</p>
+											{/if}
 										</div>
+										<button
+											onclick={() => imported ? null : handleImportPlace(place.id)}
+											disabled={imported}
+											class="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors
+												{imported ? 'bg-sage-100 text-sage-600' : 'bg-brand-600 text-white hover:bg-brand-700'}"
+										>
+											{imported ? t('shared.addedToMyPlaces') : t('collection.add')}
+										</button>
 									</div>
-								{/each}
-							</div>
-						{/if}
+								</div>
+							{/each}
+						</div>
+					{/if}
 					</div>
 				</div>
 			{/if}
@@ -990,10 +991,10 @@
 							</svg>
 						</button>
 						<div class="min-w-0 flex-1"></div>
-					<button onclick={(e) => openAddModal(e)} class="inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand-600 px-2 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand-700">
-						<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-						Add
-					</button>
+				<button onclick={(e) => openAddModal(e)} class="inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand-600 px-2 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand-700">
+					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+					{t('collection.add')}
+				</button>
 					<!-- Share / Private button -->
 					<div class="relative shrink-0" bind:this={shareDropdownEl}>
 						<button
@@ -1003,25 +1004,25 @@
 									? 'border-sage-200 bg-sage-50 text-sage-700 hover:bg-sage-100'
 									: 'border-warm-200 bg-white text-warm-500 hover:bg-warm-50 hover:text-warm-600'}"
 						>
-							{#if selectedCollection.visibility === 'link_access'}
-								<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
-								Shared
-							{:else}
-								<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
-								Private
-							{/if}
-							<svg class="h-3 w-3 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
-						</button>
-						{#if shareDropdownOpen}
-							<div class="fixed inset-0 z-40" onclick={() => closeShareDropdown()} role="presentation"></div>
-							<div class="absolute right-0 top-full z-50 mt-1 w-56 rounded-xl border border-warm-200 bg-white py-1 shadow-lg">
-								<!-- Share via link toggle -->
-								<button
-									onclick={handleToggleSharing}
-									class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-warm-50"
-								>
-									<svg class="h-4 w-4 shrink-0 text-warm-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
-									<span class="flex-1 text-sm font-semibold text-warm-700">Share via link</span>
+						{#if selectedCollection.visibility === 'link_access'}
+							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
+							{t('collection.shared')}
+						{:else}
+							<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+							{t('collection.private')}
+						{/if}
+						<svg class="h-3 w-3 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
+					</button>
+					{#if shareDropdownOpen}
+						<div class="fixed inset-0 z-40" onclick={() => closeShareDropdown()} role="presentation"></div>
+						<div class="absolute right-0 top-full z-50 mt-1 w-56 rounded-xl border border-warm-200 bg-white py-1 shadow-lg">
+							<!-- Share via link toggle -->
+							<button
+								onclick={handleToggleSharing}
+								class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-warm-50"
+							>
+								<svg class="h-4 w-4 shrink-0 text-warm-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
+								<span class="flex-1 text-sm font-semibold text-warm-700">{t('collection.shareViaLink')}</span>
 									<div class="relative h-5 w-9 rounded-full transition-colors {selectedCollection.visibility === 'link_access' ? 'bg-brand-500' : 'bg-warm-300'}">
 										<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {selectedCollection.visibility === 'link_access' ? 'left-[18px]' : 'left-0.5'}"></div>
 									</div>
@@ -1037,30 +1038,30 @@
 									{:else}
 										<button onclick={handleCopyLink} class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm font-medium text-warm-600 transition-colors hover:bg-warm-50">
 											<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
-											Copy link
-										</button>
-									{/if}
-									<div class="border-t border-warm-100"></div>
-									<div class="px-4 pt-3 pb-1">
-										<p class="text-xs font-semibold text-warm-400">Visible to others</p>
-									</div>
+{t('collection.copyLink')}
+									</button>
+								{/if}
+								<div class="border-t border-warm-100"></div>
+								<div class="px-4 pt-3 pb-1">
+									<p class="text-xs font-semibold text-warm-400">{t('collection.visibleToOthers')}</p>
+								</div>
 									<button onclick={() => handleShareSettingChange('share_notes', !shareNotes)} class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50">
 										<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
-										<span class="flex-1 text-sm font-medium text-warm-700">Notes</span>
+										<span class="flex-1 text-sm font-medium text-warm-700">{t('collection.notes')}</span>
 										<div class="relative h-5 w-9 rounded-full transition-colors {shareNotes ? 'bg-brand-500' : 'bg-warm-300'}">
 											<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {shareNotes ? 'left-[18px]' : 'left-0.5'}"></div>
 										</div>
 									</button>
 									<button onclick={() => handleShareSettingChange('share_photos', !sharePhotos)} class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50">
 										<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
-										<span class="flex-1 text-sm font-medium text-warm-700">Photos</span>
+										<span class="flex-1 text-sm font-medium text-warm-700">{t('collection.photos')}</span>
 										<div class="relative h-5 w-9 rounded-full transition-colors {sharePhotos ? 'bg-brand-500' : 'bg-warm-300'}">
 											<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {sharePhotos ? 'left-[18px]' : 'left-0.5'}"></div>
 										</div>
 									</button>
 									<button onclick={() => handleShareSettingChange('share_tags', !shareTags)} class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50">
 										<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>
-										<span class="flex-1 text-sm font-medium text-warm-700">Tags</span>
+										<span class="flex-1 text-sm font-medium text-warm-700">{t('collection.tags')}</span>
 										<div class="relative h-5 w-9 rounded-full transition-colors {shareTags ? 'bg-brand-500' : 'bg-warm-300'}">
 											<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {shareTags ? 'left-[18px]' : 'left-0.5'}"></div>
 										</div>
@@ -1088,18 +1089,18 @@
 						{#if collectionOptionsOpen}
 							<div class="fixed inset-0 z-40" onclick={() => { collectionOptionsOpen = false; }} role="presentation"></div>
 							<div class="absolute right-0 top-full z-50 mt-1 w-44 rounded-lg border border-warm-200 bg-white p-2 shadow-lg">
-								<label for="coll-mob-sort" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">Sort</label>
+								<label for="coll-mob-sort" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">{t('filters.sort')}</label>
 								<select
 									id="coll-mob-sort"
 									bind:value={sortBy}
 									onchange={() => { collectionOptionsOpen = false; }}
 									class="mb-2.5 w-full rounded-md border border-warm-200 bg-warm-50 px-2 py-1.5 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20"
 								>
-									<option value="newest">Recent</option>
+									<option value="newest">{t('filters.recent')}</option>
 									<option value="az">A–Z</option>
-									<option value="rating">My Rating</option>
+									<option value="rating">{t('collection.myRating')}</option>
 								</select>
-								<span id="coll-mob-view-label" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">View</span>
+								<span id="coll-mob-view-label" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">{t('filters.view')}</span>
 								<div class="flex items-center gap-1 rounded-md border border-warm-200 bg-warm-50 p-0.5" role="group" aria-labelledby="coll-mob-view-label">
 									<button
 										onclick={() => { viewMode = 'grid'; collectionOptionsOpen = false; }}
@@ -1124,12 +1125,12 @@
 			</div>
 			<MobileMapShell places={filteredPlaces} {selectedPlaceId} {recenterTick} onPlaceSelect={handleMapPlaceSelect} onPopupPhotoAction={handlePopupPhotoAction} onPopupPhotoClick={handlePopupPhotoClick} maptilerKey={data.maptilerKey} {placePhotos} />
 			<div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
-				<div class="mx-auto px-2.5 pt-1 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]">
+					<div class="mx-auto px-2.5 pt-1 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]">
 					{#if sortedPlaces.length === 0}
 						<div class="py-16 text-center">
 							<svg class="mx-auto h-12 w-12 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
-							<p class="mt-3 text-base text-warm-500">{browsePlaces.length === 0 ? 'This collection is empty' : 'No places match your search'}</p>
-							{#if browsePlaces.length === 0}<button onclick={openAddModal} class="mt-2 text-base font-semibold text-brand-600 hover:text-brand-700">Add some places</button>{/if}
+							<p class="mt-3 text-base text-warm-500">{browsePlaces.length === 0 ? t('collection.empty') : t('collection.noMatch')}</p>
+							{#if browsePlaces.length === 0}<button onclick={openAddModal} class="mt-2 text-base font-semibold text-brand-600 hover:text-brand-700">{t('collection.addSome')}</button>{/if}
 						</div>
 					{:else if viewMode === 'grid'}
 						<div class="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4">
@@ -1151,11 +1152,11 @@
 				<svg class="h-8 w-8 animate-spin text-brand-500" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
 			</div>
 		{:else if collections.length === 0}
-			<div class="flex-1 py-10 text-center">
-				<svg class="mx-auto h-8 w-8 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 11H5m14 0a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2m14 0V9a2 2 0 0 0-2-2M5 11V9a2 2 0 0 1 2-2m0 0V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2M7 7h10" /></svg>
-				<p class="mt-2 text-sm font-medium text-warm-500">No collections yet</p>
-				<button onclick={() => { showCreate = true; }} class="mt-1 text-sm font-semibold text-brand-600 hover:text-brand-700">Create your first collection</button>
-			</div>
+		<div class="flex-1 py-10 text-center">
+			<svg class="mx-auto h-8 w-8 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 11H5m14 0a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2m14 0V9a2 2 0 0 0-2-2M5 11V9a2 2 0 0 1 2-2m0 0V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2M7 7h10" /></svg>
+			<p class="mt-2 text-sm font-medium text-warm-500">{t('collection.noCollections')}</p>
+			<button onclick={() => { showCreate = true; }} class="mt-1 text-sm font-semibold text-brand-600 hover:text-brand-700">{t('collection.createFirst')}</button>
+		</div>
 		{/if}
 	</div>
 
@@ -1248,7 +1249,7 @@
 											<div class="flex h-5 w-5 items-center justify-center rounded-full bg-warm-200">
 												<svg class="h-3 w-3 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
 											</div>
-											<p class="truncate text-xs font-bold text-warm-300 sm:text-sm">Unavailable</p>
+											<p class="truncate text-xs font-bold text-warm-300 sm:text-sm">{t('shared.unavailable')}</p>
 										{/if}
 									</button>
 								</div>
@@ -1277,7 +1278,7 @@
 							</div>
 						{:else}
 							<!-- Collapsed: count + search icon + add + share + options -->
-							<span class="shrink-0 text-xs font-semibold text-warm-400 sm:text-sm">{browsePlaces.length} {browsePlaces.length === 1 ? 'place' : 'places'}</span>
+							<span class="shrink-0 text-xs font-semibold text-warm-400 sm:text-sm">{browsePlaces.length} {browsePlaces.length === 1 ? t('collection.place') : t('collection.places')}</span>
 							<div class="min-w-0 flex-1"></div>
 							<button
 								onclick={() => { searchFocused = true; }}
@@ -1288,10 +1289,10 @@
 									<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
 								</svg>
 							</button>
-							<button onclick={(e) => openAddModal(e)} class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand-700 sm:text-sm">
-								<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-								Add Places
-							</button>
+						<button onclick={(e) => openAddModal(e)} class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-brand-700 sm:text-sm">
+							<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+							{t('collection.addPlaces')}
+						</button>
 							<!-- Share / Private button -->
 							<div class="relative shrink-0" bind:this={shareDropdownEl}>
 								<button
@@ -1301,13 +1302,13 @@
 											? 'border-sage-200 bg-sage-50 text-sage-700 hover:bg-sage-100'
 											: 'border-warm-200 bg-white text-warm-500 hover:bg-warm-50 hover:text-warm-600'}"
 								>
-									{#if selectedCollection.visibility === 'link_access'}
-										<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
-										Shared
-									{:else}
-										<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
-										Private
-									{/if}
+								{#if selectedCollection.visibility === 'link_access'}
+									<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
+									{t('collection.shared')}
+								{:else}
+									<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+									{t('collection.private')}
+								{/if}
 									<svg class="h-3 w-3 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
 								</button>
 								{#if shareDropdownOpen}
@@ -1319,7 +1320,7 @@
 											class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-warm-50"
 										>
 											<svg class="h-4 w-4 shrink-0 text-warm-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
-											<span class="flex-1 text-sm font-semibold text-warm-700">Share via link</span>
+											<span class="flex-1 text-sm font-semibold text-warm-700">{t('collection.shareViaLink')}</span>
 											<div class="relative h-5 w-9 rounded-full transition-colors {selectedCollection.visibility === 'link_access' ? 'bg-brand-500' : 'bg-warm-300'}">
 												<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {selectedCollection.visibility === 'link_access' ? 'left-[18px]' : 'left-0.5'}"></div>
 											</div>
@@ -1335,30 +1336,30 @@
 											{:else}
 												<button onclick={handleCopyLink} class="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm font-medium text-warm-600 transition-colors hover:bg-warm-50">
 													<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
-													Copy link
-												</button>
-											{/if}
-											<div class="border-t border-warm-100"></div>
-											<div class="px-4 pt-3 pb-1">
-												<p class="text-xs font-semibold text-warm-400">Visible to others</p>
-											</div>
+{t('collection.copyLink')}
+									</button>
+								{/if}
+								<div class="border-t border-warm-100"></div>
+								<div class="px-4 pt-3 pb-1">
+									<p class="text-xs font-semibold text-warm-400">{t('collection.visibleToOthers')}</p>
+								</div>
 											<button onclick={() => handleShareSettingChange('share_notes', !shareNotes)} class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50">
 												<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
-												<span class="flex-1 text-sm font-medium text-warm-700">Notes</span>
+												<span class="flex-1 text-sm font-medium text-warm-700">{t('collection.notes')}</span>
 												<div class="relative h-5 w-9 rounded-full transition-colors {shareNotes ? 'bg-brand-500' : 'bg-warm-300'}">
 													<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {shareNotes ? 'left-[18px]' : 'left-0.5'}"></div>
 												</div>
 											</button>
 											<button onclick={() => handleShareSettingChange('share_photos', !sharePhotos)} class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50">
 												<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
-												<span class="flex-1 text-sm font-medium text-warm-700">Photos</span>
+												<span class="flex-1 text-sm font-medium text-warm-700">{t('collection.photos')}</span>
 												<div class="relative h-5 w-9 rounded-full transition-colors {sharePhotos ? 'bg-brand-500' : 'bg-warm-300'}">
 													<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {sharePhotos ? 'left-[18px]' : 'left-0.5'}"></div>
 												</div>
 											</button>
 											<button onclick={() => handleShareSettingChange('share_tags', !shareTags)} class="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-warm-50">
 												<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><line x1="7" y1="7" x2="7.01" y2="7" /></svg>
-												<span class="flex-1 text-sm font-medium text-warm-700">Tags</span>
+												<span class="flex-1 text-sm font-medium text-warm-700">{t('collection.tags')}</span>
 												<div class="relative h-5 w-9 rounded-full transition-colors {shareTags ? 'bg-brand-500' : 'bg-warm-300'}">
 													<div class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all {shareTags ? 'left-[18px]' : 'left-0.5'}"></div>
 												</div>
@@ -1385,18 +1386,18 @@
 								{#if collectionOptionsOpen}
 									<div class="fixed inset-0 z-40" onclick={() => { collectionOptionsOpen = false; }} role="presentation"></div>
 									<div class="absolute right-0 top-full z-50 mt-1 w-44 rounded-lg border border-warm-200 bg-white p-2 shadow-lg">
-										<label for="coll-desk-sort" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">Sort</label>
+										<label for="coll-desk-sort" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">{t('filters.sort')}</label>
 										<select
 											id="coll-desk-sort"
 											bind:value={sortBy}
 											onchange={() => { collectionOptionsOpen = false; }}
 											class="mb-2.5 w-full rounded-md border border-warm-200 bg-warm-50 px-2 py-1.5 text-xs font-semibold text-warm-600 focus:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-400/20"
 										>
-											<option value="newest">Recent</option>
+											<option value="newest">{t('filters.recent')}</option>
 											<option value="az">A–Z</option>
-											<option value="rating">My Rating</option>
+											<option value="rating">{t('collection.myRating')}</option>
 										</select>
-										<span id="coll-desk-view-label" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">View</span>
+										<span id="coll-desk-view-label" class="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-warm-400">{t('filters.view')}</span>
 										<div class="flex items-center gap-1 rounded-md border border-warm-200 bg-warm-50 p-0.5" role="group" aria-labelledby="coll-desk-view-label">
 											<button
 												onclick={() => { viewMode = 'grid'; collectionOptionsOpen = false; }}
@@ -1426,17 +1427,17 @@
 				<div class="border-b border-warm-200/40 bg-[#faf7f2] px-3 py-2 sm:px-4 lg:px-4">
 					<div class="flex items-center gap-2">
 						{#if selectedSaved.source_collection}
-							<svg class="h-4 w-4 shrink-0 text-sage-500" viewBox="0 0 24 24" fill="currentColor"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
-							<span class="min-w-0 flex-1 text-xs font-medium text-warm-500 sm:text-sm">Saved collection &middot; add individual places to your account</span>
-						{:else}
-							<span class="text-xs font-medium text-warm-400 sm:text-sm">This collection is no longer shared</span>
-						{/if}
-						<button
-							onclick={() => handleRemoveSavedCollection(selectedSaved.id)}
-							class="shrink-0 rounded-lg border border-warm-200 px-2.5 py-1.5 text-xs font-medium text-warm-500 transition-colors hover:bg-warm-100 hover:text-warm-600 sm:text-sm"
-						>
-							Remove
-						</button>
+						<svg class="h-4 w-4 shrink-0 text-sage-500" viewBox="0 0 24 24" fill="currentColor"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
+						<span class="min-w-0 flex-1 text-xs font-medium text-warm-500 sm:text-sm">{t('shared.savedCollectionHint')}</span>
+					{:else}
+						<span class="text-xs font-medium text-warm-400 sm:text-sm">{t('shared.noLongerShared')}</span>
+					{/if}
+					<button
+						onclick={() => handleRemoveSavedCollection(selectedSaved.id)}
+						class="shrink-0 rounded-lg border border-warm-200 px-2.5 py-1.5 text-xs font-medium text-warm-500 transition-colors hover:bg-warm-100 hover:text-warm-600 sm:text-sm"
+					>
+						{t('shared.remove')}
+					</button>
 					</div>
 				</div>
 				{#if savedBrowseLoading}
@@ -1444,16 +1445,16 @@
 						<svg class="h-8 w-8 animate-spin text-brand-500" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
 					</div>
 				{:else if !selectedSaved.source_collection}
-					<div class="flex flex-col items-center justify-center gap-3 px-6 py-20 text-center">
-						<svg class="h-10 w-10 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
-						<p class="text-sm text-warm-500">This collection is no longer available. The owner may have made it private or deleted it.</p>
-						<button onclick={() => handleRemoveSavedCollection(selectedSaved.id)} class="text-sm font-semibold text-brand-600 hover:text-brand-700">Remove from saved</button>
-					</div>
+				<div class="flex flex-col items-center justify-center gap-3 px-6 py-20 text-center">
+					<svg class="h-10 w-10 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+					<p class="text-sm text-warm-500">{t('shared.noLongerAvailable')}</p>
+					<button onclick={() => handleRemoveSavedCollection(selectedSaved.id)} class="text-sm font-semibold text-brand-600 hover:text-brand-700">{t('shared.removeFromSaved')}</button>
+				</div>
 				{:else}
 					<div class="mx-auto px-2.5 py-3 sm:px-6 sm:py-4 lg:px-4 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]">
 						{#if sortedSavedPlaces.length === 0}
 							<div class="py-16 text-center">
-								<p class="text-base text-warm-500">{search ? 'No places match your search' : 'This collection is empty'}</p>
+								<p class="text-base text-warm-500">{search ? t('collection.noMatch') : t('collection.empty')}</p>
 							</div>
 						{:else}
 							<div class="grid grid-cols-1 gap-2 @lg:grid-cols-2 @lg:gap-3">
@@ -1484,7 +1485,7 @@
 												class="shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors sm:text-sm
 													{imported ? 'bg-sage-100 text-sage-600' : 'bg-brand-600 text-white hover:bg-brand-700'}"
 											>
-												{imported ? 'Added' : 'Add to My Places'}
+												{imported ? t('shared.addedToMyPlaces') : t('shared.addToMyPlaces')}
 											</button>
 										</div>
 									</div>
@@ -1498,8 +1499,8 @@
 					{#if sortedPlaces.length === 0}
 						<div class="py-16 text-center">
 							<svg class="mx-auto h-12 w-12 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
-							<p class="mt-3 text-base text-warm-500">{browsePlaces.length === 0 ? 'This collection is empty' : 'No places match your search'}</p>
-							{#if browsePlaces.length === 0}<button onclick={openAddModal} class="mt-2 text-base font-semibold text-brand-600 hover:text-brand-700">Add some places</button>{/if}
+						<p class="mt-3 text-base text-warm-500">{browsePlaces.length === 0 ? t('collection.empty') : t('collection.noMatch')}</p>
+						{#if browsePlaces.length === 0}<button onclick={openAddModal} class="mt-2 text-base font-semibold text-brand-600 hover:text-brand-700">{t('collection.addSome')}</button>{/if}
 						</div>
 					{:else if viewMode === 'grid'}
 						<div class="grid grid-cols-1 gap-2 @lg:grid-cols-2 @lg:gap-3">
@@ -1520,15 +1521,15 @@
 					<svg class="h-8 w-8 animate-spin text-brand-500" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
 				</div>
 			{:else if collections.length === 0}
-				<div class="py-10 text-center">
-					<svg class="mx-auto h-8 w-8 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 11H5m14 0a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2m14 0V9a2 2 0 0 0-2-2M5 11V9a2 2 0 0 1 2-2m0 0V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2M7 7h10" /></svg>
-					<p class="mt-2 text-sm font-medium text-warm-500">No collections yet</p>
-					<button onclick={() => { showCreate = true; }} class="mt-1 text-sm font-semibold text-brand-600 hover:text-brand-700">Create your first collection</button>
-				</div>
+			<div class="py-10 text-center">
+				<svg class="mx-auto h-8 w-8 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 11H5m14 0a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2m14 0V9a2 2 0 0 0-2-2M5 11V9a2 2 0 0 1 2-2m0 0V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2M7 7h10" /></svg>
+				<p class="mt-2 text-sm font-medium text-warm-500">{t('collection.noCollections')}</p>
+				<button onclick={() => { showCreate = true; }} class="mt-1 text-sm font-semibold text-brand-600 hover:text-brand-700">{t('collection.createFirst')}</button>
+			</div>
 			{:else}
 				<div class="py-20 text-center">
 					<svg class="mx-auto h-10 w-10 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" /></svg>
-					<p class="mt-3 text-base font-medium text-warm-500">Select a collection to start browsing</p>
+					<p class="mt-3 text-base font-medium text-warm-500">{t('collection.selectToStart')}</p>
 				</div>
 			{/if}
 		</div>
@@ -1541,27 +1542,27 @@
 	{#if menuCol}
 		<div class="fixed inset-0 z-[70]" onclick={() => closeTabMenu()} role="presentation"></div>
 		<div bind:this={tabMenuEl} class="fixed z-[71] w-40 rounded-xl border border-warm-200 bg-white py-1 shadow-lg" style="top: {tabMenuPos.top}px; left: {tabMenuPos.left}px;">
+		<button
+			onclick={() => openEditCollection(menuCol.id)}
+			class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-warm-600 transition-colors hover:bg-warm-50"
+		>
+			<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+			{t('common.edit')}
+		</button>
+		{#if tabConfirmDeleteId === menuCol.id}
+			<div class="flex items-center gap-1.5 px-3 py-2">
+				<button onclick={() => handleDeleteCollectionById(menuCol.id)} class="rounded-md bg-danger-100 px-2 py-1 text-xs font-bold text-danger-700 hover:bg-danger-200">{t('common.delete')}</button>
+				<button onclick={() => { tabConfirmDeleteId = null; }} class="text-xs text-warm-400 hover:text-warm-600">{t('common.cancel')}</button>
+			</div>
+		{:else}
 			<button
-				onclick={() => openEditCollection(menuCol.id)}
-				class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-warm-600 transition-colors hover:bg-warm-50"
+				onclick={() => { tabConfirmDeleteId = menuCol.id; }}
+				class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-danger-600 transition-colors hover:bg-danger-50"
 			>
-				<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-				Edit
+				<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+				{t('common.delete')}
 			</button>
-			{#if tabConfirmDeleteId === menuCol.id}
-				<div class="flex items-center gap-1.5 px-3 py-2">
-					<button onclick={() => handleDeleteCollectionById(menuCol.id)} class="rounded-md bg-danger-100 px-2 py-1 text-xs font-bold text-danger-700 hover:bg-danger-200">Delete</button>
-					<button onclick={() => { tabConfirmDeleteId = null; }} class="text-xs text-warm-400 hover:text-warm-600">Cancel</button>
-				</div>
-			{:else}
-				<button
-					onclick={() => { tabConfirmDeleteId = menuCol.id; }}
-					class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-danger-600 transition-colors hover:bg-danger-50"
-				>
-					<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-					Delete
-				</button>
-			{/if}
+		{/if}
 		</div>
 	{/if}
 {/if}
@@ -1573,19 +1574,19 @@
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="fixed z-[56] w-80 rounded-xl border border-warm-200 bg-white shadow-xl" style="top: {createPopoverPos.top}px; left: {createPopoverPos.left}px; max-height: calc(100dvh - {createPopoverPos.top + 16}px);" onclick={(e) => e.stopPropagation()}>
 		<div class="overflow-y-auto p-5 space-y-4" style="max-height: calc(100dvh - {createPopoverPos.top + 64}px);">
-			<div>
-				<label for="col-name" class="mb-1.5 block text-sm font-semibold text-warm-700">Name</label>
+		<div>
+			<label for="col-name" class="mb-1.5 block text-sm font-semibold text-warm-700">{t('collection.name')}</label>
 				<div class="flex items-center gap-3">
 					<CollectionAvatar color={selectedColor} emoji={selectedEmoji} size="lg" />
 					<input id="col-name" type="text" bind:value={newName} onkeydown={(e) => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') { showCreate = false; newName = ''; } }} placeholder="e.g. Brunch Spots" class="min-w-0 flex-1 rounded-lg border border-warm-200 bg-warm-50 px-3 py-2 text-sm font-medium text-warm-800 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20" autofocus />
 				</div>
 			</div>
 			<div>
-				<label class="mb-1.5 block text-sm font-semibold text-warm-700">Icon</label>
+				<label class="mb-1.5 block text-sm font-semibold text-warm-700">{t('collection.icon')}</label>
 				<EmojiPicker selected={selectedEmoji} onSelect={(em) => { selectedEmoji = em; }} />
 			</div>
 			<div>
-				<label class="mb-1.5 block text-sm font-semibold text-warm-700">Color</label>
+				<label class="mb-1.5 block text-sm font-semibold text-warm-700">{t('collection.color')}</label>
 				<div class="flex items-center gap-2">
 					{#each COLORS as color}
 						<button onclick={() => { selectedColor = color; }} class="h-7 w-7 rounded-full transition-all {selectedColor === color ? 'ring-2 ring-offset-2 ring-warm-400 scale-110' : 'hover:scale-110'}" style="background-color: {color}" aria-label="Select color"></button>
@@ -1594,8 +1595,8 @@
 			</div>
 		</div>
 		<div class="flex items-center gap-3 border-t border-warm-100 px-5 py-3.5">
-			<button onclick={handleCreate} disabled={!newName.trim() || creating} class="flex-1 rounded-lg bg-brand-600 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-brand-700 disabled:opacity-50">{creating ? 'Creating...' : 'Create'}</button>
-			<button onclick={() => { showCreate = false; newName = ''; selectedColor = COLORS[0]; selectedEmoji = null; }} class="rounded-lg px-3 py-2 text-sm font-medium text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600">Cancel</button>
+<button onclick={handleCreate} disabled={!newName.trim() || creating} class="flex-1 rounded-lg bg-brand-600 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-brand-700 disabled:opacity-50">{creating ? t('collection.creating') : t('collection.create')}</button>
+		<button onclick={() => { showCreate = false; newName = ''; selectedColor = COLORS[0]; selectedEmoji = null; }} class="rounded-lg px-3 py-2 text-sm font-medium text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600">{t('common.cancel')}</button>
 		</div>
 	</div>
 {/if}
@@ -1609,18 +1610,18 @@
 	<div class="fixed z-[56] w-80 rounded-xl border border-warm-200 bg-white shadow-xl" style="top: {tabMenuPos.top}px; left: {Math.max(8, Math.min(tabMenuPos.left, (typeof window !== 'undefined' ? window.innerWidth : 400) - 330))}px; max-height: calc(100dvh - {tabMenuPos.top + 16}px);" onclick={(e) => e.stopPropagation()}>
 		<div class="overflow-y-auto p-5 space-y-4" style="max-height: calc(100dvh - {tabMenuPos.top + 64}px);">
 			<div>
-				<label for="edit-col-name" class="mb-1.5 block text-sm font-semibold text-warm-700">Name</label>
+				<label for="edit-col-name" class="mb-1.5 block text-sm font-semibold text-warm-700">{t('collection.name')}</label>
 				<div class="flex items-center gap-3">
 					<CollectionAvatar color={editColor} emoji={editEmoji} size="lg" />
 					<input id="edit-col-name" type="text" bind:value={editName} onkeydown={(e) => { if (e.key === 'Enter') handleSaveEditCollection(); if (e.key === 'Escape') { editingCollectionId = null; } }} class="min-w-0 flex-1 rounded-lg border border-warm-200 bg-warm-50 px-3 py-2 text-sm font-medium text-warm-800 placeholder:text-warm-300 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/20" autofocus />
 				</div>
 			</div>
 			<div>
-				<label class="mb-1.5 block text-sm font-semibold text-warm-700">Icon</label>
+				<label class="mb-1.5 block text-sm font-semibold text-warm-700">{t('collection.icon')}</label>
 				<EmojiPicker selected={editEmoji} onSelect={(em) => { editEmoji = em; }} />
 			</div>
 			<div>
-				<label class="mb-1.5 block text-sm font-semibold text-warm-700">Color</label>
+				<label class="mb-1.5 block text-sm font-semibold text-warm-700">{t('collection.color')}</label>
 				<div class="flex items-center gap-2">
 					{#each COLORS as color}
 						<button onclick={() => { editColor = color; }} class="h-7 w-7 rounded-full transition-all {editColor === color ? 'ring-2 ring-offset-2 ring-warm-400 scale-110' : 'hover:scale-110'}" style="background-color: {color}" aria-label="Select color"></button>
@@ -1629,8 +1630,8 @@
 			</div>
 		</div>
 		<div class="flex items-center gap-3 border-t border-warm-100 px-5 py-3.5">
-			<button onclick={handleSaveEditCollection} disabled={!editName.trim()} class="flex-1 rounded-lg bg-brand-600 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-brand-700 disabled:opacity-50">Save</button>
-			<button onclick={() => { editingCollectionId = null; }} class="rounded-lg px-3 py-2 text-sm font-medium text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600">Cancel</button>
+<button onclick={handleSaveEditCollection} disabled={!editName.trim()} class="flex-1 rounded-lg bg-brand-600 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-brand-700 disabled:opacity-50">{t('common.save')}</button>
+		<button onclick={() => { editingCollectionId = null; }} class="rounded-lg px-3 py-2 text-sm font-medium text-warm-400 transition-colors hover:bg-warm-100 hover:text-warm-600">{t('common.cancel')}</button>
 		</div>
 	</div>
 {/if}
@@ -1646,7 +1647,7 @@
 		onclick={(e) => e.stopPropagation()}
 	>
 		<div class="flex items-center justify-between border-b border-warm-100 px-4 py-2.5">
-			<h2 class="text-sm font-bold text-warm-800">Add places to {selectedCollection?.name}</h2>
+			<h2 class="text-sm font-bold text-warm-800">{t('collection.addPlacesTo').replace('{name}', selectedCollection?.name ?? '')}</h2>
 			<button onclick={() => { showAddModal = false; addSearch = ''; addTagFilter = {}; resetUrl(); }} class="rounded-lg p-1 text-warm-400 hover:bg-warm-100 hover:text-warm-600" aria-label="Close"><svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
 		</div>
 		{@render addPlacesContent()}
@@ -1662,7 +1663,7 @@
 					<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
 					<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
 				</svg>
-				<span class="text-sm font-medium text-warm-500">Looking up place...</span>
+				<span class="text-sm font-medium text-warm-500">{t('collection.lookingUp')}</span>
 			</div>
 		{:else if (urlStatus === 'success' || urlStatus === 'duplicate') && urlResultPlace}
 			<div class="flex items-center gap-2 rounded-lg {urlStatus === 'duplicate' ? 'bg-amber-50' : 'bg-sage-50'} px-3 py-2">
@@ -1677,8 +1678,8 @@
 				{/if}
 				<div class="min-w-0 flex-1">
 					<p class="truncate text-xs font-bold {urlStatus === 'duplicate' ? 'text-amber-800' : 'text-sage-800'}">
-						{urlStatus === 'duplicate' ? 'Already in library — ' : ''}Added {urlResultPlace.title}
-					</p>
+					{urlStatus === 'duplicate' ? t('collection.alreadyInLibrary') : ''}{t('collection.added')} {urlResultPlace.title}
+				</p>
 					{#if urlResultPlace.address}
 						<p class="truncate text-xs text-warm-400">{urlResultPlace.address}</p>
 					{/if}
@@ -1687,8 +1688,8 @@
 					onclick={resetUrl}
 					class="shrink-0 rounded-md px-2 py-1 text-xs font-bold transition-colors {urlStatus === 'duplicate' ? 'text-amber-600 hover:bg-amber-100' : 'text-sage-600 hover:bg-sage-100'}"
 				>
-					Add another
-				</button>
+				{t('collection.addAnother')}
+			</button>
 			</div>
 		{:else}
 			<div class="relative">
@@ -1705,18 +1706,22 @@
 				<input
 					type="text"
 					bind:value={addSearch}
-					placeholder="Search places, tags, or paste a Google Maps URL..."
+					placeholder={t('collection.searchPlaceholder')}
 					class="w-full rounded-lg border bg-warm-50 py-1.5 pl-8 text-sm font-medium text-warm-700 placeholder:text-warm-300 focus:outline-none focus:ring-1 focus:ring-brand-400/20
-						{isUrlMode ? 'border-brand-300 pr-16 focus:border-brand-400' : 'border-warm-200 pr-3 focus:border-brand-400'}"
+						{isUrlMode ? 'border-brand-300 pr-10 focus:border-brand-400' : 'border-warm-200 pr-3 focus:border-brand-400'}"
 					onkeydown={(e) => { if (e.key === 'Enter' && isUrlMode) handleAddByUrl(); }}
 					autofocus
 				/>
 				{#if isUrlMode}
 					<button
 						onclick={handleAddByUrl}
-						class="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md bg-brand-600 px-2.5 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-700"
+						class="absolute right-1.5 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-brand-500 text-white shadow-sm transition-colors hover:bg-brand-600 active:bg-brand-700"
+						aria-label="Add place"
 					>
-						Add
+						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+							<line x1="5" y1="12" x2="19" y2="12" />
+							<polyline points="12 5 19 12 12 19" />
+						</svg>
 					</button>
 				{/if}
 			</div>
@@ -1728,7 +1733,7 @@
 		<!-- Tag filter pills -->
 		{#if userModalTags.length > 0 && !isUrlMode && urlStatus === 'idle'}
 			<div class="mt-2 flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-				<span class="shrink-0 text-xs font-semibold text-warm-400">Tags:</span>
+				<span class="shrink-0 text-xs font-semibold text-warm-400">{t('collection.tagsLabel')}</span>
 				{#each userModalTags as tag (tag.id)}
 					<button
 						onclick={() => toggleAddTagFilter(tag.id)}
@@ -1747,10 +1752,10 @@
 					</button>
 				{/each}
 				{#if addSelectedTagIds.length > 0}
-					<button
-						onclick={() => { addTagFilter = {}; }}
-						class="text-xs font-medium text-warm-400 hover:text-warm-600"
-					>Clear</button>
+				<button
+					onclick={() => { addTagFilter = {}; }}
+					class="text-xs font-medium text-warm-400 hover:text-warm-600"
+				>{t('filters.clear')}</button>
 				{/if}
 			</div>
 		{/if}
@@ -1779,7 +1784,7 @@
 				{/if}
 			</button>
 		{:else}
-			<p class="py-8 text-center text-sm text-warm-400">{addSearch ? 'No matching places' : 'All your places are already in this collection'}</p>
+			<p class="py-8 text-center text-sm text-warm-400">{addSearch ? t('collection.noMatchingPlaces') : t('collection.allPlacesAlready')}</p>
 		{/each}
 	</div>
 {/snippet}
