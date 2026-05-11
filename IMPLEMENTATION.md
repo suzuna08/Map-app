@@ -1441,3 +1441,70 @@ A set of UI improvements, new features, and interaction refinements were migrate
 3. Photo compression always outputs JPEG regardless of input format (except PNG). HEIC input is accepted but may not compress correctly on all browsers
 4. The resizable desktop map panel percentage is not persisted across page reloads — it resets to the default 42%
 5. The `isMobile` breakpoint in SaveViewButton (1023px) is hard-coded and not synchronized with the Tailwind `lg:` breakpoint token. TagManager no longer uses `isMobile` — it renders as a popover in both mobile and desktop tag filter sections
+
+---
+
+## Saved Collections (Bookmarks)
+
+### Problem
+
+The original "Save" button on shared collection pages (`/c/slug`) deep-copied the entire collection and all its places into the viewer's account. This was expensive (duplicated all place rows), created data drift (the copy never updated if the source changed), and didn't match the mental model of "bookmarking" a friend's collection to check back later.
+
+### Solution: Lightweight Bookmarks
+
+Replaced the deep-copy approach with a `saved_collections` junction table that stores a reference to the source collection without duplicating any data.
+
+**Schema** (`supabase/add_saved_collections.sql`):
+```sql
+saved_collections (
+  id uuid PK,
+  user_id uuid FK → auth.users,
+  source_list_id uuid FK → lists ON DELETE CASCADE,
+  saved_at timestamptz,
+  UNIQUE(user_id, source_list_id)
+)
+```
+
+RLS policies scope all operations to `auth.uid() = user_id`. Indexes on `user_id` and `source_list_id`.
+
+### Architecture
+
+**Save flow** (`/api/collections/save-shared`):
+1. Validate user is authenticated
+2. Verify source collection exists and has `visibility = 'link_access'`
+3. Reject if user already owns the collection (409)
+4. Check for existing bookmark (409 if duplicate)
+5. Insert `saved_collections` row
+6. Return bookmark ID and collection name
+
+**Browse flow** (`/collections` page):
+1. Server load fetches `saved_collections` with a joined select through the foreign key to `lists` (including nested `list_places` for place count), in parallel with owned collections and photos
+2. Page renders a "Saved Collections" section below owned collections
+3. Clicking a saved collection loads its places via `loadSavedCollectionPlaces()` which respects the source owner's share settings (notes/photos/tags visibility)
+4. Users can browse places read-only, with the same card UI used elsewhere
+
+**Import individual places** (`/api/collections/import-place`):
+1. Validate source collection is still shared
+2. Verify the requested place belongs to that collection
+3. Check for existing duplicate in user's places (by `google_place_id`)
+4. If no duplicate: copy all place fields into a new row with `user_id` set to the current user and `source_list = 'shared-import'`
+5. Optionally add the new place to a target collection
+6. Return the new place ID (or existing ID if duplicate)
+
+**Availability handling**: If the source collection is made private or deleted, the bookmark becomes unavailable. The UI shows a "no longer available" state. The `ON DELETE CASCADE` on `source_list_id` automatically cleans up bookmarks when the source is deleted.
+
+### Store Functions Added
+
+- `loadSavedCollections(supabase, userId)` — fetches bookmarks with source collection metadata via joined query
+- `removeSavedCollection(supabase, bookmarkId)` — deletes a bookmark
+- `loadSavedCollectionPlaces(supabase, sourceListId)` — loads places from a saved collection respecting share settings (notes redacted if `share_notes = false`, tags loaded only if `share_tags = true`)
+
+### Trade-offs
+
+| Decision | Rationale |
+|---|---|
+| Reference-based (not copy) | Keeps data fresh; no drift; lower storage cost |
+| `ON DELETE CASCADE` | Bookmark auto-removed if source deleted; no orphans |
+| Per-place import (not bulk) | Gives user granular control; dedup check per place |
+| Share settings respected on read | Source owner maintains control even after bookmark |
+| No notification on privacy change | Keeps implementation simple; UI handles unavailable state gracefully |
