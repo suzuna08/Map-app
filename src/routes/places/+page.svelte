@@ -1514,7 +1514,7 @@
 
 <div class="min-h-[100dvh]">
 	{#if isMobile}
-		<div class="flex h-[100dvh] flex-col overflow-hidden">
+		<div class="h-[100dvh] overflow-hidden">
 			<MobileMapShell
 				places={filteredPlaces}
 				{selectedPlaceId}
@@ -1524,17 +1524,16 @@
 				onPopupPhotoClick={handlePopupPhotoClick}
 				maptilerKey={data.maptilerKey}
 				{placePhotos}
-			/>
-			<div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
-				<div class="sticky top-0 z-20 border-b border-warm-200/80 bg-sage-100 px-2.5 pt-2 pb-1.5">
-					{@render placesControlsBlock()}
-				</div>
-				<div
-					class="mx-auto px-2.5 pt-1 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]"
-				>
+			>
+				{#snippet header()}
+					<div class="border-b border-warm-200/80 bg-sage-100 px-2.5 pt-2 pb-1.5">
+						{@render placesControlsBlock()}
+					</div>
+				{/snippet}
+				<div class="bg-sage-50 px-2.5 pt-1 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]">
 					{@render placesFiltersAndListBlock()}
 				</div>
-			</div>
+			</MobileMapShell>
 		</div>
 	{:else}
 		<div class="flex flex-col md:flex-row">

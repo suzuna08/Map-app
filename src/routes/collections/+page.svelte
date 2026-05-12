@@ -836,9 +836,9 @@
 
 {#if isMobile}
 	<!-- Mobile: full-height flex layout -->
-	<div class="flex h-[100dvh] flex-col overflow-hidden">
-		<!-- Row 1: Collection tabs with + New Collection -->
-		<div class="shrink-0 bg-[#faf7f2]">
+	<div class="h-[100dvh] overflow-hidden">
+	<!-- Row 1: Collection tabs with + New Collection (fixed above map) -->
+	<div class="fixed inset-x-0 top-0 z-20 border-b border-warm-200/40 bg-[#faf7f2]">
 			<div class="flex items-center gap-1.5 px-3 pt-3">
 				<button
 					onclick={(e) => { const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); createPopoverPos = { top: rect.bottom + 6, left: Math.max(8, Math.min(rect.left, window.innerWidth - 308)) }; showCreate = true; }}
@@ -907,8 +907,8 @@
 						</div>
 					{/if}
 				{/each}
-			</div>
 		</div>
+	</div>
 	</div>
 
 	{#if isSavedMode && selectedSaved}
@@ -924,9 +924,7 @@
 				<button onclick={() => handleRemoveSavedCollection(selectedSaved.id)} class="text-sm font-semibold text-brand-600 hover:text-brand-700">{t('shared.removeFromSaved')}</button>
 			</div>
 			{:else}
-				<MobileMapShell places={filteredSavedPlaces} {selectedPlaceId} {recenterTick} onPlaceSelect={handleMapPlaceSelect} maptilerKey={data.maptilerKey} placePhotos={{}} />
-				<div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
-					<div class="mx-auto px-2.5 pt-1 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]">
+				<MobileMapShell places={filteredSavedPlaces} {selectedPlaceId} {recenterTick} onPlaceSelect={handleMapPlaceSelect} maptilerKey={data.maptilerKey} placePhotos={{}} peekFraction={0.12} fullFraction={0.78}>					<div class="bg-warm-50 px-2.5 pt-1 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]">
 					{#if sortedSavedPlaces.length === 0}
 						<div class="py-16 text-center">
 							<p class="text-sm text-warm-500">{search ? t('collection.noMatch') : t('collection.empty')}</p>
@@ -994,12 +992,12 @@
 						</div>
 					{/if}
 					</div>
-				</div>
+				</MobileMapShell>
 			{/if}
-		{:else if selectedCollection && !browseLoading}
-			<!-- Row 2: Action bar -->
-			<div class="shrink-0 border-b border-warm-200/40 bg-[#faf7f2] px-3 py-2">
-				<div class="flex items-center gap-1.5">
+	{:else if selectedCollection && !browseLoading}
+		<!-- Action bar (fixed at top, below tabs) -->
+		<div class="fixed inset-x-0 top-[56px] z-20 border-b border-warm-200/40 bg-[#faf7f2] px-3 py-2">
+			<div class="flex items-center gap-1.5">
 					{#if searchFocused || search}
 						<!-- Expanded search -->
 						<button
@@ -1165,9 +1163,8 @@
 					{/if}
 				</div>
 			</div>
-			<MobileMapShell places={filteredPlaces} {selectedPlaceId} {recenterTick} onPlaceSelect={handleMapPlaceSelect} onPopupPhotoAction={handlePopupPhotoAction} onPopupPhotoClick={handlePopupPhotoClick} maptilerKey={data.maptilerKey} {placePhotos} />
-			<div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
-					<div class="mx-auto px-2.5 pt-1 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]">
+		<MobileMapShell places={filteredPlaces} {selectedPlaceId} {recenterTick} onPlaceSelect={handleMapPlaceSelect} onPopupPhotoAction={handlePopupPhotoAction} onPopupPhotoClick={handlePopupPhotoClick} maptilerKey={data.maptilerKey} {placePhotos} peekFraction={0.12} fullFraction={0.78}>
+				<div class="bg-warm-50 px-2.5 pt-1 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]">
 					{#if sortedPlaces.length === 0}
 						<div class="py-16 text-center">
 							<svg class="mx-auto h-12 w-12 text-warm-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
@@ -1188,7 +1185,7 @@
 						</div>
 					{/if}
 				</div>
-			</div>
+			</MobileMapShell>
 		{:else if browseLoading}
 			<div class="flex flex-1 items-center justify-center">
 				<svg class="h-8 w-8 animate-spin text-brand-500" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>

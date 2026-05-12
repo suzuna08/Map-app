@@ -574,8 +574,9 @@
 
 {#if isMobile}
 <!-- ===== MOBILE: MobileMapShell layout ===== -->
-<div class="flex h-[100dvh] flex-col overflow-hidden">
-	<div class="shrink-0 border-b border-warm-200/80 bg-[#faf7f2]">
+<div class="h-[100dvh] overflow-hidden">
+	<MobileMapShell places={filteredPlaces} {selectedPlaceId} {recenterTick} onPlaceSelect={handleMapPlaceSelect} onPopupPhotoAction={handlePopupPhotoAction} onPopupPhotoClick={handlePopupPhotoClick} {maptilerKey} {placePhotos} peekFraction={0.12} fullFraction={0.78}>
+	<div class="border-b border-warm-200/80 bg-[#faf7f2]">
 		<div class="px-3">
 			<div class="flex items-center gap-1.5 pt-2 text-xs text-warm-400">
 				<a href="/collections" class="transition-colors hover:text-warm-600">{t('collection.collections')}</a>
@@ -765,13 +766,11 @@
 							</div>
 						</div>
 					{/if}
-				</div>
-			{/if}
-		</div>
+			</div>
+		{/if}
 	</div>
-	<MobileMapShell places={filteredPlaces} {selectedPlaceId} {recenterTick} onPlaceSelect={handleMapPlaceSelect} onPopupPhotoAction={handlePopupPhotoAction} onPopupPhotoClick={handlePopupPhotoClick} {maptilerKey} {placePhotos} />
-	<div class="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
-		<div class="mx-auto px-2.5 pt-1 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]">
+	</div>
+		<div class="bg-warm-50 px-2.5 pt-1 pb-[max(8rem,calc(var(--app-dock-reserve,0px)+env(safe-area-inset-bottom,0px)+4rem))]">
 	<!-- Places -->
 	{#if sortedPlaces.length === 0}
 		<div class="py-16 text-center">
@@ -836,7 +835,7 @@
 		</div>
 	{/if}
 		</div>
-	</div>
+	</MobileMapShell>
 </div>
 
 {:else}

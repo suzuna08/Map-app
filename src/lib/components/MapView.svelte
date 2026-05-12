@@ -14,9 +14,10 @@
 		mapHeight?: number;
 		mapDragging?: boolean;
 		placePhotos?: Record<string, string[]>;
+		mapPaddingBottom?: number;
 	}
 
-	let { places, selectedPlaceId, recenterTick = 0, onPlaceSelect, onPopupPhotoAction, onPopupPhotoClick, maptilerKey = '', mapMode = 'default', mapHeight = 0, mapDragging = false, placePhotos = {} }: Props = $props();
+	let { places, selectedPlaceId, recenterTick = 0, onPlaceSelect, onPopupPhotoAction, onPopupPhotoClick, maptilerKey = '', mapMode = 'default', mapHeight = 0, mapDragging = false, placePhotos = {}, mapPaddingBottom = 0 }: Props = $props();
 
 	let pendingPhotoAction = $state<string | null>(null);
 	let pendingPhotoClick = $state<{ placeId: string; index: number } | null>(null);
@@ -53,6 +54,10 @@
 
 	function getFrameOffset(placeId?: string | null): [number, number] {
 		if (mapMode === 'collapsed') return [0, -(HANDLE_PX / 2)];
+		if (mapPaddingBottom > 0) {
+			const shift = Math.round(mapPaddingBottom / 2.5);
+			return [0, -shift];
+		}
 		if (mapMode === 'expanded') {
 			const hasPhotos = placeId ? (placePhotos[placeId]?.length ?? 0) > 0 : false;
 			const clearance = hasPhotos ? POPUP_CLEARANCE_PHOTOS : POPUP_CLEARANCE_SIMPLE;
@@ -65,6 +70,7 @@
 
 	function getFramePadding(): number | { top: number; bottom: number; left: number; right: number } {
 		if (mapMode === 'collapsed') return { top: 8, bottom: HANDLE_PX + 8, left: 12, right: 12 };
+		if (mapPaddingBottom > 0) return { top: 50, bottom: mapPaddingBottom + 20, left: 50, right: 50 };
 		return 50;
 	}
 

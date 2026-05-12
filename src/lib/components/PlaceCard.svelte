@@ -154,6 +154,7 @@
 		const target = e.target as HTMLElement;
 		if (target.closest('a, button, input, textarea, [role="button"]')) return;
 		if (swipeX !== 0) { swipeX = 0; swipeConfirm = false; return; }
+		if (swipeConfirm) { swipeConfirm = false; return; }
 		onSelect?.(place.id);
 		if (selected) {
 			if (flipped) flushPendingSave();
@@ -472,17 +473,45 @@
 							{/if}
 						</div>
 
-						<div class="mb-0">
-							<TagInput
-								{supabase}
-								placeId={place.id}
-								{userId}
-								{allTags}
-								{placeTags}
-								onUpdate={onTagsChanged}
-								onTagClick={onTagClick}
-								{onTagContextMenu}
-							/>
+						<div class="mb-0 flex items-end gap-1">
+							<div class="min-w-0 flex-1">
+								<TagInput
+									{supabase}
+									placeId={place.id}
+									{userId}
+									{allTags}
+									{placeTags}
+									onUpdate={onTagsChanged}
+									onTagClick={onTagClick}
+									{onTagContextMenu}
+								/>
+							</div>
+							<button
+								onclick={(e) => {
+									e.stopPropagation();
+									if (isCollectionContext) {
+										actionMenuAnchor = { x: e.clientX, y: e.clientY };
+										actionMenuOpen = true;
+									} else if (!swipeConfirm) {
+										swipeConfirm = true;
+									} else {
+										swipeConfirm = false;
+										onDelete(place.id);
+									}
+								}}
+								class="shrink-0 rounded-md p-1 transition-colors {swipeConfirm ? 'bg-danger-50 text-danger-600' : 'text-warm-300 hover:text-danger-400'}"
+								aria-label={swipeConfirm ? 'Confirm delete' : 'Delete place'}
+							>
+								{#if swipeConfirm}
+									<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+										<polyline points="20 6 9 17 4 12" />
+									</svg>
+								{:else}
+									<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+									</svg>
+								{/if}
+							</button>
 						</div>
 					</article>
 				</div>

@@ -24,8 +24,16 @@
 	let showDockBase = $derived(!!session && appShellRoute(pathname));
 	let showDock = $derived(showDockBase && !$bottomDockSuppressed);
 
+	let isMobileDock = $state(false);
+	onMount(() => {
+		function check() { isMobileDock = window.innerWidth < 640; }
+		check();
+		window.addEventListener('resize', check);
+		return () => window.removeEventListener('resize', check);
+	});
+
 	$effect(() => {
-		if (showDock) {
+		if (showDock && !isMobileDock) {
 			const teardown = initDockScrollWatcher();
 			return teardown;
 		}
