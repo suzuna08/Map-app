@@ -99,6 +99,7 @@ const zhTW: Record<string, string> = {
 
 	// Place card actions
 	'placeAction.openInMap': '在地圖中開啟',
+	'placeAction.rate': '評分',
 	'placeAction.addToCollection': '加入收藏集',
 	'placeAction.autoTag': '自動標記',
 	'placeAction.tagging': '標記中...',

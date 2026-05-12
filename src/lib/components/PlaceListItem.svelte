@@ -5,7 +5,6 @@
 	import { textColorForBg } from '$lib/tag-colors';
 	import TagInput from './TagInput.svelte';
 	import AddToCollectionModal from './AddToCollectionModal.svelte';
-	import RatingDisplay from './RatingDisplay.svelte';
 	import PlaceActionMenu from './PlaceActionMenu.svelte';
 
 	interface Props {
@@ -217,14 +216,10 @@
 
 					<h3 class="min-w-0 flex-1 text-base font-extrabold text-warm-800 {expanded ? '' : 'truncate'}">{place.title}</h3>
 
-					<div class="w-20 shrink-0 text-right">
-						<RatingDisplay
-							placeId={place.id}
-							userRating={place.user_rating}
-							{supabase}
-							onRatingChanged={(id, r) => onRatingChanged?.(id, r)}
-							compact
-						/>
+				<div class="w-20 shrink-0 text-right">
+						{#if place.user_rating != null}
+							<span class="text-sm font-medium text-warm-700">{place.user_rating.toFixed(1)}<span class="text-brand-500">★</span></span>
+						{/if}
 					</div>
 				</div>
 			</div>
@@ -262,15 +257,11 @@
 			{/if}
 		</div>
 
-		<div class="w-[4.5rem] shrink-0 text-right opacity-80">
-			<RatingDisplay
-				placeId={place.id}
-				userRating={place.user_rating}
-				{supabase}
-				onRatingChanged={(id, r) => onRatingChanged?.(id, r)}
-				compact
-			/>
-		</div>
+	<div class="w-[4.5rem] shrink-0 text-right opacity-80">
+		{#if place.user_rating != null}
+			<span class="text-sm font-medium text-warm-700">{place.user_rating.toFixed(1)}<span class="text-brand-500">★</span></span>
+		{/if}
+	</div>
 	</div>
 
 	<!-- Expanded detail panel -->

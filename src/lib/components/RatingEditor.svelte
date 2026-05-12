@@ -87,12 +87,21 @@
 		return 'empty';
 	}
 
-	let popoverStyle = $derived.by(() => {
+	let popoverLeft = $derived.by(() => {
 		const editorW = TOTAL_W + 24;
 		let left = anchorRect.left + anchorRect.width / 2 - editorW / 2;
-		left = Math.max(8, Math.min(left, window.innerWidth - editorW - 8));
-		const top = anchorRect.bottom + 6;
-		return `position:fixed;left:${left}px;top:${top}px;width:${editorW}px;z-index:9999`;
+		return Math.max(8, Math.min(left, window.innerWidth - editorW - 8));
+	});
+
+	let popoverStyle = $derived.by(() => {
+		const editorW = TOTAL_W + 24;
+		const top = anchorRect.bottom + 10;
+		return `position:fixed;left:${popoverLeft}px;top:${top}px;width:${editorW}px;z-index:9999`;
+	});
+
+	let arrowLeft = $derived.by(() => {
+		const anchorCenter = anchorRect.left + anchorRect.width / 2;
+		return Math.max(12, Math.min(anchorCenter - popoverLeft, TOTAL_W + 24 - 12));
 	});
 
 	function handleBackdrop(e: MouseEvent) {
@@ -117,10 +126,15 @@
 
 	<!-- Popover -->
 	<div
-		class="rounded-xl border border-warm-200 bg-white p-3 shadow-xl"
+		class="relative rounded-xl border border-warm-200 bg-white p-3 shadow-xl"
 		style={popoverStyle}
 		onclick={(e) => e.stopPropagation()}
 	>
+		<!-- Arrow pointing up: rotated square with matching shadow -->
+		<div
+			class="absolute -top-[6px] h-3 w-3 rotate-45 border-l border-t border-warm-200 bg-white shadow-[-2px_-2px_4px_rgba(0,0,0,0.1)]"
+			style="left:{arrowLeft - 6}px"
+		></div>
 		<!-- Star scrubber area -->
 		<div
 			bind:this={scrubberEl}

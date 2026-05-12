@@ -4,7 +4,7 @@
 	import type { CollectionMemberMap } from '$lib/stores/collections.svelte';
 	import TagInput from './TagInput.svelte';
 	import AddToCollectionModal from './AddToCollectionModal.svelte';
-	import RatingDisplay from './RatingDisplay.svelte';
+	import RatingEditor from './RatingEditor.svelte';
 	import PlaceActionMenu from './PlaceActionMenu.svelte';
 	import { colorForTag } from '$lib/tag-colors';
 	import { getNextOrderIndex } from '$lib/tag-order';
@@ -217,6 +217,35 @@
 	}
 
 	let autoTagging = $state(false);
+	let ratingEditorOpen = $state(false);
+	let ratingAnchorRect = $state({ top: 0, left: 0, width: 0, height: 0, bottom: 0 });
+
+	function openRatingFromMenu(e: MouseEvent) {
+		e.stopPropagation();
+		cardMenuOpen = false;
+		const y = e.clientY;
+		const x = e.clientX;
+		ratingAnchorRect = { top: y - 4, left: x - 80, width: 160, height: 0, bottom: y - 4 };
+		ratingEditorOpen = true;
+	}
+
+	async function saveRating(rating: number) {
+		onRatingChanged?.(place.id, rating);
+		ratingEditorOpen = false;
+		await supabase
+			.from('places')
+			.update({ user_rating: rating, user_rated_at: new Date().toISOString() })
+			.eq('id', place.id);
+	}
+
+	async function clearRating() {
+		onRatingChanged?.(place.id, null);
+		ratingEditorOpen = false;
+		await supabase
+			.from('places')
+			.update({ user_rating: null, user_rated_at: null })
+			.eq('id', place.id);
+	}
 
 	async function handleAutoTag() {
 		const candidates = [place.category, place.area].filter((v): v is string => !!v);
@@ -319,15 +348,11 @@
 					<article class="flex h-[148px] cursor-pointer flex-col rounded-xl border bg-white p-3 {selected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}">
 						<div class="mb-0.5 flex items-center justify-between gap-2">
 							<h3 class="min-w-0 flex-1 line-clamp-1 text-[15px] font-extrabold leading-snug text-warm-800">{place.title}</h3>
-							<div class="flex shrink-0 items-center gap-0.5">
-								<RatingDisplay
-									placeId={place.id}
-									userRating={place.user_rating}
-									{supabase}
-									onRatingChanged={(id, r) => onRatingChanged?.(id, r)}
-									compact
-								/>
-								<div class="relative">
+						<div class="flex shrink-0 items-center gap-0.5">
+							{#if place.user_rating != null}
+								<span class="shrink-0 rounded-md px-1 py-0.5 text-sm font-medium text-warm-700">{place.user_rating.toFixed(1)}<span class="text-brand-500">★</span></span>
+							{/if}
+							<div class="relative">
 									<button
 										onclick={(e) => { e.stopPropagation(); cardMenuOpen = !cardMenuOpen; }}
 										class="rounded-md p-1 text-warm-300 transition-colors hover:bg-warm-100 hover:text-warm-500"
@@ -353,6 +378,15 @@
 													{t('placeAction.openInMap')}
 												</a>
 											{/if}
+											<button
+												onclick={openRatingFromMenu}
+												class="flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium text-warm-600 hover:bg-warm-50"
+											>
+												<svg class="h-4 w-4 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+													<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+												</svg>
+												{place.user_rating != null ? `${place.user_rating.toFixed(1)} ★` : t('placeAction.rate')}
+											</button>
 											{#if onCollectionPickerToggle}
 												<button
 													onclick={(e) => { e.stopPropagation(); const rect = e.currentTarget.getBoundingClientRect(); collectionAnchor = { x: rect.left, y: rect.bottom + 4 }; cardMenuOpen = false; onCollectionPickerToggle?.(place.id); }}
@@ -504,40 +538,46 @@
 		<article class="group flex h-[170px] cursor-pointer flex-col space-y-2 rounded-2xl border bg-white p-4 transition-all hover:shadow-md hover:shadow-warm-200/50 {selected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}">
 			<div class="flex items-center justify-between gap-2">
 					<h3 class="min-w-0 flex-1 line-clamp-1 text-base font-extrabold tracking-tight leading-snug text-warm-800">{place.title}</h3>
-					<div class="flex shrink-0 items-center gap-0.5">
-						<RatingDisplay
-							placeId={place.id}
-							userRating={place.user_rating}
-							{supabase}
-							onRatingChanged={(id, r) => onRatingChanged?.(id, r)}
-						/>
-						<div class="relative">
-							<button
-								onclick={(e) => { e.stopPropagation(); cardMenuOpen = !cardMenuOpen; }}
-								class="rounded-md p-1 text-warm-300 transition-colors hover:bg-warm-100 hover:text-warm-500"
-								aria-label="More actions"
-							>
-								<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-									<circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" />
-								</svg>
-							</button>
-							{#if cardMenuOpen}
-								<div class="fixed inset-0 z-40" onclick={(e) => { e.stopPropagation(); cardMenuOpen = false; confirmDelete = false; }} role="presentation"></div>
-								<div class="absolute right-0 top-full z-50 mt-1 w-44 rounded-lg border border-warm-200 bg-white py-1 shadow-lg">
-									{#if place.url}
-										<a
-											href={place.url}
-											target="_blank"
-											onclick={(e) => { e.stopPropagation(); cardMenuOpen = false; }}
-											class="flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium text-warm-600 hover:bg-warm-50"
-										>
-											<svg class="h-4 w-4 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-												<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
-											</svg>
-											{t('placeAction.openInMap')}
-										</a>
-									{/if}
-									{#if onCollectionPickerToggle}
+				<div class="flex shrink-0 items-center gap-0.5">
+					{#if place.user_rating != null}
+						<span class="shrink-0 rounded-md px-1 py-0.5 text-sm font-medium text-warm-700">{place.user_rating.toFixed(1)}<span class="text-brand-500">★</span></span>
+					{/if}
+					<div class="relative">
+						<button
+							onclick={(e) => { e.stopPropagation(); cardMenuOpen = !cardMenuOpen; }}
+							class="rounded-md p-1 text-warm-300 transition-colors hover:bg-warm-100 hover:text-warm-500"
+							aria-label="More actions"
+						>
+							<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+								<circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" />
+							</svg>
+						</button>
+						{#if cardMenuOpen}
+							<div class="fixed inset-0 z-40" onclick={(e) => { e.stopPropagation(); cardMenuOpen = false; confirmDelete = false; }} role="presentation"></div>
+							<div class="absolute right-0 top-full z-50 mt-1 w-44 rounded-lg border border-warm-200 bg-white py-1 shadow-lg">
+								{#if place.url}
+									<a
+										href={place.url}
+										target="_blank"
+										onclick={(e) => { e.stopPropagation(); cardMenuOpen = false; }}
+										class="flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium text-warm-600 hover:bg-warm-50"
+									>
+										<svg class="h-4 w-4 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+										</svg>
+										{t('placeAction.openInMap')}
+									</a>
+								{/if}
+								<button
+									onclick={openRatingFromMenu}
+									class="flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium text-warm-600 hover:bg-warm-50"
+								>
+									<svg class="h-4 w-4 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+									</svg>
+									{place.user_rating != null ? `${place.user_rating.toFixed(1)} ★` : t('placeAction.rate')}
+								</button>
+								{#if onCollectionPickerToggle}
 										<button
 											onclick={(e) => { e.stopPropagation(); const rect = e.currentTarget.getBoundingClientRect(); collectionAnchor = { x: rect.left, y: rect.bottom + 4 }; cardMenuOpen = false; onCollectionPickerToggle?.(place.id); }}
 											class="flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium text-warm-600 hover:bg-warm-50"
@@ -698,5 +738,15 @@
 		onRemoveFromCollection={() => onRemoveFromCollection!(place.id)}
 		onDeletePlace={() => onDeletePlace!(place.id)}
 		onClose={() => { actionMenuOpen = false; }}
+	/>
+{/if}
+
+{#if ratingEditorOpen}
+	<RatingEditor
+		value={place.user_rating}
+		anchorRect={ratingAnchorRect}
+		onSave={saveRating}
+		onClear={clearRating}
+		onClose={() => { ratingEditorOpen = false; }}
 	/>
 {/if}

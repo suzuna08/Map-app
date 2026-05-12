@@ -947,8 +947,6 @@
 										<div class="flex shrink-0 items-center gap-0.5">
 											{#if place.user_rating != null}
 												<span class="text-sm font-medium text-warm-700">{place.user_rating.toFixed(1)}</span><span class="text-sm text-brand-500">★</span>
-											{:else}
-												<span class="whitespace-nowrap text-sm font-medium text-warm-300">{t('common.notRated')}</span>
 											{/if}
 											<button
 												onclick={(e) => { e.stopPropagation(); if (!imported) handleImportPlace(place.id); }}
@@ -1505,8 +1503,6 @@
 											<div class="flex shrink-0 items-center gap-0.5">
 												{#if place.user_rating != null}
 													<span class="text-sm font-medium text-warm-700">{place.user_rating.toFixed(1)}</span><span class="text-sm text-brand-500">★</span>
-												{:else}
-													<span class="whitespace-nowrap text-sm font-medium text-warm-300">{t('common.notRated')}</span>
 												{/if}
 												<button
 													onclick={(e) => { e.stopPropagation(); if (!imported) handleImportPlace(place.id); }}
@@ -1628,14 +1624,21 @@
 		</div>
 	{:else if menuSaved}
 		<div class="fixed inset-0 z-[70]" onclick={() => closeTabMenu()} role="presentation"></div>
-		<div class="fixed z-[71] w-44 rounded-xl border border-warm-200 bg-white py-1 shadow-lg" style="top: {tabMenuPos.top}px; left: {tabMenuPos.left}px;">
+		<div bind:this={tabMenuEl} class="fixed z-[71] w-40 rounded-xl border border-warm-200 bg-white py-1 shadow-lg" style="top: {tabMenuPos.top}px; left: {tabMenuPos.left}px;">
+		{#if tabConfirmDeleteId === menuSaved.id}
+			<div class="flex items-center gap-1.5 px-3 py-2">
+				<button onclick={() => { closeTabMenu(); handleRemoveSavedCollection(menuSaved.id); }} class="rounded-md bg-danger-100 px-2 py-1 text-xs font-bold text-danger-700 hover:bg-danger-200">{t('shared.remove')}</button>
+				<button onclick={() => { tabConfirmDeleteId = null; }} class="text-xs text-warm-400 hover:text-warm-600">{t('common.cancel')}</button>
+			</div>
+		{:else}
 			<button
-				onclick={() => { closeTabMenu(); handleRemoveSavedCollection(menuSaved.id); }}
+				onclick={() => { tabConfirmDeleteId = menuSaved.id; }}
 				class="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-danger-600 transition-colors hover:bg-danger-50"
 			>
 				<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
 				{t('shared.removeFromSaved')}
 			</button>
+		{/if}
 		</div>
 	{/if}
 {/if}

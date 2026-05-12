@@ -38,6 +38,8 @@
 
 	let menuOpenId = $state<string | null>(null);
 	let menuPos = $state({ x: 0, y: 0 });
+	let confirmDeleteId = $state<string | null>(null);
+	let menuEl = $state<HTMLDivElement | null>(null);
 
 	function startRename(view: SavedView) {
 		editingId = view.id;
@@ -78,6 +80,7 @@
 
 	async function handleDelete(view: SavedView) {
 		menuOpenId = null;
+		confirmDeleteId = null;
 		const ok = await deleteSavedView(supabase, view.id);
 		if (ok) {
 			showToast('info', '', `"${view.name}" deleted`);
@@ -90,6 +93,7 @@
 	function toggleMenu(viewId: string, e: MouseEvent) {
 		if (menuOpenId === viewId) {
 			menuOpenId = null;
+			confirmDeleteId = null;
 			return;
 		}
 		const btn = (e.currentTarget as HTMLElement);
@@ -103,17 +107,21 @@
 		if (x < 8) x = 8;
 		menuPos = { x, y };
 		menuOpenId = viewId;
+		confirmDeleteId = null;
 	}
 
 	function handleWindowClick(e: MouseEvent) {
-		if (menuOpenId && !(e.target as HTMLElement)?.closest('[data-sv-menu]')) {
-			menuOpenId = null;
-		}
+		if (!menuOpenId) return;
+		if (menuEl && menuEl.contains(e.target as Node)) return;
+		if ((e.target as HTMLElement)?.closest('[data-sv-menu-btn]')) return;
+		menuOpenId = null;
+		confirmDeleteId = null;
 	}
 
 	function handleWindowKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape' && menuOpenId) {
 			menuOpenId = null;
+			confirmDeleteId = null;
 		}
 	}
 </script>
@@ -185,6 +193,7 @@
 	{@const view = savedViews.find((v) => v.id === menuOpenId)}
 	{#if view}
 		<div
+			bind:this={menuEl}
 			data-sv-menu
 			class="fixed z-[60] w-44 rounded-lg border border-warm-200 bg-white py-1 shadow-lg"
 			style="left: {menuPos.x}px; top: {menuPos.y}px;"
@@ -221,15 +230,28 @@
 				</button>
 			{/if}
 			<div class="my-1 border-t border-warm-100"></div>
-			<button
-				onclick={() => handleDelete(view)}
-				class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-danger-600 hover:bg-danger-50 hover:text-danger-700"
-			>
-				<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-				</svg>
-				{t('common.delete')}
-			</button>
+			{#if confirmDeleteId === view.id}
+				<div class="flex items-center gap-1.5 px-3 py-1.5">
+					<button
+						onclick={(e) => { e.stopPropagation(); handleDelete(view); }}
+						class="rounded-md bg-danger-100 px-2 py-1 text-xs font-bold text-danger-700 hover:bg-danger-200"
+					>{t('common.delete')}</button>
+					<button
+						onclick={(e) => { e.stopPropagation(); confirmDeleteId = null; }}
+						class="text-xs text-warm-400 hover:text-warm-600"
+					>{t('common.cancel')}</button>
+				</div>
+			{:else}
+				<button
+					onclick={(e) => { e.stopPropagation(); confirmDeleteId = view.id; }}
+					class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-danger-600 hover:bg-danger-50 hover:text-danger-700"
+				>
+					<svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+					</svg>
+					{t('common.delete')}
+				</button>
+			{/if}
 		</div>
 	{/if}
 {/if}

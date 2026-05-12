@@ -99,6 +99,7 @@ const ja: Record<string, string> = {
 
 	// Place card actions
 	'placeAction.openInMap': '地図で開く',
+	'placeAction.rate': '評価する',
 	'placeAction.addToCollection': 'コレクションに追加',
 	'placeAction.autoTag': '自動タグ',
 	'placeAction.tagging': 'タグ付け中...',

@@ -99,6 +99,7 @@ const en: Record<string, string> = {
 
 	// Place card actions
 	'placeAction.openInMap': 'Open in Map',
+	'placeAction.rate': 'Rate',
 	'placeAction.addToCollection': 'Add to Collection',
 	'placeAction.autoTag': 'Auto Tag',
 	'placeAction.tagging': 'Tagging...',

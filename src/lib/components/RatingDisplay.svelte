@@ -61,18 +61,16 @@
 	}
 </script>
 
+{#if userRating != null}
 <button
 	bind:this={triggerEl}
 	onclick={openEditor}
 	class="shrink-0 rounded-md px-1 py-0.5 text-right text-sm font-medium transition-colors hover:bg-warm-100"
 	aria-label="Set rating"
 >
-	{#if userRating != null}
-		<span class="text-warm-700">{userRating.toFixed(1)}</span><span class="text-brand-500">★</span>
-	{:else}
-		<span class="whitespace-nowrap text-warm-300">{t('common.notRated')}</span>
-	{/if}
+	<span class="text-warm-700">{userRating.toFixed(1)}</span><span class="text-brand-500">★</span>
 </button>
+{/if}
 
 {#if editorOpen}
 	<RatingEditor
