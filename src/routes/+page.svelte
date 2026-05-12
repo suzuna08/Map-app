@@ -1,9 +1,12 @@
 <script lang="ts">
+	import DemoSandbox from '$lib/components/DemoSandbox.svelte';
+
 	let { data } = $props();
 	let session = $derived(data.session);
+	let maptilerKey = $derived(data.maptilerKey ?? '');
 </script>
 
-<div class="flex min-h-[80vh] flex-col items-center justify-center px-4 text-center">
+<div class="flex min-h-[80vh] flex-col items-center px-4 pt-16 text-center sm:pt-20" class:justify-center={!!session} class:pb-16={!session}>
 	<div class="mb-6 rounded-2xl bg-brand-100 p-5">
 		<svg class="h-14 w-14 text-brand-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
 			<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
@@ -85,4 +88,8 @@
 			<p class="text-xs leading-relaxed text-warm-500">Search across names, tags, areas, and descriptions instantly.</p>
 		</div>
 	</div>
+
+	{#if !session}
+		<DemoSandbox {maptilerKey} />
+	{/if}
 </div>
