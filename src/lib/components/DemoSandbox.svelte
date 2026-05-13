@@ -39,7 +39,6 @@
 	let newTagName = $state('');
 	let tagAssignPlaceId = $state<string | null>(null);
 	let mounted = $state(false);
-	let isMobile = $state(false);
 	let mobileOptionsOpen = $state(false);
 	let flippedCards = $state<Set<string>>(new Set());
 	let noteTexts = $state<Record<string, string>>({});
@@ -241,10 +240,6 @@
 
 	onMount(() => {
 		mounted = true;
-		function checkMobile() { isMobile = window.innerWidth < 1024; }
-		checkMobile();
-		window.addEventListener('resize', checkMobile);
-		return () => window.removeEventListener('resize', checkMobile);
 	});
 </script>
 
@@ -261,74 +256,64 @@
 	</div>
 
 	<div class="overflow-hidden rounded-2xl border border-warm-200 bg-sage-100 shadow-sm" style="min-height: 560px;">
-		{#if isMobile}
-			<!-- ========== MOBILE: map on top, content below ========== -->
-			<div class="flex flex-col" style="height: 80vh; max-height: 700px;">
-				<!-- Map area -->
-				<div class="relative h-[35%] shrink-0 border-b border-warm-200">
-					{#if mounted}
-						<MapView
-							places={sortedPlaces}
-							{selectedPlaceId}
-							{recenterTick}
-							onPlaceSelect={handleMapPlaceSelect}
-							{maptilerKey}
-							mapMode="default"
-						/>
-					{/if}
-					<!-- Drag handle visual -->
-					<div class="absolute bottom-0 left-0 right-0 flex justify-center pb-1.5 pt-1">
-						<div class="h-1 w-8 rounded-full bg-warm-300/60"></div>
-					</div>
+		<!-- ========== MOBILE layout (< lg) ========== -->
+		<div class="flex flex-col lg:hidden" style="height: 80vh; max-height: 700px;">
+			<div class="relative h-[35%] shrink-0 border-b border-warm-200">
+				{#if mounted}
+					<MapView
+						places={sortedPlaces}
+						{selectedPlaceId}
+						{recenterTick}
+						onPlaceSelect={handleMapPlaceSelect}
+						{maptilerKey}
+						mapMode="default"
+					/>
+				{/if}
+				<div class="absolute bottom-0 left-0 right-0 flex justify-center pb-1.5 pt-1">
+					<div class="h-1 w-8 rounded-full bg-warm-300/60"></div>
 				</div>
+			</div>
+			<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+				<div class="shrink-0 border-b border-warm-200/80 bg-sage-100 px-2.5 pb-1.5 pt-2">
+					{@render filterSummary()}
+					{@render tagRow()}
+					{@render savedViewsRow()}
+					{@render searchBar()}
+				</div>
+				<div class="flex-1 overflow-y-auto px-2.5 py-2">
+					{@render cardGrid()}
+				</div>
+				{@render footerBar()}
+			</div>
+		</div>
 
-				<!-- Content area -->
-				<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-					<!-- Sticky header -->
-					<div class="shrink-0 border-b border-warm-200/80 bg-sage-100 px-2.5 pb-1.5 pt-2">
-						{@render filterSummary()}
-						{@render tagRow()}
-						{@render savedViewsRow()}
-						{@render searchBar()}
-					</div>
-					<!-- Scrollable cards -->
-					<div class="flex-1 overflow-y-auto px-2.5 py-2">
-						{@render cardGrid()}
-					</div>
-					{@render footerBar()}
+		<!-- ========== DESKTOP layout (>= lg) ========== -->
+		<div class="hidden lg:flex lg:flex-row" style="min-height: 560px;">
+			<div class="flex min-w-0 flex-1 flex-col" style="container-type: inline-size;">
+				<div class="sticky top-0 z-20 border-b border-warm-200/80 bg-sage-100 px-4 pb-2 pt-3">
+					{@render filterSummary()}
+					{@render tagRow()}
+					{@render savedViewsRow()}
+					{@render searchBar()}
 				</div>
+				<div class="flex-1 overflow-y-auto px-4 py-3" style="max-height: 440px;">
+					{@render cardGrid()}
+				</div>
+				{@render footerBar()}
 			</div>
-		{:else}
-			<!-- ========== DESKTOP: split panel ========== -->
-			<div class="flex flex-row" style="min-height: 560px;">
-				<!-- Left panel: content -->
-				<div class="flex min-w-0 flex-1 flex-col" style="container-type: inline-size;">
-					<div class="sticky top-0 z-20 border-b border-warm-200/80 bg-sage-100 px-4 pb-2 pt-3">
-						{@render filterSummary()}
-						{@render tagRow()}
-						{@render savedViewsRow()}
-						{@render searchBar()}
-					</div>
-					<div class="flex-1 overflow-y-auto px-4 py-3" style="max-height: 440px;">
-						{@render cardGrid()}
-					</div>
-					{@render footerBar()}
-				</div>
-				<!-- Right panel: map -->
-				<div class="w-[42%] border-l border-warm-200" style="min-height: 560px;">
-					{#if mounted}
-						<MapView
-							places={sortedPlaces}
-							{selectedPlaceId}
-							{recenterTick}
-							onPlaceSelect={handleMapPlaceSelect}
-							{maptilerKey}
-							mapMode="default"
-						/>
-					{/if}
-				</div>
+			<div class="w-[42%] border-l border-warm-200" style="min-height: 560px;">
+				{#if mounted}
+					<MapView
+						places={sortedPlaces}
+						{selectedPlaceId}
+						{recenterTick}
+						onPlaceSelect={handleMapPlaceSelect}
+						{maptilerKey}
+						mapMode="default"
+					/>
+				{/if}
 			</div>
-		{/if}
+		</div>
 	</div>
 
 	{#if $demoPlaces.length >= 2}
@@ -551,14 +536,14 @@
 
 				<div>
 				<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-				<div class="{isMobile ? '[perspective:800px]' : '[perspective:1000px]'} {cardMenuId === place.id ? 'relative z-10' : ''}" data-place-id={place.id}
+				<div class="[perspective:800px] lg:[perspective:1000px] {cardMenuId === place.id ? 'relative z-10' : ''}" data-place-id={place.id}
 					onclick={(e) => handleCardClick(place.id, e)}>
 					<div class="flip-inner relative transition-transform duration-500 [transform-style:preserve-3d]"
 						class:is-flipped={isFlipped}>
 
 						<!-- FRONT FACE -->
 						<div class="[backface-visibility:hidden]">
-							<article class="group flex cursor-pointer flex-col rounded-xl border bg-white p-3 transition-all hover:shadow-md hover:shadow-warm-200/50 sm:rounded-2xl sm:p-4 {isSelected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'} {isMobile ? 'h-[148px]' : 'h-[170px]'}">
+							<article class="group flex cursor-pointer flex-col rounded-xl border bg-white p-3 transition-all hover:shadow-md hover:shadow-warm-200/50 sm:rounded-2xl sm:p-4 h-[148px] lg:h-[170px] {isSelected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}">
 								<!-- Title row -->
 								<div class="mb-0.5 flex items-center justify-between gap-2">
 									<h3 class="min-w-0 flex-1 line-clamp-1 text-[15px] font-extrabold leading-snug text-warm-800 sm:text-base sm:tracking-tight">{place.title}</h3>
@@ -690,7 +675,7 @@
 
 						<!-- BACK FACE (Notes) -->
 						<div class="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-							<article class="flex cursor-pointer flex-col rounded-xl border border-warm-200 bg-white p-3 sm:rounded-2xl sm:p-4 {isMobile ? 'h-[148px]' : 'h-[170px]'}">
+							<article class="flex cursor-pointer flex-col rounded-xl border border-warm-200 bg-white p-3 sm:rounded-2xl sm:p-4 h-[148px] lg:h-[170px]">
 								<div class="mb-1 flex items-center justify-between">
 									<h3 class="min-w-0 flex-1 truncate text-base font-extrabold leading-snug text-warm-800">{place.title}</h3>
 									<button onclick={(e) => { e.stopPropagation(); flipToFront(place.id); }}
