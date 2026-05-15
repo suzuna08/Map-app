@@ -191,7 +191,7 @@
 	bind:this={sheetEl}
 	class="fixed inset-x-0 bottom-0 z-10 flex flex-col overflow-hidden rounded-t-2xl bg-sage-100 shadow-[0_-4px_24px_rgba(0,0,0,0.12)]"
 	class:sheet-animate={animating && !dragging}
-	style="height: {sheetHeight}px; transform: translateY(0);"
+	style="height: {sheetHeight}px;"
 >
 	<!-- Drag handle area -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
