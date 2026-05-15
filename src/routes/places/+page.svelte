@@ -1651,7 +1651,7 @@
 		<div class="fixed inset-0 z-[60] flex items-center justify-center" onclick={closePhotoModal}>
 			<div class="absolute inset-0 bg-warm-900/40 backdrop-blur-sm"></div>
 			<div
-				class="relative z-10 flex max-h-[80dvh] w-[calc(100%-2rem)] flex-col rounded-2xl border border-warm-200 bg-white shadow-xl sm:w-auto sm:max-w-md"
+				class="relative z-10 flex max-h-[80dvh] w-[calc(100%-2rem)] flex-col rounded-2xl border border-warm-200 bg-white shadow-xl sm:w-full sm:max-w-md"
 				onclick={(e) => e.stopPropagation()}
 			>
 				<div class="flex items-center justify-between border-b border-warm-100 px-4 py-3 sm:px-5">
