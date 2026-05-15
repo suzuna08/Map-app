@@ -17,7 +17,7 @@
 	import { showToast, getToasts, dismissToast } from '$lib/stores/toasts.svelte';
 	import EmojiPicker from '$lib/components/EmojiPicker.svelte';
 	import CollectionAvatar from '$lib/components/CollectionAvatar.svelte';
-	import PhotoGrid from '$lib/components/PhotoGrid.svelte';
+	import PhotoPopover from '$lib/components/PhotoPopover.svelte';
 	import PhotoLightbox from '$lib/components/PhotoLightbox.svelte';
 	import { loadPlacePhotos } from '$lib/photo-storage';
 
@@ -1219,36 +1219,16 @@
 {/if}
 {/if}
 
-<!-- Photo modal (triggered from map popup camera icon) -->
+<!-- Photo popover (triggered from map popup camera icon) -->
 {#if photoModalPlaceId}
 	{@const photoPlace = places.find(p => p.id === photoModalPlaceId)}
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="fixed inset-0 z-[60] flex items-end justify-center sm:items-center" onclick={closePhotoModal}>
-		<div class="absolute inset-0 bg-warm-900/40 backdrop-blur-sm"></div>
-		<div
-			class="relative z-10 flex max-h-[80dvh] w-full flex-col rounded-t-2xl border border-warm-200 bg-white shadow-xl sm:max-w-md sm:rounded-2xl"
-			onclick={(e) => e.stopPropagation()}
-		>
-			<div class="flex items-center justify-between border-b border-warm-100 px-4 py-3 sm:px-5">
-				<div class="flex items-center gap-2 min-w-0">
-					<svg class="h-4 w-4 shrink-0 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-						<circle cx="12" cy="13" r="4"/>
-					</svg>
-					<h2 class="truncate text-sm font-bold text-warm-800 sm:text-base">{photoPlace?.title ?? 'Photos'}</h2>
-				</div>
-				<button onclick={closePhotoModal} class="rounded-lg p-1.5 text-warm-400 hover:bg-warm-100 hover:text-warm-600" aria-label="Close">
-					<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-					</svg>
-				</button>
-			</div>
-			<div class="flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
-				<PhotoGrid {supabase} placeId={photoModalPlaceId} userId={session?.user?.id ?? ''} />
-			</div>
-		</div>
-	</div>
+	<PhotoPopover
+		{supabase}
+		placeId={photoModalPlaceId}
+		userId={session?.user?.id ?? ''}
+		placeTitle={photoPlace?.title ?? 'Photos'}
+		onClose={closePhotoModal}
+	/>
 {/if}
 
 {#if popupLightbox}
