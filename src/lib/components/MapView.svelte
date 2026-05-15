@@ -273,6 +273,9 @@
 			const entry = markersMap.get(sid);
 			if (entry) {
 				const lngLat = entry.marker.getLngLat();
+				markersMap.forEach((e, id) => {
+					if (id !== sid && e.marker.getPopup().isOpen()) e.marker.togglePopup();
+				});
 				if (entry.marker.getPopup().isOpen()) entry.marker.togglePopup();
 				map.flyTo({
 					center: [lngLat.lng, lngLat.lat],
@@ -286,9 +289,6 @@
 					}
 				});
 			}
-			markersMap.forEach((e, id) => {
-				if (id !== sid && e.marker.getPopup().isOpen()) e.marker.togglePopup();
-			});
 		}
 	});
 
@@ -333,14 +333,13 @@
 						marker.togglePopup();
 					} else {
 						onPlaceSelect(placeId);
-						if (!marker.getPopup().isOpen()) marker.togglePopup();
 					}
 				});
 				el.addEventListener('mouseenter', () => {
-					if (mapMode !== 'collapsed' && !marker.getPopup().isOpen()) marker.togglePopup();
+					if (mapMode === 'default' && !marker.getPopup().isOpen()) marker.togglePopup();
 				});
 				el.addEventListener('mouseleave', () => {
-					if (placeId !== selectedPlaceId && marker.getPopup().isOpen()) marker.togglePopup();
+					if (mapMode === 'default' && placeId !== selectedPlaceId && marker.getPopup().isOpen()) marker.togglePopup();
 				});
 
 				markersMap.set(place.id, { marker, el });

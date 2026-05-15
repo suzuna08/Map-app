@@ -937,6 +937,7 @@
 								<!-- svelte-ignore a11y_no_static_element_interactions -->
 								<!-- svelte-ignore a11y_click_events_have_key_events -->
 								<article
+									data-place-id={place.id}
 									class="flex cursor-pointer flex-col rounded-xl border bg-white p-3 transition-all {selectedPlaceId === place.id ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}"
 									onclick={() => handleCardSelect(place.id)}
 								>
@@ -1492,6 +1493,7 @@
 									<!-- svelte-ignore a11y_no_static_element_interactions -->
 									<!-- svelte-ignore a11y_click_events_have_key_events -->
 									<article
+										data-place-id={place.id}
 										class="flex cursor-pointer flex-col rounded-xl border bg-white p-3 transition-all {selectedPlaceId === place.id ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}"
 										onclick={() => handleCardSelect(place.id)}
 									>
