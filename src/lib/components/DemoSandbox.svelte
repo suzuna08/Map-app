@@ -50,8 +50,18 @@
 	let ratingPlaceId = $state<string | null>(null);
 	let ratingAnchorRect = $state({ top: 0, left: 0, width: 0, height: 0, bottom: 0 });
 	let demoUserRatings = $state<Record<string, number>>({});
+	let sectionEl = $state<HTMLElement | null>(null);
+	let flipHintPlayed = $state(false);
+	let flipHintActive = $state(false);
+	let demoPhotos = $state<Record<string, string[]>>({});
+	let photoInputPlaceId = $state<string | null>(null);
+	let photoFileInput = $state<HTMLInputElement | null>(null);
+	let photoViewerUrls = $state<string[]>([]);
+	let photoViewerIndex = $state(0);
 
 	const DEMO_LIMIT = 10;
+	const DEMO_MAX_PHOTOS_PER_PLACE = 5;
+	const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 	function isGoogleMapsUrl(text: string): boolean {
 		const t = text.trim();
@@ -85,6 +95,7 @@
 				errorMsg = 'This place is already added';
 				return;
 			}
+			const isFirst = $demoPlaces.length === 0;
 			addDemoPlace(data.place);
 			if (data.suggestedTags?.length) {
 				ensureSuggestedTags(data.suggestedTags.slice(0, 3));
@@ -92,6 +103,11 @@
 			urlInput = '';
 			selectedPlaceId = data.place.id;
 			recenterTick++;
+			if (isFirst && !flipHintPlayed) {
+				flipHintPlayed = true;
+				setTimeout(() => { flipHintActive = true; }, 800);
+				setTimeout(() => { flipHintActive = false; }, 2000);
+			}
 		} catch (e: any) {
 			errorMsg = e.message || 'Something went wrong';
 		} finally {
@@ -214,6 +230,46 @@
 		ratingPlaceId = null;
 	}
 
+	function triggerPhotoUpload(placeId: string) {
+		photoInputPlaceId = placeId;
+		photoFileInput?.click();
+	}
+
+	function handlePhotoFiles(e: Event) {
+		const input = e.target as HTMLInputElement;
+		const files = input.files;
+		if (!files?.length || !photoInputPlaceId) return;
+		const existing = demoPhotos[photoInputPlaceId] ?? [];
+		const remaining = DEMO_MAX_PHOTOS_PER_PLACE - existing.length;
+		if (remaining <= 0) return;
+
+		const newUrls: string[] = [];
+		for (let i = 0; i < Math.min(files.length, remaining); i++) {
+			const file = files[i];
+			if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) continue;
+			newUrls.push(URL.createObjectURL(file));
+		}
+		demoPhotos = { ...demoPhotos, [photoInputPlaceId]: [...existing, ...newUrls] };
+		input.value = '';
+		photoInputPlaceId = null;
+	}
+
+	function removeDemoPhoto(placeId: string, index: number) {
+		const photos = demoPhotos[placeId] ?? [];
+		URL.revokeObjectURL(photos[index]);
+		demoPhotos = { ...demoPhotos, [placeId]: photos.filter((_, i) => i !== index) };
+	}
+
+	function openPhotoViewer(placeId: string, index: number) {
+		photoViewerUrls = demoPhotos[placeId] ?? [];
+		photoViewerIndex = index;
+	}
+
+	function closePhotoViewer() {
+		photoViewerUrls = [];
+		photoViewerIndex = 0;
+	}
+
 	function getPlaceTags(placeId: string): DemoTag[] {
 		const tagIds = $demoPlaceTags[placeId] ?? [];
 		return $demoTags.filter((t) => tagIds.includes(t.id));
@@ -240,14 +296,38 @@
 
 	onMount(() => {
 		mounted = true;
+
+		if (!sectionEl) return;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries[0]?.isIntersecting && !flipHintPlayed && sortedPlaces.length > 0) {
+					flipHintPlayed = true;
+					flipHintActive = true;
+					setTimeout(() => { flipHintActive = false; }, 1200);
+				}
+			},
+			{ threshold: 0.3 }
+		);
+		observer.observe(sectionEl);
+		return () => observer.disconnect();
 	});
 </script>
 
 <style>
 	.is-flipped { transform: rotateY(180deg); }
+
+	@keyframes flip-hint {
+		0%   { transform: rotateY(0deg); }
+		40%  { transform: rotateY(-35deg); }
+		70%  { transform: rotateY(-15deg); }
+		100% { transform: rotateY(0deg); }
+	}
+	.flip-hint-active {
+		animation: flip-hint 1.2s ease-in-out;
+	}
 </style>
 
-<section class="mt-16 w-full max-w-6xl px-4">
+<section bind:this={sectionEl} class="mt-16 w-full max-w-6xl px-4">
 	<div class="mb-5 text-center">
 		<h2 class="mb-2 text-2xl font-extrabold tracking-tight text-warm-800">Try it now</h2>
 		<p class="mx-auto max-w-lg text-sm leading-relaxed text-warm-500">
@@ -255,7 +335,7 @@
 		</p>
 	</div>
 
-	<div class="overflow-hidden rounded-2xl border border-warm-200 bg-sage-100 shadow-sm" style="min-height: 560px;">
+	<div class="overflow-hidden rounded-2xl border border-warm-200 bg-sage-100 text-left shadow-sm" style="min-height: 560px;">
 		<!-- ========== MOBILE layout (< lg) ========== -->
 		<div class="flex flex-col lg:hidden" style="height: 80vh; max-height: 700px;">
 			<div class="relative h-[35%] shrink-0 border-b border-warm-200">
@@ -333,6 +413,43 @@
 			onClear={clearDemoRating}
 			onClose={() => { ratingPlaceId = null; }}
 		/>
+	{/if}
+
+	<!-- Hidden file input for photo upload -->
+	<input
+		bind:this={photoFileInput}
+		type="file"
+		accept="image/jpeg,image/png,image/webp"
+		multiple
+		class="hidden"
+		onchange={handlePhotoFiles}
+	/>
+
+	<!-- Photo viewer overlay -->
+	{#if photoViewerUrls.length > 0}
+		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+		<div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80" onclick={closePhotoViewer}>
+			<button onclick={closePhotoViewer} class="absolute right-4 top-4 rounded-full bg-white/20 p-2 text-white transition-colors hover:bg-white/30" aria-label="Close viewer">
+				<svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+			</button>
+			{#if photoViewerUrls.length > 1}
+				<button onclick={(e) => { e.stopPropagation(); photoViewerIndex = (photoViewerIndex - 1 + photoViewerUrls.length) % photoViewerUrls.length; }}
+					class="absolute left-4 rounded-full bg-white/20 p-2 text-white transition-colors hover:bg-white/30" aria-label="Previous photo">
+					<svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+				</button>
+				<button onclick={(e) => { e.stopPropagation(); photoViewerIndex = (photoViewerIndex + 1) % photoViewerUrls.length; }}
+					class="absolute right-14 rounded-full bg-white/20 p-2 text-white transition-colors hover:bg-white/30" aria-label="Next photo">
+					<svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+				</button>
+			{/if}
+			<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+			<div onclick={(e) => e.stopPropagation()} class="max-h-[80vh] max-w-[90vw]">
+				<img src={photoViewerUrls[photoViewerIndex]} alt="Photo {photoViewerIndex + 1}" class="max-h-[80vh] max-w-[90vw] rounded-lg object-contain" />
+			</div>
+			{#if photoViewerUrls.length > 1}
+				<span class="absolute bottom-4 rounded-full bg-white/20 px-3 py-1 text-sm text-white">{photoViewerIndex + 1} / {photoViewerUrls.length}</span>
+			{/if}
+		</div>
 	{/if}
 </section>
 
@@ -528,22 +645,22 @@
 		</div>
 	{:else}
 		<div class="grid grid-cols-1 gap-2 @lg:grid-cols-2 @lg:gap-3">
-			{#each sortedPlaces as place (place.id)}
-				{@const placeTags = getPlaceTags(place.id)}
-				{@const isFlipped = flippedCards.has(place.id)}
-				{@const isSelected = selectedPlaceId === place.id}
-				{@const noteText = noteTexts[place.id] ?? ''}
+		{#each sortedPlaces as place, idx (place.id)}
+			{@const placeTags = getPlaceTags(place.id)}
+			{@const isFlipped = flippedCards.has(place.id)}
+			{@const isSelected = selectedPlaceId === place.id}
+			{@const noteText = noteTexts[place.id] ?? ''}
 
-				<div>
-				<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-				<div class="[perspective:800px] lg:[perspective:1000px] {cardMenuId === place.id ? 'relative z-10' : ''}" data-place-id={place.id}
-					onclick={(e) => handleCardClick(place.id, e)}>
-					<div class="flip-inner relative transition-transform duration-500 [transform-style:preserve-3d]"
-						class:is-flipped={isFlipped}>
+			<div>
+			<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+			<div class="[perspective:800px] lg:[perspective:1000px] {cardMenuId === place.id ? 'relative z-10' : ''}" data-place-id={place.id}
+				onclick={(e) => handleCardClick(place.id, e)}>
+				<div class="flip-inner relative transition-transform duration-500 [transform-style:preserve-3d] {idx === 0 && flipHintActive && !isFlipped ? 'flip-hint-active' : ''}"
+					class:is-flipped={isFlipped}>
 
 						<!-- FRONT FACE -->
 						<div class="[backface-visibility:hidden]">
-							<article class="group flex cursor-pointer flex-col rounded-xl border bg-white p-3 transition-all hover:shadow-md hover:shadow-warm-200/50 sm:rounded-2xl sm:p-4 h-[148px] lg:h-[170px] {isSelected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}">
+							<article class="group flex cursor-pointer flex-col overflow-hidden rounded-xl border bg-white p-3 transition-all hover:shadow-md hover:shadow-warm-200/50 sm:rounded-2xl sm:p-4 h-[148px] lg:h-[170px] {isSelected ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-warm-200'}">
 								<!-- Title row -->
 								<div class="mb-0.5 flex items-center justify-between gap-2">
 									<h3 class="min-w-0 flex-1 line-clamp-1 text-[15px] font-extrabold leading-snug text-warm-800 sm:text-base sm:tracking-tight">{place.title}</h3>
@@ -574,7 +691,14 @@
 															Open in Map
 														</a>
 													{/if}
-													<button onclick={(e) => { e.stopPropagation(); cardMenuId = null; openRatingEditor(place.id, e); }}
+													<button onclick={(e) => { e.stopPropagation(); cardMenuId = null; triggerPhotoUpload(place.id); }}
+													class="flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium text-warm-600 hover:bg-warm-50">
+													<svg class="h-4 w-4 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+														<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
+													</svg>
+													Add Photo{#if (demoPhotos[place.id]?.length ?? 0) > 0}<span class="ml-auto text-xs text-warm-400">{demoPhotos[place.id].length}/{DEMO_MAX_PHOTOS_PER_PLACE}</span>{/if}
+												</button>
+												<button onclick={(e) => { e.stopPropagation(); cardMenuId = null; openRatingEditor(place.id, e); }}
 														class="flex w-full items-center gap-2.5 px-3 py-2 text-sm font-medium text-warm-600 hover:bg-warm-50">
 														<svg class="h-4 w-4 text-warm-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 															<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
@@ -611,6 +735,22 @@
 									</div>
 								</div>
 
+								<!-- Photos strip -->
+								{#if (demoPhotos[place.id]?.length ?? 0) > 0}
+									<div class="mt-1 flex gap-1 overflow-x-auto" style="-webkit-overflow-scrolling: touch; scrollbar-width: none;">
+										{#each demoPhotos[place.id] as photoUrl, pi}
+											<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+											<div class="group/photo relative shrink-0" onclick={(e) => { e.stopPropagation(); openPhotoViewer(place.id, pi); }}>
+												<img src={photoUrl} alt="Photo {pi + 1}" class="h-12 w-12 rounded-md object-cover sm:h-14 sm:w-14" />
+												<button onclick={(e) => { e.stopPropagation(); removeDemoPhoto(place.id, pi); }}
+													class="absolute -right-1 -top-1 hidden h-4 w-4 items-center justify-center rounded-full bg-warm-700/80 text-white group-hover/photo:flex"
+													aria-label="Remove photo">
+													<svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+												</button>
+											</div>
+										{/each}
+									</div>
+								{/if}
 								<!-- Middle: note preview or description -->
 								<div class="min-h-0 flex-1">
 									{#if noteText}
@@ -695,6 +835,9 @@
 						</div>
 					</div>
 				</div>
+				{#if idx === 0 && flipHintActive}
+					<p class="mt-1 text-center text-xs font-medium text-warm-400 animate-pulse">Click card to flip & add notes</p>
+				{/if}
 
 				<!-- Tag suggestion dropdown (floating, like prod) -->
 				{#if tagAssignPlaceId === place.id && (tagSuggestions.length > 0 || tagInputShowCreate)}

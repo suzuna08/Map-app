@@ -49,29 +49,45 @@
 
 	const HANDLE_PX = 24;
 
-	const POPUP_CLEARANCE_PHOTOS = 180;
-	const POPUP_CLEARANCE_SIMPLE = 90;
+	const POPUP_ABOVE_PIN_PHOTOS = 230;
+	const POPUP_ABOVE_PIN_SIMPLE = 110;
 
 	function getFrameOffset(placeId?: string | null): [number, number] {
 		if (mapMode === 'collapsed') return [0, -(HANDLE_PX / 2)];
+
+		const hasPhotos = placeId ? (placePhotos[placeId]?.length ?? 0) > 0 : false;
+		const popupAbovePin = hasPhotos ? POPUP_ABOVE_PIN_PHOTOS : POPUP_ABOVE_PIN_SIMPLE;
+		const popupCenterAbovePin = Math.round(popupAbovePin / 2);
+
 		if (mapPaddingBottom > 0) {
-			const shift = Math.round(mapPaddingBottom / 2.5);
-			return [0, -shift];
+			const h = mapHeight || 800;
+			const visibleHeight = h - mapPaddingBottom;
+			const desiredPinY = visibleHeight / 2 + popupCenterAbovePin;
+			const clampedPinY = Math.max(
+				popupAbovePin + 10,
+				Math.min(desiredPinY, visibleHeight - 30)
+			);
+			return [0, clampedPinY - h / 2];
 		}
 		if (mapMode === 'expanded') {
-			const hasPhotos = placeId ? (placePhotos[placeId]?.length ?? 0) > 0 : false;
-			const clearance = hasPhotos ? POPUP_CLEARANCE_PHOTOS : POPUP_CLEARANCE_SIMPLE;
-			const ratio = hasPhotos ? 0.35 : 0.2;
-			const shift = Math.min(clearance, Math.round(mapHeight * ratio));
-			return [0, shift];
+			const h = mapHeight || 800;
+			const desiredPinY = h / 2 + popupCenterAbovePin;
+			const clampedPinY = Math.max(
+				popupAbovePin + 10,
+				Math.min(desiredPinY, h - 30)
+			);
+			return [0, clampedPinY - h / 2];
 		}
-		return [0, 0];
+		// Default (desktop side panel): center the popup card in the visible area
+		const h = container?.clientHeight ?? 600;
+		const shift = Math.min(popupCenterAbovePin, Math.round(h * 0.25));
+		return [0, shift];
 	}
 
 	function getFramePadding(): number | { top: number; bottom: number; left: number; right: number } {
 		if (mapMode === 'collapsed') return { top: 8, bottom: HANDLE_PX + 8, left: 12, right: 12 };
 		if (mapPaddingBottom > 0) return { top: 50, bottom: mapPaddingBottom + 20, left: 50, right: 50 };
-		return 50;
+		return { top: 80, bottom: 50, left: 50, right: 50 };
 	}
 
 	onMount(() => {
